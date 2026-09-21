@@ -49,7 +49,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 SHA = re.compile(r"[0-9a-f]{40}")
 SELF = "(this repository)"
-LEGACY = "(monorepo era, this tree's history)"
+LEGACY = "(monorepo era, in the library's history)"
 #: The block `capture_env` adds for the library. A record is from after the split when
 #: this block names a different commit from the record's own. Its mere presence is not
 #: enough: records written while both halves were still one tree carry it too, and there
@@ -180,7 +180,9 @@ def main(argv=None) -> int:
               "Fetch with full depth and tags.")
         return 2
     if report["unreachable"]:
-        print("\nUNREACHABLE, no ref reaches these. Tag them before they are pruned:")
+        print("\nUNREACHABLE, no ref reaches these. Tag them before they are pruned.\n"
+              "(If --legacy was not given: records from before the split cite commits of the\n"
+              "library's repository, not this one. Pass --legacy PATH with a clone of it.)")
         for owner, sha, count in report["unreachable"]:
             print(f"    {sha}  {count:4d} stamps  {owner}")
         return 1

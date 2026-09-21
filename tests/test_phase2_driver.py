@@ -171,12 +171,14 @@ def test_the_tolerance_is_defended_at_its_actual_value(tmp_path):
     assert check.main(["--results", str(tmp_path)]) == 1
 
 
-def test_the_tolerance_matches_the_gpu_test():
-    """Same claim, so the same number. If tests/gpu moves, this has to move with it."""
-    gpu_test = (pathlib.Path(__file__).resolve().parent / "gpu"
-                / "test_device_invariance_gpu.py").read_text()
-    assert "SHARDING_RTOL = 1e-5" in gpu_test
+def test_the_tolerance_matches_the_gpu_test(request):
+    """Same claim, so the same number. The other half of the claim is the library's
+    `tests/gpu`, in its own repository now, so that half needs a checkout of it
+    (`library_repo` in conftest.py). This half never does."""
     assert check.RTOL == 1e-5
+    library = request.getfixturevalue("library_repo")
+    gpu_test = (library / "tests" / "gpu" / "test_device_invariance_gpu.py").read_text()
+    assert "SHARDING_RTOL = 1e-5" in gpu_test
 
 
 def test_weak_scaling_rows_are_not_held_to_the_identity_claim(tmp_path):
@@ -324,14 +326,15 @@ def test_a_near_zero_probe_component_does_not_manufacture_a_failure(tmp_path):
     assert check.main(["--results", str(tmp_path)]) == 0
 
 
-def test_the_guard_uses_the_same_measure_as_the_gpu_test():
-    """Same claim, same metric. tests/gpu compares norms; so must this."""
-    gpu = (pathlib.Path(__file__).resolve().parent / "gpu"
-           / "test_device_invariance_gpu.py").read_text()
-    assert "np.linalg.norm(a - b) / np.linalg.norm(b)" in gpu
+def test_the_guard_uses_the_same_measure_as_the_gpu_test(request):
+    """Same claim, same metric. The library's tests/gpu compares norms; so must this. This
+    repository's half is checked always, the library's when a checkout of it is at hand."""
     src = (PHASE2 / "check.py").read_text()
     assert "np.linalg.norm(a - b) / denom" in src
     assert "1e-30" not in src, "the elementwise divide-by-near-zero metric is back"
+    library = request.getfixturevalue("library_repo")
+    gpu = (library / "tests" / "gpu" / "test_device_invariance_gpu.py").read_text()
+    assert "np.linalg.norm(a - b) / np.linalg.norm(b)" in gpu
 
 
 class _FakeDevice:

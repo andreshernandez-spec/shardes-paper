@@ -4,6 +4,12 @@ Sets the simulated-device flag before jax is imported so it cannot be forgotten 
 command line (docs/conventions.md, "Tests"). The gpu marker and its default deselection
 live in pyproject.toml.
 
+Three tests here need a git checkout of the library, with history, and not merely the
+installed package: the provenance audit (records from the monorepo era cite commits that
+live in the library's history), and the check that every benchmarked strategy is also
+guarded on real hardware (that list is in the library's tests/gpu). `library_repo` finds
+one or skips, and says which.
+
 Budget: the whole suite runs on CPU, no GPU, no network, in two tiers. `pytest --fast` is
 structural only and is the inner loop; plain `pytest` runs the statistical tier too and is
 the default. `docs/conventions.md` carries the budgets and why the default is the slow one.
@@ -69,3 +75,36 @@ def pytest_report_header(config):
         f"jax {jax.__version__}, {jax.device_count()} device(s), "
         f"platform {jax.devices()[0].platform}, x64 {jax.config.jax_enable_x64}"
     )
+
+
+def _library_checkout():
+    """A git checkout of shardes, or None. `SHARDES_REPO` wins; otherwise the checkout the
+    imported package lives in, if it lives in one (an editable or path install)."""
+    import pathlib
+    import subprocess
+
+    candidates = []
+    if os.environ.get("SHARDES_REPO"):
+        candidates.append(pathlib.Path(os.environ["SHARDES_REPO"]))
+    try:
+        import shardes
+
+        candidates.append(pathlib.Path(shardes.__file__).resolve().parents[2])
+    except Exception:  # noqa: BLE001
+        pass
+    for path in candidates:
+        if (path / "src" / "shardes" / "__init__.py").is_file():
+            inside = subprocess.run(["git", "-C", str(path), "rev-parse", "--is-inside-work-tree"],
+                                    capture_output=True, text=True, check=False)
+            if inside.stdout.strip() == "true":
+                return path
+    return None
+
+
+@pytest.fixture(scope="session")
+def library_repo():
+    path = _library_checkout()
+    if path is None:
+        pytest.skip("needs a git checkout of the shardes library: set SHARDES_REPO, or "
+                    "install the library editable from a clone")
+    return path

@@ -1,0 +1,69 @@
+# The experiments' own checks. Nothing here needs an accelerator or the network beyond pip.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel a superseded run on a pull request, never on main: every commit there gets its
+# verdict (learned in the library's repository, where two quick merges cancelled one).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tests:
+    name: drivers, tables and provenance (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]   # the library's floor, and the newest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # A full clone of the library, not just the installed package. Records from before
+      # the split cite commits that live in its history, and two checks compare the sweep's
+      # guard with its tests/gpu. It is put at the pinned commit for the latter; the audit
+      # looks at every ref regardless.
+      - uses: actions/checkout@v4
+        with:
+          repository: andreshernandez-spec/shardes
+          path: shardes-lib
+          fetch-depth: 0
+      - name: put the library clone at the pinned commit
+        run: |
+          pin=$(grep -oE 'shardes@[0-9a-f]{40}' requirements.txt | cut -d@ -f2)
+          test -n "$pin"
+          git -C shardes-lib checkout -q "$pin"
+          echo "pinned library commit: $pin"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: install
+        run: pip install -r requirements.txt
+      - name: the library that got installed is the one that is pinned
+        run: |
+          python - <<'PY'
+          import importlib.metadata as m, json, re
+          got = json.loads(m.distribution("shardes").read_text("direct_url.json"))["vcs_info"]["commit_id"]
+          want = re.search(r"shardes@([0-9a-f]{40})", open("requirements.txt").read()).group(1)
+          assert got == want, (got, want)
+          print("shardes", m.version("shardes"), "at", got)
+          PY
+      - name: pytest
+        env:
+          SHARDES_REPO: ${{ github.workspace }}/shardes-lib
+        run: pytest -rs
+      - name: every generated table reproduces byte for byte
+        env:
+          JAX_PLATFORMS: cpu
+        run: |
+          make -C paper tables
+          git diff --exit-code -- paper/generated
+      - name: every commit a record cites is still reachable
+        run: python experiments/provenance_audit.py --legacy shardes-lib --repo shardes=shardes-lib
