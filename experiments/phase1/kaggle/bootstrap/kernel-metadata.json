@@ -1,0 +1,12 @@
+{
+  "id": "USERNAME/shardes-paper-bootstrap",
+  "title": "shardes paper bootstrap",
+  "code_file": "bootstrap.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [], "competition_sources": [],
+  "kernel_sources": [], "model_sources": []
+}
