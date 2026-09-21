@@ -1,0 +1,6 @@
+# The GRPO reference arm only (experiments/countdown/run_grpo.py). Torch-sized, and nothing
+# else in this repository needs it.
+-r requirements-models.txt
+torch
+trl
+datasets

@@ -1,0 +1,8 @@
+# The real-model experiments (E13 to E19): Qwen checkpoints through the library's port.
+# jinja2 is not optional: transformers needs it for chat templates and does not install it,
+# which cost the first launch of the 08-22 campaign on all three pods.
+-r requirements.txt
+transformers
+huggingface_hub
+safetensors
+jinja2

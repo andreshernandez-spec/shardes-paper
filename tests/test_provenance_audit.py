@@ -1,7 +1,7 @@
 """`experiments/provenance_audit.py`: every commit a record cites must stay fetchable.
 
-Loaded by path, like the other drivers, because experiments/ is not a package. This file
-moves with the experiments when the repository splits (docs/14).
+Loaded by path, like the other drivers, because experiments/ is not a package. It moved
+here with the experiments when the library got its own repository.
 """
 
 import importlib.util
@@ -61,19 +61,22 @@ def test_after_the_split_a_record_without_a_library_block_is_legacy(tmp_path):
     assert set(apart["shardes"]) == {B}
 
 
-def test_every_commit_this_repo_cites_is_reachable():
-    """The real thing, on the real records. Fails the day a rebase orphans a cited commit."""
+def test_every_commit_the_records_cite_is_reachable(library_repo):
+    """The real thing, on the real records. Most of them were written while the library and
+    the experiments were one tree, so the commits they cite are in the library's history,
+    which is why this needs a clone of it. Fails the day a rebase orphans a cited commit."""
     root = audit.ROOT
-    if audit.git(root, "rev-parse", "--is-inside-work-tree") != "true":
-        pytest.skip("not a git checkout")
-    if audit.git(root, "rev-parse", "--is-shallow-repository") == "true":
-        pytest.skip("shallow clone: reachability cannot be decided without full history")
-    trunk = "origin/main" if audit.git(root, "rev-parse", "--verify", "-q", "origin/main") else "main"
-    report = audit.audit(root, trunk=trunk)
-    assert report["owners"][audit.SELF]["distinct"] >= 46
+    for repo in (root, library_repo):
+        if audit.git(repo, "rev-parse", "--is-shallow-repository") == "true":
+            pytest.skip(f"{repo} is a shallow clone: reachability cannot be decided")
+    trunk = ("origin/main" if audit.git(library_repo, "rev-parse", "--verify", "-q", "origin/main")
+             else "main")
+    report = audit.audit(root, repos={"shardes": library_repo}, legacy=library_repo,
+                         trunk=trunk)
+    assert report["owners"][audit.LEGACY]["distinct"] >= 46
     assert report["unreachable"] == [], (
-        "no ref reaches these cited commits; tag them (git tag provenance/<sha> <sha>) and "
-        f"push the tag: {report['unreachable']}")
+        "no ref reaches these cited commits; tag them in the repository that holds them "
+        f"(git tag provenance/<sha> <sha>) and push the tag: {report['unreachable']}")
 
 
 def test_an_orphaned_commit_fails_the_audit(tmp_path):

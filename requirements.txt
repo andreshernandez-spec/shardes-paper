@@ -1,0 +1,16 @@
+# What the drivers, the table scripts and the test suite need. One line in this file is
+# load-bearing: the shardes pin. A result is reproduced by checking this repository out at
+# the commit its record stamps and installing from here, so the library commit is a
+# function of this repository's commit and nobody types it by hand. `harness.capture_env`
+# records which shardes actually ran, as a check on exactly that.
+#
+# To develop against a local checkout of the library instead:
+#     pip install -e ../es          (or wherever the clone is)
+# and the record will say source "checkout", with that checkout's commit and dirty flag.
+#
+# An accelerator run installs jax for its platform on top, as before:
+#     pip install -U "jax[cuda12]>=0.11"     or     "jax[tpu]>=0.11"
+shardes @ git+https://github.com/andreshernandez-spec/shardes@bfdabd2a8687d1e6a5899b37e9801e8aa587f91e
+matplotlib
+pyyaml
+pytest

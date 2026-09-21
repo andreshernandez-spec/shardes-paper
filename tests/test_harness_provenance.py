@@ -1,7 +1,7 @@
 """`harness.library_provenance`: a record has to say which shardes did the arithmetic.
 
-Loaded by path, like the other drivers, because experiments/ is not a package. This file
-moves with the experiments when the repository splits (docs/14).
+Loaded by path, like the other drivers, because experiments/ is not a package. It moved
+here with the experiments when the library got its own repository.
 """
 
 import importlib.util
@@ -33,14 +33,18 @@ def not_a_checkout(here, *args):
     return ""  # what `git` prints for an untracked path or outside any repository
 
 
-def test_in_one_tree_the_library_commit_is_the_drivers_commit():
-    """The monorepo invariant, and the audit relies on it: a record whose two commits are
-    equal was written while the library was a directory of the same tree."""
+def test_the_library_is_stamped_separately_from_this_repository():
+    """The reason the block exists. Here the library is a pinned dependency with its own
+    history, so its commit is never this repository's commit. (While both were one tree the
+    two were equal, which is how `provenance_audit.py` still tells a monorepo-era record
+    from a later one.)"""
     env = harness.capture_env(ROOT / "experiments" / "phase2", ())
     lib = env["shardes"]
-    assert lib["source"] == "checkout", lib
-    assert lib["commit"] == env["commit"] and len(lib["commit"]) == 40
+    assert lib["source"] in ("vcs", "checkout", "index"), lib
     assert isinstance(lib["dirty"], bool) and isinstance(lib["version"], str)
+    if lib["source"] != "index":
+        assert len(lib["commit"]) == 40, lib
+        assert lib["commit"] != env["commit"], "the library commit cannot be this repo's HEAD"
 
 
 def test_the_old_fields_are_untouched():

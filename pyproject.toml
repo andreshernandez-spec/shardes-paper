@@ -1,0 +1,10 @@
+# This repository is not a package. There is nothing to build, install or publish: it is
+# the paper, the experiments behind it, and their results. Dependencies are in
+# requirements*.txt, where the shardes pin lives. This file only configures pytest.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not gpu'"
+markers = [
+    "gpu: needs a real GPU, deselected by default",
+    "slow: a statistical measurement rather than a unit test; skipped by --fast",
+]
