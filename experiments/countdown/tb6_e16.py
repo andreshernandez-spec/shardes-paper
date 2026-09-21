@@ -25,7 +25,6 @@ from analysis_e15 import e1_curve, fit_predict
 
 HERE = Path(__file__).resolve().parent
 import sys
-sys.path.insert(0, str(HERE.parent.parent / "src"))
 from shardes.dimensions import FULL, sampling_dimension  # noqa: E402
 from shardes.problems import qwen2  # noqa: E402
 

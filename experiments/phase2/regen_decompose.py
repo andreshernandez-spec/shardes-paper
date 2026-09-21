@@ -39,7 +39,6 @@ import jax.numpy as jnp
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE.parent.parent / "src"))
 import harness  # noqa: E402
 from cost import Config, measure  # noqa: E402
 from shardes.problems import transformer_block  # noqa: E402

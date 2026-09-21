@@ -39,7 +39,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent.parent))  # experiments/ for harness
-sys.path.insert(0, str(HERE.parent.parent.parent / "src"))
 
 import jax  # noqa: E402
 
