@@ -33,7 +33,6 @@ import jax.numpy as jnp
 HERE = Path(__file__).resolve().parent
 E1 = HERE.parent / "phase0" / "results"
 
-sys.path.insert(0, str(HERE.parent.parent / "src"))
 from shardes.dimensions import FULL, sampling_dimension  # noqa: E402
 from shardes.problems import qwen2  # noqa: E402
 

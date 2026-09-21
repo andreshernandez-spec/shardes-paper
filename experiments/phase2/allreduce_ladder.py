@@ -43,7 +43,6 @@ from jax.sharding import NamedSharding, PartitionSpec as P
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
-sys.path.insert(0, str(HERE.parent.parent / "src"))
 import harness  # noqa: E402
 from shardes import sharding  # noqa: E402
 
