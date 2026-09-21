@@ -40,6 +40,15 @@ jobs:
           test -n "$pin"
           git -C shardes-lib checkout -q "$pin"
           echo "pinned library commit: $pin"
+          # The comment beside the pin may name the release it is. A name that points
+          # somewhere else is worse than no name.
+          tag=$(grep -E "shardes@$pin" requirements.txt | grep -oE '#[[:space:]]*v[0-9][^[:space:]]*' | tr -d '# ' || true)
+          if [ -n "$tag" ]; then
+            test "$(git -C shardes-lib rev-parse "$tag^{commit}")" = "$pin"
+            echo "which is $tag"
+          else
+            echo "which is not a tagged release"
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
