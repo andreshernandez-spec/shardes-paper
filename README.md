@@ -32,7 +32,9 @@ checks that every commit any record cites can still be fetched. It runs in CI.
 
 `requirements.txt` pins shardes to one commit. A result is reproduced by checking this
 repository out at the commit its record stamps and installing from that file, so the
-library commit follows from this repository's commit and nobody types it by hand.
+library commit follows from this repository's commit and nobody types it by hand. The
+pin is always a full commit hash, since a tag can move; a release's tag is named in a
+comment beside it, and CI checks that the two agree.
 
 To work on the library and the experiments together, install a clone of it editable
 (`pip install -e ../shardes`). Records then say `"source": "checkout"` with that
