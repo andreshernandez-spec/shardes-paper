@@ -85,7 +85,8 @@ Two implementation-level differences from the reference code, moved here
 because they are boundary conditions rather than results. The reference's
 rank-1 path does not compile on a 16\,GB TPU chip at $d{=}512$,
 $N{=}16384$: the compiler allocates 24.1\,GiB of temporaries,
-reproducible with no TPU via the compile-only probe in the repository,
+reproducible with no TPU via the compile-only probe released with the
+experiments,
 the same pathology this instrument diagnosed and works around. The workaround
 pads rank-1 factors with one zero column on TPU so the compiler retains a fused
 matrix multiply; its numerical footprint and regression check are archived, and
@@ -234,14 +235,21 @@ numbers per placement across the whole grid, so the paper states them rather
 than tabling them. Table~\ref{tab:tb6}'s predicted columns are the committed E1 fit
 and the 0.53 correction, both frozen (rounded) in \texttt{e16-gate.yaml}
 and \texttt{e16-stage2.yaml} before the runs; nothing in them is fit to
-E16's measurements. The test
+E16's measurements. The instrument's test
 suite runs on CPU with no network; the multi-device logic is exercised on
 eight simulated devices, so correctness properties (including the
 device-count invariance test) are checkable without any accelerator, and the
 two TPU compile probes
-(\texttt{probe\_lr1.py}, \texttt{probe\_eggroll\_tpu.py}) reproduce
-the compiler-level claims from any Linux machine. Source and result records
-are at \url{https://github.com/andreshernandez-spec/shardes}. With the project
-extras installed, \texttt{make -C paper} regenerates all generated tables and
-builds the PDF; the provenance paragraph in Section~\ref{sec:setup} names the
+(\texttt{tools/probe\_lr1.py} with the instrument,
+\texttt{probe\_eggroll\_tpu.py} with the experiments) reproduce
+the compiler-level claims from any Linux machine. The instrument and its test
+suite are at \url{https://github.com/andreshernandez-spec/shardes}; the
+scripts named above, their configurations, the result records and this
+manuscript are at \url{https://github.com/andreshernandez-spec/shardes-paper},
+which installs the instrument at the commit pinned in its
+\texttt{requirements.txt}. There, after
+\texttt{pip install -r requirements.txt}, \texttt{make -C paper} regenerates
+all generated tables and builds the PDF, and continuous integration fails if a
+regenerated table differs from the committed one by a byte or if any commit a
+result record cites can no longer be fetched; the provenance paragraph in Section~\ref{sec:setup} names the
 frozen submission tag once assigned.
