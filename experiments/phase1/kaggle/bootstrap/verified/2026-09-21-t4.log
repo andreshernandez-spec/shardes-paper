@@ -1,0 +1,82 @@
+$ nvidia-smi -L
+GPU 0: Tesla T4 (UUID: GPU-6a3b8fa1-299e-743b-ab2f-d24dd1bd6e49)
+GPU 1: Tesla T4 (UUID: GPU-35442e34-f66b-7ae9-445d-782ebb9ecf65)
+$ /usr/bin/python3 -m pip install -q -U jax[cuda12]>=0.11
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 37.1 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.6/8.6 MB 93.4 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 188.2/188.2 MB 10.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 89.9/89.9 MB 20.3 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.7/16.7 MB 73.5 MB/s eta 0:00:00
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+bigframes 2.39.0 requires google-cloud-bigquery-storage<3.0.0,>=2.30.0, which is not installed.
+ydata-profiling 4.18.4 requires numpy<2.4,>=1.22, but you have numpy 2.5.3 which is incompatible.
+google-colab 1.0.0 requires jupyter-server==2.14.0, but you have jupyter-server 2.12.5 which is incompatible.
+google-colab 1.0.0 requires pandas==2.2.2, but you have pandas 2.3.3 which is incompatible.
+dopamine-rl 4.1.2 requires gym<=0.25.2, but you have gym 0.26.2 which is incompatible.
+moviepy 1.0.3 requires decorator<5.0,>=4.0.2, but you have decorator 5.3.1 which is incompatible.
+numba 0.60.0 requires numpy<2.1,>=1.22, but you have numpy 2.5.3 which is incompatible.
+$ git clone -q https://github.com/andreshernandez-spec/shardes-paper.git /tmp/paper
+$ git checkout -q 5571dcbba642d2ce3cca58f9d5ab48e7275192f4
+$ git log --oneline -1
+5571dcb make this a repository of its own: the pin, the tests, CI and a README
+$ /usr/bin/python3 -m pip install -q -r requirements.txt
+$ /usr/bin/python3 -c 
+import importlib.metadata as m, json, jax
+devs = jax.devices()
+print("jax", jax.__version__, [d.device_kind for d in devs])
+assert len(devs) == 2 and all(d.platform == "gpu" for d in devs), devs
+got = json.loads(m.distribution("shardes").read_text("direct_url.json"))["vcs_info"]["commit_id"]
+assert got == "bfdabd2a8687d1e6a5899b37e9801e8aa587f91e", (got, "bfdabd2a8687d1e6a5899b37e9801e8aa587f91e")
+import shardes
+print("shardes", shardes.__version__, "at", got)
+
+jax 0.11.2 ['Tesla T4', 'Tesla T4']
+shardes 0.1.0.dev0 at bfdabd2a8687d1e6a5899b37e9801e8aa587f91e
+$ /usr/bin/python3 -m pytest -q -p no:cacheprovider
+heme_is_on[iid]
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+  /usr/local/lib/python3.12/dist-packages/matplotlib/_fontconfig_pattern.py:85: PyparsingDeprecationWarning: 'parseString' deprecated - use 'parse_string'
+    parse = parser.parseString(pattern)
+
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+  /usr/local/lib/python3.12/dist-packages/matplotlib/_fontconfig_pattern.py:89: PyparsingDeprecationWarning: 'resetCache' deprecated - use 'reset_cache'
+    parser.resetCache()
+
+tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
+  /usr/local/lib/python3.12/dist-packages/matplotlib/_mathtext.py:45: PyparsingDeprecationWarning: 'enablePackrat' deprecated - use 'enable_packrat'
+    ParserElement.enablePackrat()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+151 passed, 12 skipped, 14 warnings in 10.92s
+
+$ /usr/bin/python3 feed_fusion.py --d-model 64 --population 16 --repeats 5 --warmup 2
+tell_fed      0.777 ms   [0.747, 0.798]
+tell_cut      0.774 ms   [0.757, 0.779]
+
+gap (fed - cut): +0.003 ms  (+0.38% of the generation)
+
+wrote /tmp/paper/experiments/phase2/results-feed-fusion/d=64__N=16__s=iid_gaussian__how=A.json
+{
+ "commit": "5571dcbba642d2ce3cca58f9d5ab48e7275192f4",
+ "dirty_worktree": false,
+ "shardes": {
+  "version": "0.1.0.dev0",
+  "commit": "bfdabd2a8687d1e6a5899b37e9801e8aa587f91e",
+  "dirty": false,
+  "source": "vcs"
+ },
+ "device_kind": "Tesla T4",
+ "jax": "0.11.2"
+}
+BOOTSTRAP OK
+/usr/local/lib/python3.12/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\|'
+  cells[i][c] = re.sub('\\\\\|', '|', cell)
+/usr/local/lib/python3.12/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\_'
+  text = re.sub(r'_', '\_', text) # Escape underscores in display text
+[NbConvertApp] Converting notebook __script__.ipynb to html
+[NbConvertApp] Writing 290185 bytes to __results__.html
