@@ -7,9 +7,12 @@ on:
     branches: [main]
 
 # Cancel a superseded run on a pull request, never on main: every commit there gets its
-# verdict (learned in the library's repository, where two quick merges cancelled one).
+# verdict. Turning cancellation off was not enough for that: GitHub holds at most one
+# pending run per concurrency group and cancels it when a third arrives, and the five
+# merges of 2026-09-22 (#1 to #5, seventy seconds) lost the verdicts of #2 and #4 that
+# way. On main the group is the commit itself, so nothing waits behind anything.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
