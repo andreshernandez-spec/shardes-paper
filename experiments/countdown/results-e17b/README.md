@@ -1,7 +1,7 @@
 # E17b: the real-model contraction crossover as a figure. TPU v5e-8, 2026-08-25 to 08-31
 
 All 128 cells of `e17b.yaml` (predictions frozen in its header before any run), five
-free Kaggle TPU v5e-8 sessions, kernel `[account removed]/shardes-e17b-tpu`. One complete
+free Kaggle TPU v5e-8 sessions, kernel `shardes-e17b-tpu` (`kaggle/e17btpu/`). One complete
 production update per cell (ask, teacher-forced NLL on E15's frozen batch, tell) on
 Qwen2.5-0.5B, matmul precision highest, 3 warm-ups discarded and 5 timed repeats.
 `plot_e17.py` draws F9. 68 cells timed, 60 recorded OOM.

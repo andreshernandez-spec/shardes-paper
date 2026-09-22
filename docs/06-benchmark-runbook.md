@@ -284,10 +284,12 @@ would silently change what the sweep measures. **The guard now always runs at `h
 timed generations run at the config's `matmul_precision`, and both are recorded in every
 result.** A throughput number without its precision is not a number.
 
-**Keep the notebook private.** T2′ runs on the personal Kaggle account
-(`[address removed]`), which is not the `andreshernandez-spec` identity the repo is published
-under; a phone number can only verify one Kaggle account, so this is not a thing to tidy up
-later. It costs nothing: the result travels into the repo as the `test_report_the_environment`
+**Keep the notebook private.** T2′ runs on a personal Kaggle account, which is not the
+`andreshernandez-spec` identity the repo is published under; a phone number can only verify
+one Kaggle account, so this is not a thing to tidy up later. The account is not written
+down here either: kernel metadata is committed with a `USERNAME` placeholder that the
+runner fills in at push time, the logs are ignored, and `tests/test_no_kaggle_account.py`
+fails on a kernel id or an address that names it. It costs nothing: the result travels into the repo as the `test_report_the_environment`
 output in a commit, so provenance comes from the commit, not from the notebook. Publishing the
 notebook would be the one step that ties an unrelated identity to the project for no gain.
 
