@@ -8,9 +8,12 @@
 #     pip install -e ../es          (or wherever the clone is)
 # and the record will say source "checkout", with that checkout's commit and dirty flag.
 #
+# The pin is a commit and not a tag, because a tag can be moved and a commit cannot. When
+# the commit is a release, the tag is named beside it, and CI checks that the two agree.
+#
 # An accelerator run installs jax for its platform on top, as before:
 #     pip install -U "jax[cuda12]>=0.11"     or     "jax[tpu]>=0.11"
-shardes @ git+https://github.com/andreshernandez-spec/shardes@bfdabd2a8687d1e6a5899b37e9801e8aa587f91e
+shardes @ git+https://github.com/andreshernandez-spec/shardes@02295332f11c3b64dc383ec4f009be38753b2003  # v0.1.0
 matplotlib
 pyyaml
 pytest
