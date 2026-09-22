@@ -1,6 +1,6 @@
 {
   "env": {
-    "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+    "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
     "device_count": 8,
     "device_kind": "TPU v5 lite",
     "device_platform": "tpu",
@@ -27,7 +27,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -61,7 +61,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -95,7 +95,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -129,7 +129,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -163,7 +163,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -197,7 +197,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -231,7 +231,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -265,7 +265,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -299,7 +299,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -333,7 +333,7 @@
       "d_model": 512,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -367,7 +367,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -401,7 +401,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -435,7 +435,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -469,7 +469,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -502,7 +502,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -532,7 +532,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -566,7 +566,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -600,7 +600,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -634,7 +634,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",
@@ -667,7 +667,7 @@
       "d_model": 2048,
       "devices": 8,
       "env": {
-        "commit": "e9aa7b74277dfb9d3e55f503bbd65b0ca9df8d29",
+        "commit": "ce29af3c789b7d4b9d04a50be29c1821d7df7d94",
         "device_count": 8,
         "device_kind": "TPU v5 lite",
         "device_platform": "tpu",

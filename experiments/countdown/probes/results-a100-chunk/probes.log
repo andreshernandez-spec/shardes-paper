@@ -1,4 +1,4 @@
-1308696 chunk probe: run the decisive arms before the slow one
+f3b7e75 chunk probe: run the decisive arms before the slow one
 NVIDIA A100-SXM4-80GB, 81920 MiB
 ==== probe-seed (2026-08-31T23:45:42Z) ====
 [transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.

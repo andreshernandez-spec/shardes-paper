@@ -5,7 +5,7 @@ TPUs*, every experiment behind it, and their results.
 
 The library it measures is [shardes](https://github.com/andreshernandez-spec/shardes),
 installed here as a pinned dependency. This repository was split out of that one, with
-its history, at `bfdabd2`.
+its history, at `25b6cc6`.
 
 ## Which commit produced a result
 

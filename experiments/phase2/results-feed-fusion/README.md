@@ -1,6 +1,6 @@
 # The feed dependence is not the residual either. RTX 3080 Laptop, 2026-09-03
 
-`feed_fusion.py` at 0ddba21, one RTX 3080 Laptop GPU (16 GB), jax 0.11.0, matmul
+`feed_fusion.py` at 5439067, one RTX 3080 Laptop GPU (16 GB), jax 0.11.0, matmul
 precision highest, 5 warm-ups discarded and 51 timed repeats. Diagnosis only; nothing
 here is cited as a result.
 

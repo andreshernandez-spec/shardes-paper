@@ -2,7 +2,7 @@
 
     python compare.py --before results --after results-postfix
 
-Written for the M1 re-run: `results/` is the 2026-08-06 sweep at commit 953283f, before
+Written for the M1 re-run: `results/` is the 2026-08-06 sweep at commit d8e1057, before
 `ShardedES.apply` constrained its output to the member axis, and `results-postfix/` is the
 same configurations after. It is not specific to that change; anything that is supposed to
 alter speed without altering arithmetic can be checked this way.

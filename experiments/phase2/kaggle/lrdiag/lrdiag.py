@@ -31,7 +31,7 @@ import os
 import subprocess
 import sys
 
-SHA = "74fa602"  # guard lowrank_r1, which the sweep ran and no test checked
+SHA = "8df2f32"  # guard lowrank_r1, which the sweep ran and no test checked
 REPO = "https://github.com/andreshernandez-spec/shardes.git"
 CHECKOUT = "/kaggle/working/shardes"
 

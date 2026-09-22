@@ -2,7 +2,7 @@
 
 The full 240-cell grid of `cost-sweep.yaml` (d_model x population x strategy x compute
 dtype at D=1), run by `cost.py --allow-partial` on a rented A100-SXM4-80GB
-(RunPod community, single GPU), code at c93cf5d, clean worktree. ~2.5 h of pod time.
+(RunPod community, single GPU), code at 84168c8, clean worktree. ~2.5 h of pod time.
 
 181 cells measured, 59 recorded undersized (RESOURCE_EXHAUSTED at that shape). The
 undersized cells are surface endpoints, not gaps: the sweep is designed to run past the

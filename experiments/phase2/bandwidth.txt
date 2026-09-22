@@ -5,7 +5,7 @@
 #
 # Bytes from the compiled HLO on 8 simulated CPU devices (payload is a property of the
 # program, not of the hardware). Generation times from the 2026-08-11 sweep on
-# 8 x A100-SXM4-80GB, commit a496345.
+# 8 x A100-SXM4-80GB, commit f16ffb4.
 #
 # This replaces an extrapolation. docs/03 previously estimated the post-fix requirement at
 # "under 1% of NVLink" by scaling the pre-fix 1.894 GB/s. The real figure is 1.43%: the

@@ -137,7 +137,7 @@ stays on T0.
 ### T2′ for Gate G1 criterion 2 — the two-GPU invariance check
 
 **Status 2026-08-01: PASSED. 16 passed in 74.97 s on 2 x Tesla T4**, Kaggle, jax 0.11.0,
-commit `e720c92`, `matmul precision: highest`. No skips. Run headlessly through the API with
+commit `35315ca`, `matmul precision: highest`. No skips. Run headlessly through the API with
 `python experiments/phase1/kaggle/run.py validation/kaggle/t2prime`; the log is under `output/t2prime/`.
 
 The reference it was checked against: `{'jax': '0.11.0', 'platform': 'cpu', 'device_kind':

@@ -9,7 +9,7 @@
     "strategy": "lowrank_r1"
   },
   "env": {
-    "commit": "953283f13811901f4c6314a561b85405e7b592bc",
+    "commit": "d8e10575e80289ceb131027d8d7dd03c23742d1e",
     "device_count": 8,
     "device_kind": "NVIDIA A100-SXM4-80GB",
     "device_platform": "gpu",

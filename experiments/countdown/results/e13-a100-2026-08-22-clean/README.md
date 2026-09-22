@@ -5,7 +5,7 @@ same experiment re-run from a committed tree: the four ES arms (`pilot.yaml`,
 `pilot-lr1.yaml`, `pilot-lr4.yaml`, `pilot-lr16.yaml`) and the frozen-embedding
 ablation (`pilot-lr1-frozen-embed.yaml`), seeds 0-2, 500 generations each, 15 runs.
 Driver `e13_campaign.sh` (refuses a dirty tree), collected with `e13_harvest.sh`. Code
-at 8d06d64, jax 0.11.1, transformers 5.15.1, `runpod/pytorch:1.0.2-cu1281` image, three
+at 9cd4010, jax 0.11.1, transformers 5.15.1, `runpod/pytorch:1.0.2-cu1281` image, three
 community A100-SXM4-80GB pods in parallel: `seed` on one host, `lr1 lr1-frozen-embed`
 and `lr4 lr16` on two pods of a second host (EPYC 7742, same image and wheels). GRPO was
 not re-run; `plot_e13.py` reads its evals from the 08-17 directory.
@@ -48,15 +48,15 @@ from 4.31 to 3.62 s against rank 1's 2.52, so the ratio falls from 1.71x to 1.44
 host and the chunk setting accounts for 1.19x of it. About a quarter of the 41% was the
 evaluation setting; the rest is the perturbation.
 
-**The rank-1 arms were measured twice.** Run first at 8d06d64 they came out 24% slower
-than 08-17 (2.98 and 2.97 s), which is a671dc6: it pads the r=1 factors to a rank-2 dot
+**The rank-1 arms were measured twice.** Run first at 9cd4010 they came out 24% slower
+than 08-17 (2.98 and 2.97 s), which is 4438ba4: it pads the r=1 factors to a rank-2 dot
 so the TPU keeps them fused (rank 1 OOMed cells rank 4 ran,
 `../../../phase2/results-cost-tpu-v5e8/README.md`), and it padded on every platform.
 A same-host probe priced the pad on the A100 at 16% per update (`probes/`, below), so
-030732d made the pad TPU-only and the two rank-1 arms were re-measured under it. The
+7855a3a made the pad TPU-only and the two rank-1 arms were re-measured under it. The
 timings above are that rerun; the padded measurements are not kept, since they are not
 the released program on this platform. The other three arms are unaffected by the pad
-(nothing else in the diff touches the update path) and keep their 8d06d64 records, so
+(nothing else in the diff touches the update path) and keep their 9cd4010 records, so
 this directory carries two commits by design.
 
 Rank 1 is now the cheapest arm, 41% below full rank, where under the pad it was slower
@@ -70,8 +70,8 @@ manuscript's real-hardware invariance paragraph). Held-out reward is unmoved,
 
 `probes/` settles the pad's cost on one host, one SHA, one jax, 30 generations each,
 twice: once under the build that padded everywhere (`results-a100-pad-everywhere/`,
-6d56af5, which is what motivated the change) and once under the released build
-(`results-a100-pad-tpu-only/`, 030732d). Diagnosis only, one seed, nothing cited from
+0d2cfba, which is what motivated the change) and once under the released build
+(`results-a100-pad-tpu-only/`, 7855a3a). Diagnosis only, one seed, nothing cited from
 here:
 
 | probe | pad everywhere | pad TPU-only |
@@ -85,8 +85,8 @@ puts rank 1 41% below full rank (2.56 against 4.37, 1.71x), which is the campaig
 41% and 1.69x measured across hosts.
 
 Scope of the pad change, audited over every committed result record: of 1081 A100
-timing records only four stamp a commit at or after a671dc6, and none of them is a
-rank-1 cell. The A100 cost surface's 40 `mirrored_lr1` cells stamp c93cf5d, four days
+timing records only four stamp a commit at or after 4438ba4, and none of them is a
+rank-1 cell. The A100 cost surface's 40 `mirrored_lr1` cells stamp 84168c8, four days
 before the pad, so they measured the unpadded program all along and describe the
 released code again now; the v5e's 40 stamp 08-19 commits and are padded, which the
 TPU still is. Alignment results (E15, E16) are cosines, and the pad is numerically

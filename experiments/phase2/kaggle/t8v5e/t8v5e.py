@@ -6,7 +6,7 @@ Two short phase2 jobs on a TPU v5e-8, in one session, in cheapest-first order:
                              F2 grid's cells. Measured on 8xA100 2026-08-25; the v5e
                              half is what the paper's section 6 says is missing.
   regen_decompose.py         the four v5e cells superseded by the sliced-timer bug
-                             (results-regen/sliced-timer/, fixed in 6718d82).
+                             (results-regen/sliced-timer/, fixed in aacae7c).
 
 WHY A DEDICATED KERNEL. These rode the e17btpu kernel so they would not cost E17b its
 place in the one-session-at-a-time queue. That kernel is in ERROR with 45 of 128 grid

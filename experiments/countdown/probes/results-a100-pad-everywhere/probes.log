@@ -1,4 +1,4 @@
-6d56af5 e13 probes: same-host timing of seed, rank 1, and rank 1 without the r=1 pad
+0d2cfba e13 probes: same-host timing of seed, rank 1, and rank 1 without the r=1 pad
 ==== probe-seed (2026-08-23T00:49:38Z) ====
 [transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
 [0] EVAL reward 0.055 solved 0.013 format 0.43 31s

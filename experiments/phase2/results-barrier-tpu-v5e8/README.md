@@ -1,7 +1,7 @@
 # E10: the shaping barrier on TPU v5e-8, 2026-08-19
 
 All 84 cells of `barrier-tpu.yaml` in one session of the `kaggle/t3barrier/` kernel,
-pinned at bf477dd. 8x TPU v5 lite, jax 0.11.1, clean worktree. Regenerate the numbers
+pinned at 9627332. 8x TPU v5 lite, jax 0.11.1, clean worktree. Regenerate the numbers
 with `barrier.py --config barrier-tpu.yaml`; the decomposition below is per-iteration
 median with the `none` row subtracted where marked.
 

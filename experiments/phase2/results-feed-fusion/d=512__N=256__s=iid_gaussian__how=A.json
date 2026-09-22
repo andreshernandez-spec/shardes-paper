@@ -129,7 +129,7 @@
   "repeats": 51
  },
  "env": {
-  "commit": "0ddba2143a98c8ed28f03d9c12532f0d3d20a5b4",
+  "commit": "54390674bd310d82a3786d6865c150eb7816c216",
   "dirty_worktree": false,
   "jax": "0.11.0",
   "jaxlib": "0.11.0",

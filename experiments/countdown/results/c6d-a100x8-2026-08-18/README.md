@@ -1,7 +1,7 @@
 # C6d: determinism and device-count invariance at 0.5B, D in {1,8}. 2026-08-18
 
 Five runs on one 8x A100-SXM4-80GB pod (secure cloud, `env.txt`), configs
-`c6d-*.yaml` at commit 87195b6, population 32 (Mirrored's pairs cannot shard 30
+`c6d-*.yaml` at commit 01f99aa, population 32 (Mirrored's pairs cannot shard 30
 over 8 devices; this is a methods demonstration, not a training result).
 `compare_c6d.py` computes the raw comparisons and `c6d_decompose.py` is the
 follow-up that separates what the raw numbers conflate; `decompose-verdicts.txt`

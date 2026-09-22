@@ -7,7 +7,7 @@ and the conda environment are in the tree-level file one directory up and apply 
 
 The paper, its experiments and their results. The library is
 [shardes](https://github.com/andreshernandez-spec/shardes), a pinned dependency
-(`requirements.txt`), in its own repository since the split at `bfdabd2`. Nothing here is
+(`requirements.txt`), in its own repository since the split at `25b6cc6`. Nothing here is
 a package.
 
 ## Rules
@@ -21,9 +21,12 @@ a package.
    ran. A campaign driver refuses a dirty or unpushed one; a probe may run against one
    and its record says so.
 4. **Never rebase or force-push a branch that a record cites.** Records stamp commits, and
-   a rebase orphans them. It happened once (`1ba0dd0`, 34 records) and went unnoticed for
+   a rebase orphans them. It happened once (`82ab1ec`, 34 records) and went unnoticed for
    three weeks. Merge main in instead. `experiments/provenance_audit.py` is the check,
-   and it runs in CI.
+   and it runs in CI. The one exception: on 2026-09-22 both repositories were rewritten
+   to remove a personal account from three files. Every hash cited in this tree was
+   translated, and `experiments/provenance/` holds the old-to-new maps for anything
+   written down elsewhere.
 5. **Moving the pin is a commit of its own**, with the driver tests green against the new
    library commit.
 6. **Generated tables are never edited by hand.** `make -C paper tables` rewrites them, and

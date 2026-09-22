@@ -13,7 +13,7 @@ import os
 import subprocess
 import sys
 
-SHA = "57b3c81"  # SET THIS to the commit under test; must contain the prior sessions' results.
+SHA = "d8840b2"  # SET THIS to the commit under test; must contain the prior sessions' results.
 REPO = "https://github.com/andreshernandez-spec/shardes.git"
 CHECKOUT = "/kaggle/working/shardes"
 BUDGET_S = "28800"

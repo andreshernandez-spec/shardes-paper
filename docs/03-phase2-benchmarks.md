@@ -283,7 +283,7 @@ different GPU, a newer XLA, or TF32.
 
 > **Superseded by "Results, 2026-08-14" below, which measures all four strategies at one
 > commit. The `iid_gaussian`, `lowrank_r1` and `mirrored_lr1` numbers here are absolute
-> figures for a program that no longer ships.** They were measured at `a496345`, before
+> figures for a program that no longer ships.** They were measured at `f16ffb4`, before
 > `ShardedES.apply` reshaped the member axis. That change re-derives the perturbation inside
 > the vmap, which is a third materialisation, so current `main` does 1.32x the FLOPs for
 > `iid_gaussian` and about 1.08x for the low-rank strategies, with peak memory up 10 to 18%.
@@ -304,7 +304,7 @@ evaluation was replicated on every device. What changed is the program.
 differs from `sweep.yaml` by one line, `results_dir`. 0 failed, 0 over cap, 3h57m of measured
 wall on 8x A100-SXM4-80GB (driver 595.71.05, CUDA 13.2, jax 0.11.0, community cloud).
 `XLA_FLAGS` and every other knob are unchanged. Data in `experiments/phase2/results-postfix/`,
-figures in `experiments/phase2/figures-history/2026-08-11-postfix/`, commit `a496345`, all 256 records stamped
+figures in `experiments/phase2/figures-history/2026-08-11-postfix/`, commit `f16ffb4`, all 256 records stamped
 `dirty_worktree: false`.
 
 Billed $52.43 against 4h43m of pod uptime. The gap between 3h57m of measurement and 4h43m of
@@ -513,7 +513,7 @@ the fix not have happened. Corrected to assert at `D=1` and report at `D>1`.
 ## Results, 2026-08-13: seed_regenerated re-measured, and M4
 
 Two runs on one 8x A100-SXM4-80GB node (driver 595.71.05, CUDA 13.2, jax 0.11.0, community
-cloud, commit `5c18799`, 1 h, $11). All 64 re-run records stamp `dirty_worktree: false`.
+cloud, commit `92976f0`, 1 h, $11). All 64 re-run records stamp `dirty_worktree: false`.
 
 ### The seed_regenerated rows above are superseded
 
@@ -623,7 +623,7 @@ the others. This one does not.
 
 **The run.** 256 configurations from `sweep-consistent.yaml`, which differs from `sweep.yaml`
 by one line, `results_dir`. One 8x A100-SXM4-80GB node (driver 595.71.05, CUDA 13.2, jax
-0.11.0, community cloud), commit `5769751`, 4h09m, $46. **256 written, 0 failed, 0 over cap,
+0.11.0, community cloud), commit `cae4a91`, 4h09m, $46. **256 written, 0 failed, 0 over cap,
 0 needed more devices**, and every record stamps `dirty_worktree: false` at a single commit.
 
 M4 and `profile.py` ran in the same session on the same node, so the comparison arms and the
@@ -794,7 +794,7 @@ numbers. It is also the configuration that inherited the scan defect and was fix
 being measured.
 
 **The run.** 64 configurations from `sweep-qiu.yaml`, which differs from `sweep.yaml` by
-`strategies` and `results_dir`. Same node type, commit `eee4bd1`, ~50 min, ~$10. **64 written,
+`strategies` and `results_dir`. Same node type, commit `99af055`, ~50 min, ~$10. **64 written,
 0 failed, 0 over cap**, single commit, no dirty worktrees.
 
 | | Qiu, `mirrored_seed` | unmirrored `seed_regenerated` |
@@ -870,7 +870,7 @@ names said which to read.
 `plot.py` takes several directories rather than requiring a combined one, so there is no third
 copy of every result on disk to go stale. Combining them is legitimate
 rather than the stitching this document has spent three sections warning about: the two runs
-are at `5769751` and `eee4bd1`, and **`git diff 5769751 eee4bd1 -- src` is empty**. Everything
+are at `cae4a91` and `99af055`, and **`git diff cae4a91 99af055 -- src` is empty**. Everything
 between those commits is results, documentation and driver tables, so the library that
 produced both sets of numbers is byte-identical. Each result records its own commit regardless.
 
@@ -1087,7 +1087,7 @@ unperturbed arm removes work, so it would surface as a throughput win rather tha
 ### The result, one GPU
 
 Two runs, `python m4.py --config sweep-consistent.yaml --devices 1 --out results-m4-local`
-and `--out results-m4-local-2`, commits `a668b15` and `b805e44`, every record
+and `--out results-m4-local-2`, commits `16465bb` and `8afac38`, every record
 `dirty_worktree: false`. **RTX 3080 Laptop, jax 0.11.0.** ms/gen, run 1 / run 2:
 
 | shape | shardes `mirrored_lr1/B` | EGGROLL `rank1` | ratio | naive ES | evosax |
@@ -1161,7 +1161,7 @@ The section above ends with "criterion 3 stays met in the letter until M4 is re-
 this arm on the benchmark node, which is a single-GPU booking". This is that booking:
 one A100-SXM4-80GB (driver 595.71.05, CUDA 13.2, community cloud, jax 0.11.0, the same
 `XLA_FLAGS` as every prior session), 33 minutes of uptime, $0.76. Two runs, both at
-commit `a858998`, every record `dirty_worktree: false`.
+commit `ad94f47`, every record `dirty_worktree: false`.
 `experiments/phase2/results-m4-a100-run1/` and `-run2/`.
 
 ms/gen at `--devices 1`, run 1 / run 2:

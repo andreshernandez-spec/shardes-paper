@@ -1,6 +1,6 @@
 # The dense-side residual, rechecked. 8x A100-SXM4-80GB, 2026-09-03
 
-One SECURE 8x A100-SXM4-80GB node (NV12 all-to-all NVLink), code at 158a930, jax 0.11.1,
+One SECURE 8x A100-SXM4-80GB node (NV12 all-to-all NVLink), code at 8f4fa06, jax 0.11.1,
 `recheck.sh` in this directory, about 25 minutes of uptime, $5.30. `recheck_report.py`
 prints every number below. Three questions, three answers, two of them negative.
 

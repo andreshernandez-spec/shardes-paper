@@ -20,7 +20,7 @@ dispatch floor (0.32 ms on the A100) drops out.
 
 ## Results: 8x A100-SXM4-80GB, D=8, 2026-08-25
 
-All 20 cells, no failures, 12 minutes of one node. Commit `c293481`, jax
+All 20 cells, no failures, 12 minutes of one node. Commit `7fb3b0d`, jax
 0.11.1, `matmul_precision=highest`.
 
 | strategy | d | N | C ms | C/D ms | ar in situ us | shard |
@@ -158,7 +158,7 @@ were needed and one of them had been argued away on insufficient evidence.
 ## The v5e half (2026-08-31)
 
 Measured on a Kaggle TPU v5e-8 by the `kaggle/e17btpu` session that also resumed the
-E17b grid, pinned at 1ba0dd0, matmul precision `highest`, D=8, all 20 cells. The
+E17b grid, pinned at 82ab1ec, matmul precision `highest`, D=8, all 20 cells. The
 `--resident` flag exists at that commit but was not passed, so the measurement path is
 the one the A100 cells used; the records carry `"resident": false` where the A100 ones
 predate the field.

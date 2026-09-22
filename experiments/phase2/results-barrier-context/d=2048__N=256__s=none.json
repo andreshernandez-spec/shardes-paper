@@ -18,7 +18,7 @@
  ],
  "seconds_median": 0.005354699999998047,
  "env": {
-  "commit": "59e85ad08bbd73bec4307806e8cc6b88fc3c4714",
+  "commit": "60eaf2cc5a3eb32e42579518e3edb1eb84769c03",
   "dirty_worktree": false,
   "jax": "0.11.1",
   "jaxlib": "0.11.1",

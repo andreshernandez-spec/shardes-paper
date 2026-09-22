@@ -1,7 +1,7 @@
 # E18 L1: the NCCL smoke on one 2-GPU pod. A100, 2026-08-22
 
 docs/10 section 4, L1. One community pod with 2x A100-SXM4-80GB (NV12
-between them), `l1.sh` at commit 62d69a3 with `e18-l1.yaml` (the rehearsal
+between them), `l1.sh` at commit 786a738 with `e18-l1.yaml` (the rehearsal
 shapes: d=64, N=16, batch 4, seq 8, warmup 1, repeats 3). Two runs of the
 same preflight and driver: `1x2`, one process over both GPUs (the anchor,
 writes the invariance reference), then `2x1`, two processes with one GPU
@@ -31,8 +31,8 @@ about 12 minutes lost. Uptime for both pods ~22 min at $2.78/h, about
 $1.0; the 21:00Z billing bucket was not yet closed at harvest time.
 
 The cell records say `dirty_worktree: true`: the dirt is `l1.sh` (copied
-to the pod by scp before it was committed as 57bb3c7, byte-identical) and
-the two per-process logs. No source file differed from 62d69a3.
+to the pod by scp before it was committed as 98d2359, byte-identical) and
+the two per-process logs. No source file differed from 786a738.
 
 ## Preflight
 

@@ -1,6 +1,6 @@
 # The Phase 2 sweep, re-run after the sharding fix.
 #
-# `sweep.yaml` was run on 2026-08-06 against commit 953283f, before `ShardedES.apply`
+# `sweep.yaml` was run on 2026-08-06 against commit d8e1057, before `ShardedES.apply`
 # constrained its output to the member axis. At that commit the evaluation was replicated on
 # every device, so the strong-scaling curve measured a program whose per-device work did not
 # fall with D at all (docs/diagnosis-replicated-evaluation.md). Parallel efficiency came out

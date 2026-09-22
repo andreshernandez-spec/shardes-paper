@@ -12,8 +12,8 @@ paper cites these numbers, they explain a difference between numbers that are ci
 
 | set | commit | what the default build does on a GPU |
 |---|---|---|
-| `results-a100-pad-everywhere/` | 6d56af5 | pads r=1 (a671dc6) |
-| `results-a100-pad-tpu-only/` | 030732d | no pad off TPU |
+| `results-a100-pad-everywhere/` | 0d2cfba | pads r=1 (4438ba4) |
+| `results-a100-pad-tpu-only/` | 7855a3a | no pad off TPU |
 
 Median seconds per steady-state update, A100-SXM4-80GB, jax 0.11.1:
 

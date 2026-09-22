@@ -1,6 +1,6 @@
 # experiments/phase2/profile.py, after the sharding fix
 # 2026-08-11  8 x NVIDIA A100-SXM4-80GB, driver 595.71.05, CUDA 13.2
-# jax 0.11.0  commit a496345
+# jax 0.11.0  commit f16ffb4
 # XLA_FLAGS=--xla_gpu_deterministic_ops=true --xla_gpu_enable_command_buffer=
 #
 # Two things to read this for.
@@ -33,7 +33,7 @@
 NVIDIA A100-SXM4-80GB, 595.71.05
 GPU0	 X 	NV12	NV12	NV12	NV12	NV12	NV12	NV12	NODE	NODE	0-63,128-191	0		N/A
 GPU1	NV12	 X 	NV12	NV12	NV12	NV12	NV12	NV12	NODE	NODE	0-63,128-191	0		N/A
-commit: a49634526cf13800cc5cdab45b892ddd7072efdc
+commit: f16ffb49a76a07f71b2ebf1c269a4d90d2d628a2
 worktree: 0 entries
 python 3.12.3 jax 0.11.0 jaxlib 0.11.0
 numpy 2.5.1 scipy 1.18.0

@@ -18,7 +18,7 @@ psum sits inside the generation program.
 
 ## 8x A100-SXM4-80GB (RunPod SECURE, NVLink), D=8
 
-`ladder-nvidia-a100-sxm4-80gb-D8.json`, commit 41b04b9, clean worktree, jax 0.11.1.
+`ladder-nvidia-a100-sxm4-80gb-D8.json`, commit 94fae65, clean worktree, jax 0.11.1.
 
 | payload | what | call (us) | step (us) |
 |---|---|---|---|
@@ -45,9 +45,9 @@ compute, split D ways under B and replicated under A.
 
 ## TPU v5e-8 (Kaggle), D=8
 
-`ladder-tpu-v5-lite-D8.json`, commit 41b04b9, clean worktree, jax 0.11.1, from the
+`ladder-tpu-v5-lite-D8.json`, commit 94fae65, clean worktree, jax 0.11.1, from the
 head of the `kaggle/e17btpu` kernel's first session. (A first session of
-`kaggle/t7ladder` at 8d06d64 reduced a (D, n/D) array, so every labelled payload was an
+`kaggle/t7ladder` at 9cd4010 reduced a (D, n/D) array, so every labelled payload was an
 eighth of what B moves; its numbers are not kept.)
 
 | payload | what | call (us) | step (us) |

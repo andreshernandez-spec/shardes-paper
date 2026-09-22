@@ -1,4 +1,4 @@
-030732d lowrank: pad r=1 factors on TPU only
+7855a3a lowrank: pad r=1 factors on TPU only
 ==== probe-seed (2026-08-23T09:23:28Z) ====
 [transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
 [0] EVAL reward 0.055 solved 0.013 format 0.43 29s

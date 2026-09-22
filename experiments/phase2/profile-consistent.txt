@@ -1,6 +1,6 @@
 # experiments/phase2/profile.py, the one-commit run
 # 2026-08-14  8 x NVIDIA A100-SXM4-80GB, driver 595.71.05, CUDA 13.2
-# jax 0.11.0  commit 5769751
+# jax 0.11.0  commit cae4a91
 # XLA_FLAGS=--xla_gpu_deterministic_ops=true --xla_gpu_enable_command_buffer=
 #
 # Same two cautions as always, and they have not stopped being true.

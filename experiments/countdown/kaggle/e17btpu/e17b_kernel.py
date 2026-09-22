@@ -47,10 +47,10 @@ run([sys.executable, "-m", "pip", "install", "-q", "-e", "shardes", "--no-deps"]
 # Small phase2 jobs ride this queue slot rather than waiting hours for their
 # own; the TPU allows one session at a time, so a separate kernel for a
 # ten-minute job would cost this grid its place in the queue. Session 1
-# (41b04b9) ran the collective ladder, committed since. Two run here:
+# (94fae65) ran the collective ladder, committed since. Two run here:
 #
 #   regen_decompose        the v5e re-measurement under the timer fixed in
-#                          6718d82, which the sliced-timer records superseded
+#                          aacae7c, which the sliced-timer records superseded
 #   contraction_isolation  C per cell, the open term in docs/11's cost model
 #
 # Both are budgeted and resumable per cell, and neither blocks the grid: a

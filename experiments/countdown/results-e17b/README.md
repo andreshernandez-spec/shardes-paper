@@ -117,11 +117,11 @@ runs it in repeated slices and stops when the grid is done or a slice adds nothi
 
 | session | SHA | cells added | total |
 |---|---|---|---|
-| 1 | 1ba0dd0 | 10 | 10 |
-| 2 | e2d275d | 30 | 40 |
-| 3 | 41b04b9 | 53 | 93 |
-| 4 | e6f2c07 | 25 | 118 |
-| 5 | 83e602e | 10 | 128 |
+| 1 | 82ab1ec | 10 | 10 |
+| 2 | fd60079 | 30 | 40 |
+| 3 | 94fae65 | 53 | 93 |
+| 4 | 9ab378b | 25 | 118 |
+| 5 | c90021c | 10 | 128 |
 
 Session 2 was killed mid-cell with no traceback after a run of recorded OOMs, host
 memory rather than HBM. Session 4 spent all four of its slices and stopped with three
@@ -132,7 +132,7 @@ those results live in `../../phase2/`.
 Cells carry the SHA they were measured at, and two library files moved across the five.
 Both are inert here, checked rather than assumed:
 
-- `lowrank.py` gained `PAD_RANK1` at 030732d, which makes the r=1 pad TPU-only where it
+- `lowrank.py` gained `PAD_RANK1` at 7855a3a, which makes the r=1 pad TPU-only where it
   had been unconditional. Every cell here ran on a v5e, so r=1 is padded on both sides
   of that change, and the branch is guarded by `a.shape[-1] == 1`, so ranks 4 and 16
   never reach it at all.

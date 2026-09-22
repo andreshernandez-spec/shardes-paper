@@ -1,7 +1,7 @@
 # E18: the contraction crossover across a real host boundary. A100, 2026-08-24
 
 Two nodes of 8x A100-SXM4-80GB on a RunPod Instant Cluster (US-MD-1), commit
-`0826d5d`, 43 min of cluster time. The design and frozen hypotheses are
+`a6a4acc`, 43 min of cluster time. The design and frozen hypotheses are
 docs/10; predictions were frozen by `predict.py` (from the measured C plus the
 committed D=8 sweep) before any 2x8 campaign cell, enforced by the driver order.
 

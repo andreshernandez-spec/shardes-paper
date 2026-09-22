@@ -5,7 +5,7 @@
 #
 # Bytes from the compiled HLO on 8 simulated CPU devices; payload is a property of the
 # program, not the hardware. Generation times from the 2026-08-14 sweep on 8 x A100-SXM4-80GB,
-# commit 5769751. Both halves now come from the same commit, which was not true before.
+# commit cae4a91. Both halves now come from the same commit, which was not true before.
 #
 results-consistent: NVIDIA A100-SXM4-80GB
 96 multi-device configurations matched; 0 in the comms table had no timing

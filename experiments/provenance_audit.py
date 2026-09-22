@@ -9,9 +9,9 @@ paper promises that each result traces to one. That promise is only as good as t
 commit's reachability: a SHA that no branch or tag reaches is kept by the host at its
 discretion and pruned locally after a reflog expires.
 
-It has already happened once. Rebasing a branch for #116 orphaned `1ba0dd0`, which 34
+It has already happened once. Rebasing a branch for #116 orphaned `82ab1ec`, which 34
 records cite, and nothing noticed for three weeks. It is pinned now by the tag
-`provenance/1ba0dd0`. This script is the thing that would have noticed.
+`provenance/82ab1ec`. This script is the thing that would have noticed.
 
 What counts as a citation: any key named `commit` holding a 40-character hex string, in
 any tracked `.json` or `.jsonl` under `experiments/`. Whose commit it is comes from where

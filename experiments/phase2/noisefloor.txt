@@ -1,6 +1,6 @@
 # experiments/phase2/noisefloor.py --config sweep.yaml
 # 2026-08-06  NVIDIA A100-SXM4-80GB, 595.71.05
-# jax 0.11.0  commit 96333c8
+# jax 0.11.0  commit a6253d2
 # XLA_FLAGS=--xla_gpu_deterministic_ops=true --xla_gpu_enable_command_buffer=
 
 sweep.yaml, margin 16 ulp, worst of 3 seeds (sweep runs seed 0)

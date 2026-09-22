@@ -1,6 +1,6 @@
 # M4 on TPU v5e-8: E9's TPU column, 2026-08-20
 
-One T5 session (`kaggle/t5m4/`, pinned e9aa7b7), `m4.py --config sweep-tpu.yaml` at
+One T5 session (`kaggle/t5m4/`, pinned ce29af3), `m4.py --config sweep-tpu.yaml` at
 D=1 and D=8, the same four shapes and protocol as the A100 runs (`results-m4-a100-*`).
 Both references were available: evosax from PyPI, EGGROLL (hyperscalees) from the
 authors' repo at b77f7d6, installed --no-deps, run unmodified via m4.py's loader.

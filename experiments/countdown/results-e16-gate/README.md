@@ -1,7 +1,7 @@
 # E16 stage-1 gate: the low-rank correction is not a prompt-batch accident
 
 Two cells of `e16-gate.yaml` (frozen expectations in its header, committed at
-71b3b28 before the run), one community A100-SXM4-80GB, ~2.5 h (~$3.50), pod
+b60d21a before the run), one community A100-SXM4-80GB, ~2.5 h (~$3.50), pod
 deleted after harvest. Everything identical to E15 except the frozen 8-prompt
 batch: `puzzle_seed` 41 instead of 7.
 

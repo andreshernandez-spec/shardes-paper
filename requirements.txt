@@ -13,7 +13,7 @@
 #
 # An accelerator run installs jax for its platform on top, as before:
 #     pip install -U "jax[cuda12]>=0.11"     or     "jax[tpu]>=0.11"
-shardes @ git+https://github.com/andreshernandez-spec/shardes@02295332f11c3b64dc383ec4f009be38753b2003  # v0.1.0
+shardes @ git+https://github.com/andreshernandez-spec/shardes@bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d  # v0.1.0
 matplotlib
 pyyaml
 pytest

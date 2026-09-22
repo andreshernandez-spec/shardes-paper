@@ -1,7 +1,7 @@
 # E13 pilot, ES arms, A100, 2026-08-16
 
 Four ES arms on Countdown with Qwen2.5-0.5B-Instruct, 500 generations each,
-configs `pilot.yaml` and `pilot-lr{1,4,16}.yaml` at commit 4eadcd2 (which each
+configs `pilot.yaml` and `pilot-lr{1,4,16}.yaml` at commit d206916 (which each
 log records in its generation-0 `env` line, along with jax 0.11.0). One RunPod
 community pod, NVIDIA A100-SXM4-80GB, one run per arm, seed 0.
 

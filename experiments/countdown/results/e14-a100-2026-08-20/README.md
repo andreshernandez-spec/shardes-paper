@@ -1,6 +1,6 @@
 # E14: stability under hyperparameter perturbation, 2026-08-20/21
 
-24 runs on one rented A100 (pod 2a1683q0izmcd8, ~$32), code at 63bf81d, per the
+24 runs on one rented A100 (pod 2a1683q0izmcd8, ~$32), code at dabc528, per the
 design committed before the run (docs/08). Verdicts computed by
 `analyze_e14.py`, figure by `plot_e14.py` (F8), metrics exactly as pre-defined.
 The multiplier-1 columns are E13's committed curves read at the same 150-step

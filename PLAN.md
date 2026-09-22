@@ -103,7 +103,7 @@ update path is measured and matches the analysis.
 > Corrected here rather than satisfied on the easier reading.
 >
 > **Status 2026-08-01: G1 CLOSED. Capabilities C1.1–C1.7 complete, 6 of 6 criteria met.**
-> The 2-GPU run passed on Kaggle: 16 passed on 2 x Tesla T4, jax 0.11.0, commit `e720c92`,
+> The 2-GPU run passed on Kaggle: 16 passed on 2 x Tesla T4, jax 0.11.0, commit `35315ca`,
 > against the committed CPU-8 reference. `docs/06` T2′.
 >
 > This is the criterion that could not be faked. Simulated devices share a memory space and

@@ -1,6 +1,6 @@
 # E17: the contraction crossover on the real model. TPU v5e-8, 2026-08-22
 
-31 of 32 cells of `e17.yaml` (predictions frozen in its header at 63fa651
+31 of 32 cells of `e17.yaml` (predictions frozen in its header at ae02663
 before the run), one free Kaggle TPU v5e-8 session, kernel
 `shardes-e17-tpu` (`kaggle/e17tpu/`). A complete production update (ask, NLL on E15's
 frozen batch, tell) on Qwen2.5-0.5B, matmul precision highest, 7 timed

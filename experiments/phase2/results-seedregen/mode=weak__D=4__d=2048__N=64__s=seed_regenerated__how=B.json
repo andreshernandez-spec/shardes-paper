@@ -9,7 +9,7 @@
     "strategy": "seed_regenerated"
   },
   "env": {
-    "commit": "5c18799b7dbd0dddde915b1bde7591518c9d982b",
+    "commit": "92976f0ca532abdcdf0f1962a721b439844c3242",
     "device_count": 8,
     "device_kind": "NVIDIA A100-SXM4-80GB",
     "device_platform": "gpu",

@@ -20,7 +20,7 @@ below one, regeneration is cheaper inside the program than the isolated draw.
 The `t_iid` and `t_seed` columns reproduce the cost surface to within 2% on both
 platforms, so the decomposition reads directly against it.
 
-## A100-SXM4-80GB (RunPod community), commit 6718d82, clean, jax 0.11.1
+## A100-SXM4-80GB (RunPod community), commit aacae7c, clean, jax 0.11.1
 
 | cell | t_iid | t_seed | seed/iid | t_rng | gap / 2 t_rng |
 |---|---|---|---|---|---|
@@ -35,7 +35,7 @@ inside the fused program costs a third of the standalone draw: regeneration over
 with the matmuls it feeds. The 1.3-3x of the cost surface is, on this platform, the
 price of the random numbers and not much else.
 
-## TPU v5e-8 (Kaggle, one chip), commit 1ba0dd0, re-measured 2026-08-31
+## TPU v5e-8 (Kaggle, one chip), commit 82ab1ec, re-measured 2026-08-31
 
 | cell | t_iid | t_seed | seed/iid | t_rng | gap / 2 t_rng |
 |---|---|---|---|---|---|

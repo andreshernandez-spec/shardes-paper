@@ -15,7 +15,7 @@
   "cosine_q3": 0.017041111830621958,
   "d_eff": 1572864,
   "env": {
-    "commit": "84e432cd1c7f8f0aa17b9822d1396cea528b6df9",
+    "commit": "0ae5893bfdb06631b2c6adbd42f8b4677390297e",
     "device_count": 1,
     "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
     "device_platform": "gpu",

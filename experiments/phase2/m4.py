@@ -282,7 +282,7 @@ def _eggroll_provenance():
     """The revision of the external code the eggroll rows were measured against.
 
     The loader accepts whatever `hyperscalees` is installed, so a result that records only
-    this repo's commit pins half the comparison: the A100 rows at `a858998` were measured
+    this repo's commit pins half the comparison: the A100 rows at `ad94f47` were measured
     against HyperscaleES `b77f7d6`, and nothing in the file said so. The git SHA is
     recorded when the installed package is an editable checkout (the documented install),
     plus a content hash of the two modules actually loaded, which survives a non-git

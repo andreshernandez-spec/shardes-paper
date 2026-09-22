@@ -1,7 +1,7 @@
 # E8 on TPU v5e (Kaggle), complete: 240 of 240 cells
 
-Two sessions of the `kaggle/t2cost/` kernel. Session 1 (pinned d908c1a) visited 232
-cells and budget-stopped; session 2 (pinned b065e65, after the r=1 pad fix in PR #54)
+Two sessions of the `kaggle/t2cost/` kernel. Session 1 (pinned d84068f) visited 232
+cells and budget-stopped; session 2 (pinned 42fca5b, after the r=1 pad fix in PR #54)
 ran the 8 remaining cells plus the 10 lr1 cells whose stale undersized records were
 deleted for it. Final surface: 189 measured, 51 undersized. Every record stamps its
 own commit and both worktrees were clean.
@@ -14,13 +14,13 @@ monotonic in rank again.
 
 **The lr1 column is single-program again (session T4, 2026-08-19):** the 28 pre-pad
 lr1 records were deleted and re-measured under the padded program (28 measured, 0
-undersized). lr1 records now stamp b065e65 or 72f6ada, between which the lowrank
+undersized). lr1 records now stamp 42fca5b or 6d2ba07, between which the lowrank
 code is identical; everything else stamps its own session. The re-measured column
 keeps the C4 story and sharpens it: rank 1 at 0.08x of dense (geometric mean over
 the cells where both fit), monotone in rank.
 
 232 of the 240 cells of `cost-sweep-tpu.yaml`, from the `kaggle/t2cost/` kernel pinned
-at d908c1a: 183 measured, 49 recorded undersized, budget stop at 6.79 h against the 6 h
+at d84068f: 183 measured, 49 recorded undersized, budget stop at 6.79 h against the 6 h
 internal budget (the check runs between cells and cell 232, seed_regenerated at d=4096
 N=16384, ran long across the line). The 8 unvisited cells are the d=4096, N=16384
 mirrored arms; a resume session pinned on a commit containing this directory finishes

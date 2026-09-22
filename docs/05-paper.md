@@ -469,7 +469,7 @@ fitted afterwards, and it's cheap to do — write it during Phase 1.
 
 **Framing decided 2026-08-21: the paper is the ES-scaling investigation; the library is the instrument**, cited and released, one contribution bullet. The project's deliverable is still the library (CLAUDE.md); the paper's contribution is what it measured, which is both the stronger review posture and the better story.
 
-**Title, current: "Update-contraction placement in sharded evolution strategies on GPUs and TPUs"** (239a45a, 2026-08-22). It names the measurement. The previous title said "the contraction crossover", and only the low-rank family crosses: the dense and seed-regenerated families never change sign anywhere in the grid, so "crossover" promised something two thirds of the results do not show. "Crossover" stays in the body, where it names the low-rank sign flip and is accurate.
+**Title, current: "Update-contraction placement in sharded evolution strategies on GPUs and TPUs"** (12cc8b6, 2026-08-22). It names the measurement. The previous title said "the contraction crossover", and only the low-rank family crosses: the dense and seed-regenerated families never change sign anywhere in the grid, so "crossover" promised something two thirds of the results do not show. "Crossover" stays in the body, where it names the low-rank sign flip and is accurate.
 
 Superseded on the way here: "Sharded evolution strategies on GPUs and TPUs" (2026-08-21, plain and descriptive but says nothing about what was found), and before that the folk-claims phrasing (too informal), a communication-only title (undersells the accuracy results), and any title leading with shardes.
 

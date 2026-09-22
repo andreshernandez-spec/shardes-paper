@@ -23,7 +23,7 @@
 # / -done pairs); the parser has not changed since.
 #
 # Linux-6.17.0-41-generic-x86_64-with-glibc2.42
-# commit 1c75045,  jax 0.11.0
+# commit f5b71bf,  jax 0.11.0
 
      d     N  strategy          how  D    measured   predicted   ratio   shaping  ops
    512   256  iid_gaussian        A  1           0       1,024     -           0  none

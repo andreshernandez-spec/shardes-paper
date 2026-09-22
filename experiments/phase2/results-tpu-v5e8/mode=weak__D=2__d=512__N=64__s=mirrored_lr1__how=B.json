@@ -9,7 +9,7 @@
     "strategy": "mirrored_lr1"
   },
   "env": {
-    "commit": "c93cf5d426b752ad4ad8007b815b50b005a2d07a",
+    "commit": "84168c89bc8cedbebab00b964bea665f7080be50",
     "device_count": 8,
     "device_kind": "TPU v5 lite",
     "device_platform": "tpu",

@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| commit | `84e432cd1c7f` |
+| commit | `0ae5893bfdb0` |
 | dirty worktree | False |
 | device | NVIDIA GeForce RTX 3080 Laptop GPU |
 | device count | 1 |

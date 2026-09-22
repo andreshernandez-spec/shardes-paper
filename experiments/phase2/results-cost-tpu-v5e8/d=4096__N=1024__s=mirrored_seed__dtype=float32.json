@@ -20,7 +20,7 @@
  "matmul_precision": "default",
  "peak_bytes_device": 1662488576,
  "env": {
-  "commit": "d908c1a3640197ec1399fc683c1615d5a02ac807",
+  "commit": "d84068ff2d4baf27dbeb7ec9da60162212909519",
   "dirty_worktree": false,
   "jax": "0.11.1",
   "jaxlib": "0.11.1",

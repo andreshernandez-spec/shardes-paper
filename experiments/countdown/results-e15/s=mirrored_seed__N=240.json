@@ -16,7 +16,7 @@
  ],
  "cosine_median": 0.0004231514176353812,
  "env": {
-  "commit": "5227277a2e9fcf05eac039ada6bc619cea124278",
+  "commit": "61a6f18ce8f1d9330434980318e7e7e794899083",
   "dirty_worktree": false,
   "jax": "0.11.1",
   "jaxlib": "0.11.1",

@@ -8,17 +8,17 @@ Table 4.
 
 ## Session
 
-Three attempts, one pod. Attempts 1 and 2 ran at 5227277 and both died at the
+Three attempts, one pod. Attempts 1 and 2 ran at 61a6f18 and both died at the
 `mirrored_lr1 N=240` cell: the low-rank arms evaluate all members through the
 forward at once and the logits for 240 members are ~70 GiB, over the A100's
-80 GB with the model and gradient resident. The fix (PR #81, 5cb1b64) evaluates
+80 GB with the model and gradient resident. The fix (PR #81, 15f4115) evaluates
 fitness in even chunks of 30 members, each regenerated from
 `(base_key, member_ids)` by the library's own sample/apply, the same
 re-derivation `tell`'s contraction uses; per-member fitness does not depend on
-batching, so the cosines are unchanged. Attempt 3 resumed at 5cb1b64, skipped
+batching, so the cosines are unchanged. Attempt 3 resumed at 15f4115, skipped
 the three finished cells, and completed the remaining seven. Cells therefore
-stamp two commits: `mirrored_seed` (both N) and `mirrored_lr1 N=30` at 5227277,
-the rest at 5cb1b64. One objective throughout: teacher-forced NLL over the same
+stamp two commits: `mirrored_seed` (both N) and `mirrored_lr1 N=30` at 61a6f18,
+the rest at 15f4115. One objective throughout: teacher-forced NLL over the same
 fixed 8-prompt batch, sigma 1e-3, one production ask/evaluate/tell step against
 `jax.grad` of the same function.
 

@@ -9,9 +9,9 @@ one here is the older answer, not a bug to reconcile.
 
 | directory | run | commit | why it was superseded |
 |---|---|---|---|
-| `2026-08-06-prefix/` | first 8x A100 sweep, 256 configs | `a496345` and earlier | measured before the `seed_regenerated` scan fix, so its efficiency numbers describe a program that no longer ships. Its M1 also has the keying bug that plotted one facet's worth of data. |
-| `2026-08-11-postfix/` | re-run after the scan fix, 256 configs | `a496345` | correct, but mixed three commits across the session, and M6 peak memory was wrong by a constant parameter-sized term. |
-| `2026-08-14-consistent/` | single-commit re-run, 256 configs | `5769751` | still current for what it covers. Superseded only in scope: four strategies, no `mirrored_seed`. |
+| `2026-08-06-prefix/` | first 8x A100 sweep, 256 configs | `f16ffb4` and earlier | measured before the `seed_regenerated` scan fix, so its efficiency numbers describe a program that no longer ships. Its M1 also has the keying bug that plotted one facet's worth of data. |
+| `2026-08-11-postfix/` | re-run after the scan fix, 256 configs | `f16ffb4` | correct, but mixed three commits across the session, and M6 peak memory was wrong by a constant parameter-sized term. |
+| `2026-08-14-consistent/` | single-commit re-run, 256 configs | `cae4a91` | still current for what it covers. Superseded only in scope: four strategies, no `mirrored_seed`. |
 
 The current `../figures/` is the union of `results-consistent` and `results-qiu`,
 320 results, five strategies. See `docs/03-phase2-benchmarks.md` for why combining

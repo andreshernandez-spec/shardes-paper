@@ -1,6 +1,6 @@
 # How much of the E13 rank-1 advantage is the evaluation setting? A100, 2026-09-01
 
-`run_chunk_probe.sh` at 1308696, one community A100-SXM4-80GB, jax 0.11.1, 30
+`run_chunk_probe.sh` at f3b7e75, one community A100-SXM4-80GB, jax 0.11.1, 30
 generations per arm, one seed, all four arms back to back on the same host.
 Diagnosis only, nothing here is cited as a result. The runs stamp
 `dirty_worktree=true`; the only untracked paths are the probes' own output

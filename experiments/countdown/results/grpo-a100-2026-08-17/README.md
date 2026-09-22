@@ -1,7 +1,7 @@
 # E13 GRPO reference arm, A100, 2026-08-17
 
 One GRPO run on Countdown with Qwen2.5-0.5B-Instruct at Qiu et al.'s published
-settings, `grpo.yaml` at commit 81c9aa8: lr 1e-5 held constant (GRPO-Zero has no
+settings, `grpo.yaml` at commit a6dab70: lr 1e-5 held constant (GRPO-Zero has no
 scheduler), kl beta 1e-3, group 30, 8 prompts per optimizer step, temperature 1.0
 with top-p/top-k off (verified against GRPO-Zero's sampler), 300 steps, seed 0.
 Implementation is TRL 1.10.0; `env.txt` and `pip-freeze.txt` record the stack,

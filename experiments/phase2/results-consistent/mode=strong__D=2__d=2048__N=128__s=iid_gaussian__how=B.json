@@ -9,7 +9,7 @@
     "strategy": "iid_gaussian"
   },
   "env": {
-    "commit": "5769751baa4af604f56f57d70e7c0637dde9d364",
+    "commit": "cae4a91377fdeb98f80dfa715f1fc011ab9785e3",
     "device_count": 8,
     "device_kind": "NVIDIA A100-SXM4-80GB",
     "device_platform": "gpu",

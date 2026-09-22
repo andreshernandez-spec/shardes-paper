@@ -16,9 +16,9 @@ dopamine-rl 4.1.2 requires gym<=0.25.2, but you have gym 0.26.2 which is incompa
 moviepy 1.0.3 requires decorator<5.0,>=4.0.2, but you have decorator 5.3.1 which is incompatible.
 numba 0.60.0 requires numpy<2.1,>=1.22, but you have numpy 2.5.3 which is incompatible.
 $ git clone -q https://github.com/andreshernandez-spec/shardes-paper.git /tmp/paper
-$ git checkout -q 5571dcbba642d2ce3cca58f9d5ab48e7275192f4
+$ git checkout -q 85697151190cc24b7b2e653a68c68b7fee9929da
 $ git log --oneline -1
-5571dcb make this a repository of its own: the pin, the tests, CI and a README
+8569715 make this a repository of its own: the pin, the tests, CI and a README
 $ /usr/bin/python3 -m pip install -q -r requirements.txt
 $ /usr/bin/python3 -c 
 import importlib.metadata as m, json, jax
@@ -26,12 +26,12 @@ devs = jax.devices()
 print("jax", jax.__version__, [d.device_kind for d in devs])
 assert len(devs) == 2 and all(d.platform == "gpu" for d in devs), devs
 got = json.loads(m.distribution("shardes").read_text("direct_url.json"))["vcs_info"]["commit_id"]
-assert got == "bfdabd2a8687d1e6a5899b37e9801e8aa587f91e", (got, "bfdabd2a8687d1e6a5899b37e9801e8aa587f91e")
+assert got == "25b6cc617d249ca53d8caf72ebb41f39799f7560", (got, "25b6cc617d249ca53d8caf72ebb41f39799f7560")
 import shardes
 print("shardes", shardes.__version__, "at", got)
 
 jax 0.11.2 ['Tesla T4', 'Tesla T4']
-shardes 0.1.0.dev0 at bfdabd2a8687d1e6a5899b37e9801e8aa587f91e
+shardes 0.1.0.dev0 at 25b6cc617d249ca53d8caf72ebb41f39799f7560
 $ /usr/bin/python3 -m pytest -q -p no:cacheprovider
 heme_is_on[iid]
 tests/test_phase0_driver.py::test_the_plotter_and_the_driver_agree_on_which_side_a_scheme_is_on[iid]
@@ -62,11 +62,11 @@ gap (fed - cut): +0.003 ms  (+0.38% of the generation)
 
 wrote /tmp/paper/experiments/phase2/results-feed-fusion/d=64__N=16__s=iid_gaussian__how=A.json
 {
- "commit": "5571dcbba642d2ce3cca58f9d5ab48e7275192f4",
+ "commit": "85697151190cc24b7b2e653a68c68b7fee9929da",
  "dirty_worktree": false,
  "shardes": {
   "version": "0.1.0.dev0",
-  "commit": "bfdabd2a8687d1e6a5899b37e9801e8aa587f91e",
+  "commit": "25b6cc617d249ca53d8caf72ebb41f39799f7560",
   "dirty": false,
   "source": "vcs"
  },

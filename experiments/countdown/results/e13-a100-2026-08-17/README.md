@@ -4,8 +4,8 @@ Everything the two earlier result files hedged on, closed in one campaign: a
 2000-puzzle held-out eval disjoint from the training pool by construction, GRPO
 extended to the matched 120,000 sample evaluations, and seeds 0-2 for every arm.
 Four ES arms (Qiu full rank via seed regeneration, EGGROLL-style rank 1/4/16)
-and GRPO per seed, one A100-SXM4-80GB, ~13 h wall clock, code at 445ba74
-(eval_grpo.py at 579581c, see the caveat), environment in `env.txt`. Per-arm
+and GRPO per seed, one A100-SXM4-80GB, ~13 h wall clock, code at 2ca7d2d
+(eval_grpo.py at 9f76bf0, see the caveat), environment in `env.txt`. Per-arm
 learning curves are the `*-eval.jsonl` files (ES also has per-generation
 training logs); `summarize.py` reproduces both tables; `campaign-log.txt.gz` is
 the pod's stdout, which is where GRPO's per-step training metrics live.
@@ -43,7 +43,7 @@ Three findings:
 Decode caveat, and it is a finding in its own right: greedy is not one rule.
 Qwen2.5 ships repetition_penalty 1.1 in generation_config.json and HF generate
 applies it under do_sample=False, so the GRPO evals in this campaign run
-eval_grpo.py at 579581c, which pins repetition_penalty=1.0 to make both arms
+eval_grpo.py at 9f76bf0, which pins repetition_penalty=1.0 to make both arms
 plain argmax. Seed 0's first GRPO run was evaluated before that fix; its
 penalized eval is kept as `grpo-s0-eval-penalized.jsonl` for the record, and
 `grpo-s0-eval.jsonl` is a full clean re-run. A residual decoder delta remains

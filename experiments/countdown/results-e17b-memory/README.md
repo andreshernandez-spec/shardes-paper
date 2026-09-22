@@ -1,6 +1,6 @@
 # Why the low-rank arms run out of memory and the seed arm does not
 
-`e17_memory_probe.py`, laptop CPU, 8 simulated devices, code at 83e602e. Diagnosis
+`e17_memory_probe.py`, laptop CPU, 8 simulated devices, code at c90021c. Diagnosis
 only: the absolute figures are XLA's temporary estimate for a CPU executable on a
 cut-down model and nothing cites them. The scalings are the result.
 

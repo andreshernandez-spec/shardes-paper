@@ -1,6 +1,6 @@
 # E16 stage 2: the correction is portable to first order. 1.5B, 2026-08-22
 
-Four cells of `e16-stage2.yaml` (predictions frozen in its header at 886ff81
+Four cells of `e16-stage2.yaml` (predictions frozen in its header at d0b27de
 before the run), one community A100-SXM4-80GB, ~12 h (~$17), pod deleted.
 Qwen2.5-1.5B (port validated by the golden-logit test before launch), E15's
 original frozen batch, member_chunk 10.

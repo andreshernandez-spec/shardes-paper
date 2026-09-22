@@ -1,7 +1,7 @@
 # E11 precision ablation: matmul `highest` vs `default`, TPU v5e, 2026-08-19
 
 The 36 cells of `cost-precision-tpu.yaml` (d in {512, 2048} x N in {64, 256, 1024} x
-6 strategies, bf16), one T4 session pinned at 72f6ada, one chip. 35 measured, 1
+6 strategies, bf16), one T4 session pinned at 6d2ba07, one chip. 35 measured, 1
 undersized (iid_gaussian at d=2048, N=1024 needs more memory at `highest` than the
 default-precision run did, which is itself a data point). Compare cell-for-cell
 against `results-cost-tpu-v5e8` at the same (d, N, strategy, bfloat16); `tb3.py`

@@ -1,6 +1,6 @@
 {
   "env": {
-    "commit": "b805e44101214875cdc99a109574dc454398ede8",
+    "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
     "device_count": 1,
     "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
     "device_platform": "gpu",
@@ -22,7 +22,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -51,7 +51,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -80,7 +80,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -109,7 +109,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -138,7 +138,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -167,7 +167,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -196,7 +196,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -225,7 +225,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -254,7 +254,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -282,7 +282,7 @@
       "d_model": 512,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -307,7 +307,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -336,7 +336,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -365,7 +365,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -393,7 +393,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -417,7 +417,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -442,7 +442,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -471,7 +471,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -500,7 +500,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -528,7 +528,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",
@@ -552,7 +552,7 @@
       "d_model": 2048,
       "devices": 1,
       "env": {
-        "commit": "b805e44101214875cdc99a109574dc454398ede8",
+        "commit": "8afac384d4eb2f7f86caf3332d025fc39590f12a",
         "device_count": 1,
         "device_kind": "NVIDIA GeForce RTX 3080 Laptop GPU",
         "device_platform": "gpu",

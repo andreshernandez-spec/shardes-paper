@@ -6,7 +6,7 @@ nothing. E19 runs that arm: the full-rank and rank-1 recipes of E13 at populatio
 instead of 30, 940 generations instead of 500, so the total training samples match
 (940 x 16 x 8 = 120,320 against 120,000). The square-root law (Section 7) predicts
 0.73x the alignment per update at N=16; the prediction was frozen in the config headers
-(`e19-n16-seed.yaml`, `e19-n16-lr1.yaml`) before the runs. Code at 792a1fd (eval chunk
+(`e19-n16-seed.yaml`, `e19-n16-lr1.yaml`) before the runs. Code at 602a29d (eval chunk
 4, since 16 members on one device do not divide by 5), jax 0.11.1, one community
 A100-SXM4-80GB, seeds 0-2, run back to back on one pod. `plot_e19.py` draws F7c and
 prints the numbers below.
@@ -36,10 +36,10 @@ Timing, steady-state updates 2-939, median per seed: full rank 2.39 / 2.40 / 2.3
 rank 1 2.21 / 2.19 / 2.16 s, so rank 1 is 8% cheaper per update here against 41% at
 N=30 (Section 6's cost surfaces put the regeneration cost rank 1 removes in proportion
 to N, and at 16 members it barely covers what rank 1 adds). The rank-1 arm was
-re-measured at 030732d, which makes the r=1 pad TPU-only; its first measurement, at
-792a1fd with the pad on every platform, put it at 2.49 / 2.57 / 2.47 s, slower than
+re-measured at 7855a3a, which makes the r=1 pad TPU-only; its first measurement, at
+602a29d with the pad on every platform, put it at 2.49 / 2.57 / 2.47 s, slower than
 full rank. See `../e13-a100-2026-08-22-clean/README.md`. The full-rank arm is
-unaffected by the pad and keeps its 792a1fd records.
+unaffected by the pad and keeps its 602a29d records.
 
 Compilation-scale generations 0 and 1: 325-564 s. Cost: one pod, 20:19 to 02:50 UTC
 including the jinja2 relaunch (see `../e13-a100-2026-08-22-clean/README.md`) and the

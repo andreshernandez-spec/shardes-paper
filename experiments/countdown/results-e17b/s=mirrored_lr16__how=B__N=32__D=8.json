@@ -10,7 +10,7 @@
   "smoke": false
  },
  "env": {
-  "commit": "83e602e0b86ae376acebdae747e033b89f559836",
+  "commit": "c90021c11d87c93a3ef616a48a54bd3b1af19196",
   "dirty_worktree": false,
   "jax": "0.11.1",
   "jaxlib": "0.11.1",

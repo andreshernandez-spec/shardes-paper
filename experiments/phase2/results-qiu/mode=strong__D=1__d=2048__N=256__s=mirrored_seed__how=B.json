@@ -9,7 +9,7 @@
     "strategy": "mirrored_seed"
   },
   "env": {
-    "commit": "eee4bd163dd3e2e77bc1995135d1ed8d3ff7964d",
+    "commit": "99af0555358603b2df5b82ec0ec331b4e2a4c33f",
     "device_count": 8,
     "device_kind": "NVIDIA A100-SXM4-80GB",
     "device_platform": "gpu",

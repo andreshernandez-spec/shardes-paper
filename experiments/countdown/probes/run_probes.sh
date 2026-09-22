@@ -1,7 +1,7 @@
 #!/bin/bash
 # On a pod whose E13 campaign has finished: time the seed and rank-1 arms on the
 # same host and SHA, then rank 1 with the r=1 pad forced on (the TPU program,
-# a671dc6) by a local edit of the PAD_RANK1 switch, reverted afterwards. The
+# 4438ba4) by a local edit of the PAD_RANK1 switch, reverted afterwards. The
 # 2026-08-23 run predates the switch and did the reverse (pad off by hand).
 # Diagnosis only; nothing here is cited.
 set -uo pipefail

@@ -4,7 +4,7 @@
 # 2 x NVIDIA A100-SXM4-80GB, NVLink (nvidia-smi topo: NV12), jax 0.11.0, 2026-08-07.
 # XLA_FLAGS=--xla_gpu_deterministic_ops=true --xla_gpu_enable_command_buffer=
 #
-# Control is core.py at 3e617ed, everything else identical. Fix is the branch head.
+# Control is core.py at 70d5970, everything else identical. Fix is the branch head.
 # profile.py exits 1 when it finds a configuration that does not distribute, which is
 # the CONTROL's expected result, so the 'CONTROL DID NOT COMPLETE' line below is the
 # harness misreading that exit code and not a failure. The control's table is complete.
@@ -16,7 +16,7 @@
 # Pre-fix, D=2 is slower than D=1: the second device is pure overhead, matching the
 # committed sweep's 0.50. Post-fix eval falls to 0.56-0.57 against an ideal 0.50.
 
-######## CONTROL: pre-fix core.py (3e617ed). D=2 should show no speedup ########
+######## CONTROL: pre-fix core.py (70d5970). D=2 should show no speedup ########
 2 x NVIDIA A100-SXM4-80GB (gpu), jax 0.11.0
 
 milliseconds per generation, median of 5 after 3 warm-up

@@ -9,7 +9,7 @@
     "strategy": "mirrored_lr1"
   },
   "env": {
-    "commit": "a49634526cf13800cc5cdab45b892ddd7072efdc",
+    "commit": "f16ffb49a76a07f71b2ebf1c269a4d90d2d628a2",
     "device_count": 8,
     "device_kind": "NVIDIA A100-SXM4-80GB",
     "device_platform": "gpu",

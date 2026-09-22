@@ -1,4 +1,4 @@
-83e602e0b86a on 8 simulated cpu devices
+c90021c11d87 on 8 simulated cpu devices
 
 A. members per device, at 8 prompts of 128 tokens, D=1
  members           seed            lr1            lr4           lr16

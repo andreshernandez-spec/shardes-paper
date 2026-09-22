@@ -1,6 +1,6 @@
 # E10 in context: shaping on vs off inside full generations, 2026-08-21
 
-One T6 session (`kaggle/t6ctx/`, pinned 59e85ad), one v5e-8 host, D=8. Full
+One T6 session (`kaggle/t6ctx/`, pinned 60eaf2c), one v5e-8 host, D=8. Full
 lowrank_r1/B generations at the sweep's largest cells, shaping none vs
 centered_ranks, 3 warmup + 7 repeats, from `barrier_context.py`.
 

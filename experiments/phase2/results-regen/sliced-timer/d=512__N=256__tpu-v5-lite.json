@@ -3,7 +3,7 @@
  "population": 256,
  "params": 1572864,
  "env": {
-  "commit": "8d06d64177be223b75c417c523c9529a6295e745",
+  "commit": "9cd401055af66a62fc9e817045ec07fd3763c16c",
   "dirty_worktree": true,
   "jax": "0.11.1",
   "jaxlib": "0.11.1",

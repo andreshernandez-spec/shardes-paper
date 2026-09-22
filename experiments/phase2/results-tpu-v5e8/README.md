@@ -2,7 +2,7 @@
 
 The full 256-cell grid of `sweep-tpu.yaml` (identical to `sweep.yaml`, own results dir),
 run in a single Kaggle session by the committed kernel
-`experiments/phase2/kaggle/t1sweep/`, pinned at c93cf5d. One session covered the whole
+`experiments/phase2/kaggle/t1sweep/`, pinned at 84168c8. One session covered the whole
 grid, so the resume path the kernel was built for went unused.
 
 Platform: 8x TPU v5 lite (v5e-8), jax 0.11.1 (upgraded from the image's 0.10.2 in the

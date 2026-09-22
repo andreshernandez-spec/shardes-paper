@@ -9,7 +9,7 @@
 # Instrument validated against N at d=512, D=1: eval FLOPs are 246.4e9, 492.9e9 and
 # 985.7e9 for N of 256, 512, 1024. Exactly linear.
 #
-# commit f22dbcb,  jax 0.11.0
+# commit 967aa7c,  jax 0.11.0
 
      d     N  strategy          how  D   evalGFLOP   fullGFLOP
    512  1024  iid_gaussian        A  1       985.7      1032.5

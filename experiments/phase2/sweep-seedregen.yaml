@@ -1,6 +1,6 @@
 # The seed_regenerated half of the sweep, re-run after it was made to distribute.
 #
-# `sweep-postfix.yaml` ran on 2026-08-11 at commit a496345, before `ShardedES.apply`
+# `sweep-postfix.yaml` ran on 2026-08-11 at commit f16ffb4, before `ShardedES.apply`
 # reshaped the member axis into something GSPMD partitions. At that commit
 # `seed_regenerated` evaluated the whole population on every device: wall clock flat at
 # 431.58, 434.79, 435.17 ms across D=1,2,4 and parallel efficiency exactly 1/D

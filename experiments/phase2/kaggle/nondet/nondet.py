@@ -34,7 +34,7 @@ import os
 import subprocess
 import sys
 
-SHA = "74fa602"  # same commit lrdiag ran, so the numbers are directly comparable
+SHA = "8df2f32"  # same commit lrdiag ran, so the numbers are directly comparable
 REPO = "https://github.com/andreshernandez-spec/shardes.git"
 CHECKOUT = "/kaggle/working/shardes"
 
