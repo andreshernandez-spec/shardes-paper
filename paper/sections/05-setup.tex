@@ -73,10 +73,17 @@ promise trajectory identity across compiled programs.
 
 \paragraph{Provenance.} Result records stamp a commit hash, library versions,
 and device; benchmark configurations and their commit hashes are archived with
-the records; every figure and table in this paper regenerates from a script in
-the released repository
-(\url{https://github.com/andreshernandez-spec/shardes}); the submitted
-version of this manuscript will pin the frozen tag it was built from.
+the records; every figure and table in this paper regenerates from a script.
+There are two repositories: the instrument
+(\url{https://github.com/andreshernandez-spec/shardes}), installable on its
+own, and this paper's experiments, configurations, results, and manuscript
+(\url{https://github.com/andreshernandez-spec/shardes-paper}), which depends
+on the instrument at one pinned commit. The measurements here were taken while
+the two were a single tree, so the commit a record stamps is a commit of the
+instrument's repository, whose history keeps the drivers and configurations as
+they were run; a record made after the separation stamps both repositories'
+commits. The submitted
+version of this manuscript will pin the frozen tags it was built from.
 The E13 task-training curves and timings are from a rerun of that campaign
 at a committed tree (the first campaign's logs mark their worktree dirty;
 both are archived, and the rerun reproduces the first's held-out rewards
