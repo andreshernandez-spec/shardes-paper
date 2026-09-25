@@ -1,48 +1,60 @@
 #!/usr/bin/env python
-"""Table 7 from results-e18: the contraction crossover across a host boundary.
+"""Table 2 from results-e18: the placement across a host boundary, measured and predicted.
 
-    python tb7_e18.py            # markdown to stdout
+    python tb7_e18.py            # markdown to stdout, with the fabric figures
     python tb7_e18.py --latex    # also writes paper/generated/tb7.tex
 
-Reads only the committed results-e18 JSONs (2x A100-SXM4-80GB, RunPod Instant
-Cluster, socket inter-node transport). log10(t_B/t_A) of median generation time,
-negative where strategy B (partial contraction then all-reduce) wins. 1x8 is one
-NVLink node at D=8; 2x4 puts the host boundary on at the same eight devices; 2x8
-is D=16 across the boundary.
+Reads only committed files: the results-e18 cell JSONs and preflight ladders (2x
+A100-SXM4-80GB, RunPod Instant Cluster, socket inter-node transport), the frozen
+`results-e18/predictions.json`, and the inputs `predict.py` used (the D=8 sweep anchor and
+`results-contraction`). Every entry is t_B - t_A of median generation time in ms, negative
+where B (all-reduce) wins.
+
+Two predictions for 2x8. `frozen` is predictions.json as written before the 2x8 cells ran.
+`corrected` is predict.py's arithmetic on the same inputs with each ladder's beta at the
+payload it really moved (`costmodel.ladder_alpha_beta`): the preflight all-reduced 1/D of
+each label, so the frozen beta was D times too high. The 2x4 column is predict.py's own H1
+reading (same D=8 split, only the fabric term changes), corrected the same way.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import math
 from pathlib import Path
+
+import costmodel
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results-e18"
+SWEEP = HERE.parent / "results-consistent"
 # (label, strategy, d, N), in reading order
 CELLS = [
-    ("seed-regen.", "seed_regenerated", 2048, 128),
-    ("seed-regen.", "seed_regenerated", 2048, 256),
-    ("seed-regen.", "seed_regenerated", 512, 1024),
+    ("seed", "seed_regenerated", 2048, 128),
+    ("seed", "seed_regenerated", 2048, 256),
+    ("seed", "seed_regenerated", 512, 1024),
     ("rank 1", "mirrored_lr1", 2048, 128),
     ("rank 1", "mirrored_lr1", 2048, 256),
     ("rank 1", "mirrored_lr1", 512, 1024),
 ]
-TOPOS = ["1x8", "2x4", "2x8"]
+DEVICES = {"1x8": 8, "2x4": 8, "2x8": 16}
 
 
-def med(strategy, how, d, N, topo):
-    f = RESULTS / f"arm={strategy}__how={how}__d={d}__N={N}__topo={topo}.json"
-    if not f.exists():
-        return None
-    return json.loads(f.read_text()).get("seconds_median")
+def med(strategy, how, d, n, topo):
+    f = RESULTS / f"arm={strategy}__how={how}__d={d}__N={n}__topo={topo}.json"
+    return json.loads(f.read_text())["seconds_median"] if f.exists() else None
 
 
-def ratio(strategy, d, N, topo) -> str:
-    a, b = med(strategy, "A", d, N, topo), med(strategy, "B", d, N, topo)
-    if a is None or b is None or a <= 0 or b <= 0:
-        return "--"
-    return f"${math.log10(b / a):+.3f}$"
+def measured(strategy, d, n, topo):
+    a, b = med(strategy, "A", d, n, topo), med(strategy, "B", d, n, topo)
+    return None if a is None or b is None else b - a
+
+
+def anchor(strategy, d, n):
+    """delta at D=8 from the committed single-node sweep, as predict.py reads it."""
+    stem = f"mode=strong__D=8__d={d}__N={n}__s={strategy}__how="
+    ta = json.loads((SWEEP / f"{stem}A.json").read_text())["seconds_median"]
+    tb = json.loads((SWEEP / f"{stem}B.json").read_text())["seconds_median"]
+    return tb - ta
 
 
 def main(argv=None) -> int:
@@ -50,36 +62,75 @@ def main(argv=None) -> int:
     ap.add_argument("--latex", action="store_true")
     args = ap.parse_args(argv)
 
-    rows = [(label, d, N, [ratio(strat, d, N, t) for t in TOPOS])
-            for (label, strat, d, N) in CELLS]
+    pre = {t: json.loads((RESULTS / f"preflight-{t}.json").read_text()) for t in DEVICES}
+    fabric = {t: costmodel.ladder_alpha_beta(pre[t], DEVICES[t]) for t in DEVICES}
+    frozen = json.loads((RESULTS / "predictions.json").read_text())
 
-    print("| arm | d | N | 1x8 NVLink | 2x4 boundary | 2x8 boundary |")
-    print("|---|---|---|---|---|---|")
-    for label, d, N, vals in rows:
-        print(f"| {label} | {d} | {N} | " + " | ".join(vals) + " |")
+    def bump(topo, p_bytes):
+        return (costmodel.ladder_seconds(*fabric[topo], p_bytes)
+                - costmodel.ladder_seconds(*fabric["1x8"], p_bytes))
+
+    rows = []
+    for label, strat, d, n in CELLS:
+        p_bytes = costmodel.params_bytes(d)
+        c = costmodel.measured_contraction(strat, d, n)
+        delta_8 = anchor(strat, d, n)
+        corrected = costmodel.predict_delta(delta_8, bump("2x8", p_bytes), 16, c)
+        rows.append((label, d, n, [
+            measured(strat, d, n, "1x8"),
+            measured(strat, d, n, "2x4"),
+            delta_8 + bump("2x4", p_bytes),
+            measured(strat, d, n, "2x8"),
+            frozen[f"{strat}__d={d}__N={n}"]["delta_predicted"],
+            corrected["delta_predicted"],
+        ]))
+
+    def ms(v):
+        if v is None:
+            return "--"
+        return "0.0" if abs(v) < 5e-5 else f"{v * 1e3:+.1f}"
+
+    heads = ["1x8", "2x4", "2x4 model", "2x8", "2x8 frozen", "2x8 corrected"]
+    print("| arm | d | N | " + " | ".join(heads) + " |")
+    print("|---|---|---|" + "---|" * len(heads))
+    for label, d, n, vals in rows:
+        print(f"| {label} | {d} | {n} | " + " | ".join(ms(v) for v in vals) + " |")
+    print()
+    for t in DEVICES:
+        a, b = fabric[t]
+        print(f"{t}: alpha {a * 1e6:.0f} us, beta {b / 2**30:.2f} GiB/s at the payload moved "
+              f"(record says {pre[t]['beta_bytes_per_second'] / 2**30:.1f})")
 
     if args.latex:
         out = HERE.parent.parent.parent / "paper" / "generated" / "tb7.tex"
-        body = [f"{label} & {d} & {N} & " + " & ".join(vals) + r" \\"
-                for label, d, N, vals in rows]
+        body = [f"{label} & {d} & {n} & " + " & ".join(f"${ms(v)}$" for v in vals) + r" \\"
+                for label, d, n, vals in rows]
+        nv, s24, s28 = (fabric[t][1] / 2**30 for t in ("1x8", "2x4", "2x8"))
         out.write_text("\n".join([
             "% generated by experiments/phase2/multihost/tb7_e18.py --latex; do not edit",
-            r"\begin{table}[t]", r"\centering", r"\small",
-            r"\caption{The contraction crossover across a real host boundary "
-            r"(two 8$\times$A100-SXM4-80GB nodes, socket inter-node transport at "
-            r"9.2\,GiB/s; NVLink intra-node at 515\,GiB/s): $\log_{10}(t_B/t_A)$ "
-            r"of median generation time, negative where the partial-contraction "
-            r"placement B wins. \texttt{1x8} is one NVLink node at $D{=}8$; "
-            r"\texttt{2x4} turns the host boundary on at the same eight devices; "
-            r"\texttt{2x8} is $D{=}16$ across the boundary. The seed-regenerated "
-            r"arm at $d{=}2048$ wins as B on NVLink and flips to A across the "
-            r"boundary.}",
+            r"\begin{table*}[t]", r"\centering", r"\small",
+            r"\caption{The placement across a host boundary: $t_B - t_A$ in ms, negative "
+            r"where all-reduce (B) wins. Two 8$\times$A100 nodes joined by TCP sockets "
+            r"(InfiniBand carried no NCCL traffic); \texttt{1x8} is one node at $D{=}8$, "
+            r"\texttt{2x4} the same eight devices split across the boundary, \texttt{2x8} "
+            r"sixteen devices across it. The all-reduce runs at "
+            f"{nv:.0f}\\,GiB/s on NVLink and {s24:.2f} (\\texttt{{2x4}}) and "
+            f"{s28:.2f}\\,GiB/s (\\texttt{{2x8}}) across the boundary. "
+            r"\emph{frozen}: the prediction committed before the \texttt{2x8} cells ran, "
+            r"whose bandwidth was $D$ times too high (the calibration all-reduced $1/D$ "
+            r"of its label); \emph{model} and \emph{corrected}: Eq.~\eqref{eq:crossover} "
+            r"on the same inputs at the payload actually moved. The \texttt{1x8} column "
+            r"is re-measured on the cluster's first node; the model starts from the "
+            r"single-node sweep.}",
             r"\label{tab:tb7}",
-            r"\begin{tabular}{llrrrr}", r"\toprule",
-            r"arm & $d$ & $N$ & \texttt{1x8} & \texttt{2x4} & \texttt{2x8} \\",
+            r"\begin{tabular}{llrrrrrrr}", r"\toprule",
+            r" & & & & \multicolumn{2}{c}{\texttt{2x4}} & \multicolumn{3}{c}{\texttt{2x8}} \\",
+            r"\cmidrule(lr){5-6}\cmidrule(lr){7-9}",
+            r"arm & $d$ & $N$ & \texttt{1x8} & measured & model & measured & frozen "
+            r"& corrected \\",
             r"\midrule",
             *body,
-            r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]))
+            r"\bottomrule", r"\end{tabular}", r"\end{table*}", ""]))
         print(f"wrote {out}")
     return 0
 

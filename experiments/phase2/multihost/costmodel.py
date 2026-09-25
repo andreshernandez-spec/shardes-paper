@@ -33,6 +33,34 @@ def ladder_seconds(alpha: float, beta: float, nbytes: float) -> float:
     return alpha + nbytes / beta
 
 
+def ladder_payload_bytes(size_bytes: int, devices: int, rec: dict | None = None) -> int:
+    """What one preflight ladder point labelled `size_bytes` actually all-reduced.
+
+    Records that carry `ladder_payload_bytes` say so themselves. Every record before that
+    field existed (all of E18's) summed a (devices, n/devices + 1) array over its sharded
+    axis, so the reduced vector was n/devices + 1 floats: 1/devices of the label. Checked
+    against the compiled HLO on 8 devices: the "1 MiB" point lowers to f32[32769].
+    """
+    if rec is not None and "ladder_payload_bytes" in rec:
+        return rec["ladder_payload_bytes"][str(size_bytes)]
+    n_f32 = max(size_bytes // 4, 2)
+    return 4 * (n_f32 // devices + 1)
+
+
+def ladder_alpha_beta(rec: dict, devices: int) -> tuple[float, float]:
+    """(alpha, beta) of a preflight record, beta at the payload the ladder really moved.
+
+    The record's own `beta_bytes_per_second` divides the labelled 100 MiB by the time,
+    which overstates the fabric by `devices` for every record without
+    `ladder_payload_bytes`. The frozen E18 predictions used that figure, and stay as made.
+    """
+    t = rec["allreduce_seconds_by_bytes"]
+    big, small = 100 * 2**20, 8
+    moved = (ladder_payload_bytes(big, devices, rec)
+             - ladder_payload_bytes(small, devices, rec))
+    return t[str(small)], moved / max(t[str(big)] - t[str(small)], 1e-9)
+
+
 def measured_contraction(strategy: str, d_model: int, n: int, devices: int = 8,
                          kind: str | None = None) -> float | None:
     """`C` in seconds from `contraction_isolation.py`, or None if that cell never ran.
