@@ -49,6 +49,9 @@ single TPU v5e-8 host, where the interconnect (NVLink, ICI) is at its fastest an
 all-reduce at its cheapest. On those fabrics
 all-reduce wins every measured dense and seed-regenerated cell, whereas
 repeated contraction wins when low-rank structure makes the local work small.
+Across two such nodes joined by a 9.2\,GiB/s socket fabric, the seed-regenerated arm
+at the larger model width flips to repeated contraction, so the choice depends on the
+fabric as well as on the perturbation.
 The hardware-dependent outcome recurs with both signs on Qwen2.5-0.5B.
 
 We separately test whether the faster perturbations preserve useful update
