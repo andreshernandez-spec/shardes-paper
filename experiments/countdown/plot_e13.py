@@ -3,22 +3,21 @@
 
     python plot_e13.py        # figures/f7-e13-heldout.png, f7b-e13-wallclock.png
 
-F7: held-out eval reward vs sample evaluations, one curve per arm, min-max band
-over seeds 0-2. Four ES arms, the GRPO reference, the frozen-embedding ablation,
-and the base model as a dashed floor. The x-axis is sample evaluations, not
-generations or steps, because that is the budget Qiu's protocol matches: one ES
-generation is N * puzzles_per_gen = 240, one GRPO step is prompts * group = 240,
-so the two proceed at the same rate and the axis is honest for both.
+F7: what the held-out evaluations measure, split into its two parts, against
+sample evaluations: the share of the 2000 held-out puzzles solved, and the share
+of answers that are well formed. The reward is 0.9 x solved + 0.1 x formatted, so
+the two panels carry all of it, and they show what the reward hides: every arm
+learns the format within the first 50 updates, and the plateau is ~6% solved.
+One curve per ES arm, mean over seeds 0-2 with a min-max band, a marker at every
+evaluation, the base model as a dashed floor. One ES update scores
+N * puzzles_per_gen = 240 completions.
 
-The claims the figure carries: the four ES curves sit on top of each other
-(C6a: the rank axis is flat on held-out quality), the frozen-embedding curve
-sits with them (C6c), and the GRPO band is wide where the ES bands are tight
-(the seed-2 collapse to format-only is inside it).
+GRPO is not drawn. It runs in another framework with another decoder (its base
+model scores 0.037 against the ES decoder's 0.054 on the same weights), and the
+paper does not compare it; its evals stay in results/e13-a100-2026-08-17.
 
-The two zero points differ (ES 0.054, GRPO 0.037 on the same base weights):
-that is the residual cross-decoder delta the campaign README quantifies, bf16
-right-vs-left padding numerics, and it bounds how small a cross-arm gap can be
-read off this figure. Within-family comparisons share one decoder.
+Prints the per-arm means at every evaluation, which is where the text's numbers
+come from.
 """
 
 from __future__ import annotations
@@ -46,58 +45,58 @@ FIGURES = HERE / "figures"
 EVALS_PER_UNIT = 240  # per ES generation and per GRPO step alike; see module docstring
 
 # Colour per arm, fixed so the same arm is the same colour in every figure and in any
-# talk that reuses them. The ES family shades one hue by rank; GRPO is the one red.
+# talk that reuses them.
+# Seed and rank 1 keep their hues from the placement figures (orange, aqua).
 ARM_STYLE = {
-    "es-mirrored-seed": ("#08306b", "full rank (Qiu)"),
-    "es-mirrored-lr1": ("#2171b5", "rank 1"),
-    "es-mirrored-lr4": ("#6baed6", "rank 4"),
-    "es-mirrored-lr16": ("#a6bddb", "rank 16"),
-    "es-lr1-frozen-embed": ("#2ca02c", "rank 1, embedding frozen"),
-    "grpo": ("#d62728", "GRPO (Qiu's settings)"),
+    "es-mirrored-seed": ("#eb6834", "seed, mirrored (full rank)"),
+    "es-mirrored-lr1": ("#1baf7a", "rank 1"),
+    "es-mirrored-lr4": ("#4a3aa7", "rank 4"),
+    "es-mirrored-lr16": ("#e87ba4", "rank 16"),
+    "es-lr1-frozen-embed": ("#008300", "rank 1, embedding frozen"),
 }
 
 
-def curves(stem: str, xkey: str):
-    """[(x_evals, [reward per seed]) ...] over the arm's three seed files."""
+def curves(stem: str, xkey: str, field: str = "eval_reward"):
+    """[(x_evals, [field per seed]) ...] over the arm's three seed files."""
     by_x = {}
     for s in (0, 1, 2):
         for row in map(json.loads, (where(stem) / f"{stem}-s{s}-eval.jsonl").open()):
-            by_x.setdefault(row[xkey] * EVALS_PER_UNIT, []).append(row["eval_reward"])
+            by_x.setdefault(row[xkey] * EVALS_PER_UNIT, []).append(row[field])
     return sorted(by_x.items())
 
 
 def main() -> None:
     FIGURES.mkdir(exist_ok=True)
-    fig, ax = plt.subplots(figsize=(7.0, 4.4))
-
-    # Both decoders' base-model floors, labeled: the JAX evaluator (ES arms)
-    # and the HF evaluator (GRPO) score the same weights differently by a
-    # bf16 padding artifact, and an unlabeled single floor invites misreading
-    # the gap between them as a training effect.
-    for stem, label in (("es-mirrored-seed", "base model (JAX decoder)"),
-                        ("grpo", "base model (HF decoder)")):
-        floor = json.loads((where(stem) / f"{stem}-s0-eval.jsonl")
-                           .open().readline())["eval_reward"]
-        ax.axhline(floor, color="#888888", lw=1.0, ls="--", zorder=1)
-        ax.annotate(label, (0.35, floor), xycoords=("axes fraction", "data"),
-                    ha="left", va="bottom", fontsize=8, color="#666666")
-
-    for stem, (color, label) in ARM_STYLE.items():
-        xkey = "step" if stem == "grpo" else "generation"
-        pts = curves(stem, xkey)
-        xs = [x for x, _ in pts]
-        med = [statistics.mean(v) for _, v in pts]  # mean, matching the README and tb3
-        lo = [min(v) for _, v in pts]
-        hi = [max(v) for _, v in pts]
-        ax.plot(xs, med, color=color, lw=1.6, label=label, zorder=3)
-        ax.fill_between(xs, lo, hi, color=color, alpha=0.18, lw=0, zorder=2)
-
-    ax.set_xlabel("training sample evaluations")
-    ax.set_ylabel("held-out reward (2000 puzzles, greedy)")
-    ax.set_xlim(0, 500 * EVALS_PER_UNIT)
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
+    fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.4))
+    panels = (("eval_solved", "held-out puzzles solved (%)"),
+              ("eval_format", "answers well formed (%)"))
+    for ax, (field, ylabel) in zip(axes, panels):
+        floor = statistics.mean(curves("es-mirrored-seed", "generation", field)[0][1])
+        ax.axhline(100 * floor, color="#888888", lw=1.0, ls="--", zorder=1)
+        ax.annotate("base model", (0.62, 100 * floor), xycoords=("axes fraction", "data"),
+                    ha="left", va="bottom", fontsize=8, color="#52514e")
+        for stem, (color, label) in ARM_STYLE.items():
+            pts = curves(stem, "generation", field)
+            xs = [x for x, _ in pts]
+            mean = [100 * statistics.mean(v) for _, v in pts]
+            ax.plot(xs, mean, color=color, lw=1.5, marker="o", ms=3, label=label, zorder=3)
+            ax.fill_between(xs, [100 * min(v) for _, v in pts], [100 * max(v) for _, v in pts],
+                            color=color, alpha=0.15, lw=0, zorder=2)
+            print(f"  {field:12s} {label:28s} " + " ".join(
+                f"{x // 1000}k:{m:.2f}" for x, m in zip(xs, mean)))
+        ax.set_xlabel("training sample evaluations")
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(0, 500 * EVALS_PER_UNIT)
+        ax.set_xticks([0, 24000, 48000, 72000, 96000, 120000])
+        ax.set_xticklabels(["0", "24k", "48k", "72k", "96k", "120k"])
+        ax.grid(True, color="#e6e6e3", lw=0.8)
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+    axes[1].set_ylim(0, 105)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, fontsize=8, ncol=5, loc="lower center",
+               bbox_to_anchor=(0.5, -0.02))
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
     out = FIGURES / "f7-e13-heldout.png"
     fig.savefig(out, dpi=200)
     print(out)

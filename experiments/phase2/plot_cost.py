@@ -4,18 +4,16 @@
     python plot_cost.py                                 # GPU panel row from results-cost
     python plot_cost.py --results results-cost results-cost-tpu-v5e8   # both rows
 
-One row of panels per platform, one panel per strategy, each a heatmap over
-(N, d) of log10(t_strategy / t_iid_gaussian) at the same shape and dtype. The
-diverging scale is M3's: blue where the strategy beats the dense baseline,
-orange where the baseline wins, neutral grey at parity, because the quantity
-has a meaningful zero and the zero is the claim.
+One row of panels per platform, one panel per strategy (seed and rank 1; ranks 4
+and 16 are the ablation table's geometric means), each a heatmap over (N, d) of
+log10(t_strategy / t_iid_gaussian) at the same shape and dtype. Blue where the
+strategy beats the dense baseline, red where the baseline wins, grey at parity.
 
-**Cells where the dense baseline is infeasible are drawn as wins, not holes.**
-On the A100 the baseline OOMs over half the grid; a ratio needs both sides, so
-those cells cannot carry a number, but leaving them blank would erase the
-strongest form of C4's claim (the rewrite pays by feasibility before it pays by
-throughput). They get the full win colour and the label "dense OOM". Cells
-where the strategy itself is undersized say OOM; cells where both are say so.
+**Out-of-memory cells are hatched, not coloured.** They used to take the full win
+colour, which made a row of "no comparison possible" look like a row of large
+wins. Feasibility is a different axis from speed, so it gets a different mark:
+diagonal hatching and "dense OOM" where only the baseline does not fit, the
+opposite diagonal and "OOM" where the strategy does not, and "both OOM" alone.
 
 Annotations are multipliers ("0.13x"), not log values, because a reader
 checking a cell against the table in the paper should not need to exponentiate.
@@ -50,13 +48,21 @@ INK, MUTED = "#0b0b0b", "#52514e"
 OOM = "oom"  # sentinel: the cell was visited and recorded undersized
 
 #: Same poles as plot.py's CROSSOVER and the same reading: blue = the named thing
-#: wins, orange = the baseline wins, grey = parity.
-CMAP = LinearSegmentedColormap.from_list("pays", ["#2a78d6", "#d9d9d6", "#eb6834"])
+#: wins, red = the baseline wins, grey = parity.
+CMAP = LinearSegmentedColormap.from_list("pays", ["#2a78d6", "#f0efec", "#e34948"])
 
-#: Panel order tells the story left to right: Qiu's storage fix first (it loses
-#: throughput at D=1), then the mirrored family EGGROLL motivates.
-STRATEGIES = ["seed_regenerated", "mirrored_seed", "mirrored_lr1", "mirrored_lr4",
-              "mirrored_lr16"]
+#: Qiu's storage fix first (it loses throughput at D=1), then EGGROLL's rank 1.
+STRATEGIES = ["seed_regenerated", "mirrored_lr1"]
+TITLES = {"seed_regenerated": "seed", "mirrored_lr1": "rank 1"}
+PLATFORM = {"NVIDIA A100-SXM4-80GB": "one A100 (80 GB)", "TPU v5 lite": "one TPU v5e chip (16 GB)"}
+
+
+def edges(centers: list[int]) -> np.ndarray:
+    """Cell edges halfway between centers in log space, so cells are even on log axes."""
+    lc = np.log(np.asarray(centers, float))
+    mid = (lc[1:] + lc[:-1]) / 2
+    return np.exp(np.concatenate([[lc[0] - (mid[0] - lc[0])], mid,
+                                  [lc[-1] + (lc[-1] - mid[-1])]]))
 BASELINE = "iid_gaussian"
 
 
@@ -86,6 +92,7 @@ def load(dirs: list[pathlib.Path]) -> dict:
 def panel(ax, cells: dict, strategy: str, dtype: str, dims, pops, norm) -> None:
     z = np.full((len(dims), len(pops)), np.nan)
     labels = np.full((len(dims), len(pops)), "", dtype=object)
+    hatch = np.full((len(dims), len(pops)), "", dtype=object)
     for i, d in enumerate(dims):
         for j, n in enumerate(pops):
             t = cells.get((d, n, strategy, dtype))
@@ -96,33 +103,37 @@ def panel(ax, cells: dict, strategy: str, dtype: str, dims, pops, norm) -> None:
                 z[i, j] = np.log10(t / base)
                 labels[i, j] = f"{t / base:.2f}x"
             elif t is not OOM:  # the baseline is the one that does not fit
-                z[i, j], labels[i, j] = norm.vmin, "dense\nOOM"
+                labels[i, j], hatch[i, j] = "dense\nOOM", "////"
             elif base is not OOM:
-                z[i, j], labels[i, j] = norm.vmax, "OOM"
+                labels[i, j], hatch[i, j] = "OOM", "\\\\\\\\"
             else:
-                labels[i, j] = "both\nOOM"  # stays NaN: neither side has a time
-    ax.pcolormesh(pops, dims, np.ma.masked_invalid(z), cmap=CMAP, norm=norm,
-                  shading="nearest")
-    for i, d in enumerate(dims):
-        for j, n in enumerate(pops):
+                labels[i, j] = "both\nOOM"
+    xe, ye = edges(pops), edges(dims)
+    ax.pcolormesh(xe, ye, np.ma.masked_invalid(z), cmap=CMAP, norm=norm, shading="flat",
+                  edgecolor="#fcfcfb", linewidth=1.0)
+    for i in range(len(dims)):
+        for j in range(len(pops)):
+            if hatch[i, j]:
+                ax.add_patch(plt.Rectangle((xe[j], ye[i]), xe[j + 1] - xe[j],
+                                           ye[i + 1] - ye[i], facecolor="#f0efec",
+                                           edgecolor="#b5b4ae", hatch=hatch[i, j], lw=0))
             if labels[i, j]:
-                ax.text(n, d, labels[i, j], ha="center", va="center", fontsize=7,
-                        color=INK)
+                ax.text(pops[j], dims[i], labels[i, j], ha="center", va="center",
+                        fontsize=7.5, color=INK if not hatch[i, j] else MUTED)
     ax.set(xscale="log", yscale="log", xlabel="population N")
-    ax.set_xlim(pops[0] / 1.6, pops[-1] * 1.6)
-    ax.set_ylim(dims[0] / 1.6, dims[-1] * 1.6)
+    ax.set_xlim(xe[0], xe[-1])
+    ax.set_ylim(ye[0], ye[-1])
     ax.set_xticks(pops)
-    # 16384 and its neighbour collide as full digits at this panel width.
     ax.set_xticklabels([f"{n // 1024}k" if n >= 1024 else str(n) for n in pops],
                        fontsize=8)
     ax.set_yticks(dims)
     ax.set_yticklabels([str(d) for d in dims], fontsize=8)
     ax.xaxis.set_minor_locator(NullLocator())
     ax.yaxis.set_minor_locator(NullLocator())
+    ax.tick_params(length=0, colors=MUTED)
     ax.grid(False)
     for spine in ax.spines.values():
-        spine.set_color(MUTED)
-    ax.tick_params(colors=MUTED)
+        spine.set_visible(False)
 
 
 def main(argv=None) -> int:
@@ -153,22 +164,20 @@ def main(argv=None) -> int:
 
     nrows = len(platforms)
     fig, axes = plt.subplots(nrows, len(STRATEGIES),
-                             figsize=(2.9 * len(STRATEGIES), 3.4 * nrows),
+                             figsize=(4.3 * len(STRATEGIES), 3.3 * nrows),
                              squeeze=False, sharex=True, sharey=True)
     for i, (kind, cells) in enumerate(sorted(platforms.items())):
         for j, s in enumerate(STRATEGIES):
             panel(axes[i][j], cells, s, args.dtype, dims, pops, norm)
             if i == 0:
-                axes[i][j].set_title(s, color=INK, fontsize=10)
+                axes[i][j].set_title(TITLES[s], color=INK, fontsize=10)
             if j == 0:
-                axes[i][j].set_ylabel(f"{kind}\nmodel dimension d", color=INK)
+                axes[i][j].set_ylabel(f"{PLATFORM.get(kind, kind)}\nmodel dimension d",
+                                      color=INK)
 
     sm = plt.cm.ScalarMappable(cmap=CMAP, norm=norm)
     fig.colorbar(sm, ax=axes.ravel().tolist(),
-                 label="$\\log_{10}(t / t_\\mathrm{dense})$"
-                       "    <0 strategy wins,  >0 dense wins")
-    fig.suptitle(f"F4  cost vs the materializing dense baseline, {args.dtype}, D=1",
-                 color=INK, x=0.02, ha="left", y=1.0)
+                 label="$\\log_{10}(t / t_\\mathrm{dense})$:  below 0, faster than dense")
     out = args.out / f"f4-cost-{args.dtype}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print(out)

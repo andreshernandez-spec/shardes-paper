@@ -1,20 +1,16 @@
 #!/usr/bin/env python
-"""F1 and F2, the paper's cross-platform figures, from the committed sweeps.
+"""F1 and F2b, the cross-platform figures, from the committed sweeps.
 
-    python plot_paper.py      # figures/f1-scaling.png, figures/f2-crossover.png
+    python plot_paper.py      # figures/f1-scaling.png, figures/f2b-crossover-vs-d.png
 
-Both figures put the A100 row above the v5e row so the platform comparison is a
-vertical glance. Sources: `results-consistent` + `results-qiu` (8x A100) and
-`results-tpu-v5e8` (v5e-8), the same directories M1-M3 draw from; nothing here
-is a new measurement, only an assembly, so any number can be checked against
-the per-platform figures.
+Sources: `results-consistent` + `results-qiu` (8x A100) and `results-tpu-v5e8`
+(v5e-8), the same directories M1-M3 draw from; nothing here is a new measurement,
+only an assembly, so any number can be checked against the per-platform figures.
 
-F2 keeps one panel per strategy, per platform. M3's docstring records why that
-is not decoration: aggregating strategies once turned "B wins 10 of 16 cells"
-into "B wins everywhere". Only the four strategies present on BOTH platforms
-are drawn (`mirrored_seed` exists only in the GPU sweep, results-qiu); the
-shared colour scale spans both platforms so the same shade is the same ratio
-everywhere, which is the point of stacking them.
+F2b is the paper's placement figure: t_B / t_A against device count, one line per
+(strategy, d, N) cell. It replaced F2, a D=8 heatmap whose four cells per panel
+left most of each panel empty. Only the four strategies present on BOTH platforms
+are drawn (`mirrored_seed` exists only in the GPU sweep, results-qiu).
 
 F1 is the opener, so it shows one representative cell per mode rather than
 M1/M2's full grid: the largest cell both platforms ran (d=2048: strong
@@ -41,12 +37,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-from matplotlib.colors import TwoSlopeNorm  # noqa: E402
 from matplotlib.ticker import NullLocator  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from plot import CROSSOVER, HUES, INK, MARKERS, MUTED, _style, load  # noqa: E402
+from plot import HUES, INK, LABELS, MARKERS, MUTED, _style, load  # noqa: E402
 
 PLATFORMS = [
     ("8x A100", [HERE / "results-consistent", HERE / "results-qiu"]),
@@ -56,100 +51,15 @@ PLATFORMS = [
 STRATEGIES = ["iid_gaussian", "seed_regenerated", "mirrored_lr1", "lowrank_r1"]
 
 
-def f2(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
-    grids = {}
-    for name, rows in platform_rows:
-        at_max_d = max(r["config"]["devices"] for r in rows)
-        g = {}
-        for r in rows:
-            c = r["config"]
-            if c["mode"] != "strong" or c["devices"] != at_max_d:
-                continue
-            # run.py's seconds_iqr is the width q3-q1 (cost.py's is the pair);
-            # normalize to a (lo, hi) bracket around the median either way.
-            m, iqr = r["seconds_median"], r.get("seconds_iqr", 0.0)
-            lo, hi = ((iqr[0], iqr[1]) if isinstance(iqr, (list, tuple))
-                      else (m - iqr / 2, m + iqr / 2))
-            g[(c["strategy"], c["population"], c["d_model"], c["how"])] = (m, (lo, hi))
-        grids[name] = (at_max_d, g)
-
-    pops = sorted({k[1] for _, g in grids.values() for k in g})
-    dims = sorted({k[2] for _, g in grids.values() for k in g})
-
-    panels = {}
-    for name, (_, g) in grids.items():
-        for s in STRATEGIES:
-            z = np.full((len(dims), len(pops)), np.nan)
-            noisy = np.zeros((len(dims), len(pops)), bool)
-            for i, d in enumerate(dims):
-                for j, n in enumerate(pops):
-                    a, b = g.get((s, n, d, "A")), g.get((s, n, d, "B"))
-                    if a and b:
-                        z[i, j] = np.log10(b[0] / a[0])
-                        # Within measurement noise if the B/A ratio interval built
-                        # from the two IQRs straddles 1: the sign is then not a
-                        # finding, and the cell says so instead of implying one.
-                        lo, hi = b[1][0] / a[1][1], b[1][1] / a[1][0]
-                        noisy[i, j] = lo <= 1.0 <= hi
-            panels[(name, s)] = (z, noisy)
-
-    everything = np.concatenate([z.ravel() for z, _ in panels.values()])
-    lim = float(np.nanmax(np.abs(everything))) or 1.0
-    norm = TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim)
-
-    fig, axes = plt.subplots(len(grids), len(STRATEGIES),
-                             figsize=(3.1 * len(STRATEGIES), 3.4 * len(grids)),
-                             sharex=True, sharey=True, squeeze=False)
-    for i, (name, (at_max_d, _)) in enumerate(grids.items()):
-        for j, s in enumerate(STRATEGIES):
-            ax = axes[i][j]
-            z, noisy = panels[(name, s)]
-            im = ax.pcolormesh(pops, dims, z, cmap=CROSSOVER, norm=norm,
-                               shading="nearest")
-            for ii, d in enumerate(dims):
-                for jj, n in enumerate(pops):
-                    if not np.isnan(z[ii, jj]):
-                        label = f"{z[ii, jj]:+.2f}"
-                        if noisy[ii, jj]:
-                            label = f"({label})"  # sign within measurement noise
-                        ax.text(n, d, label, ha="center", va="center",
-                                fontsize=8, color=INK)
-            ax.set(xscale="log", yscale="log")
-            ax.set_xlim(pops[0] / 1.6, pops[-1] * 1.6)
-            ax.set_ylim(dims[0] / 1.6, dims[-1] * 1.6)
-            ax.set_xticks(pops)
-            ax.set_xticklabels([str(n) for n in pops], fontsize=8)
-            ax.set_yticks(dims)
-            ax.set_yticklabels([str(d) for d in dims], fontsize=8)
-            ax.xaxis.set_minor_locator(NullLocator())
-            ax.yaxis.set_minor_locator(NullLocator())
-            _style(ax)
-            ax.grid(False)
-            if i == 0:
-                ax.set_title(s, color=INK, fontsize=10)
-            if i == len(grids) - 1:
-                ax.set_xlabel("population N")
-            if j == 0:
-                ax.set_ylabel(f"{name} (D={at_max_d})\nmodel dimension d", color=INK)
-
-    fig.colorbar(im, ax=axes.ravel().tolist(),
-                 label="$\\log_{10}(t_B / t_A)$    <0 B wins,  >0 A wins")
-    fig.suptitle("F2  contraction crossover, by platform", color=INK, x=0.02,
-                 ha="left", y=0.98)
-    fig.savefig(out / "f2-crossover.png", dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    print(out / "f2-crossover.png")
-
-
 def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
-    """The crossover's trajectory in device count, from the same sweeps.
+    """The placement result on the block: t_B / t_A against device count, per platform.
 
-    F2 shows D=8 only; a referee's next question is whether the sign pattern is
-    a D=8 artifact. One line per (strategy, d, N) cell, log10(t_B/t_A) against
-    D, per platform. The lines answer it from data that already existed: the
-    sweeps measured every D in {1,2,4,8}.
+    One line per (strategy, d, N) cell of the strong-scaling sweep, solid at d=2048 and
+    dashed at d=512, from D=2 (at D=1 the two placements are the same program). Plotted
+    as the ratio on a log axis, so 0.5 and 2 are the same distance from a tie. Prints every
+    plotted value, which is where the text's ranges come from.
     """
-    fig, axes = plt.subplots(1, len(platform_rows), figsize=(4.6 * len(platform_rows), 3.6),
+    fig, axes = plt.subplots(1, len(platform_rows), figsize=(4.4 * len(platform_rows), 3.5),
                              sharey=True, squeeze=False)
     for j, (name, rows) in enumerate(platform_rows):
         ax = axes[0][j]
@@ -161,27 +71,36 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
             cells[(c["strategy"], c["d_model"], c["population"])][
                 (c["devices"], c["how"])] = r["seconds_median"]
         for (s, d, n), by in sorted(cells.items()):
-            ds = sorted({dev for dev, _ in by})
-            pts = [(dev, np.log10(by[(dev, "B")] / by[(dev, "A")]))
-                   for dev in ds if (dev, "A") in by and (dev, "B") in by and dev > 1]
-            if len(pts) >= 2:
-                ax.plot([p[0] for p in pts], [p[1] for p in pts], marker="o", ms=4,
-                        lw=1.3, color=HUES[s], alpha=0.85,
-                        label=s if (d, n) == min((d2, n2) for (s2, d2, n2) in cells
-                                                 if s2 == s) else None)
-        ax.axhline(0.0, color=MUTED, lw=1.0, ls="--")
-        ax.set(xscale="log", xlabel="devices D")
+            pts = [(dev, by[(dev, "B")] / by[(dev, "A")])
+                   for dev in sorted({dev for dev, _ in by})
+                   if dev > 1 and (dev, "A") in by and (dev, "B") in by]
+            if len(pts) < 2:
+                continue
+            ax.plot([p[0] for p in pts], [p[1] for p in pts], marker="o", ms=3.5, lw=1.4,
+                    ls="-" if d == 2048 else "--", color=HUES[s], alpha=0.9)
+            print(f"  {name:10s} {LABELS[s]:17s} d={d:<5d} N={n:<5d} "
+                  + " ".join(f"D={dev}:{v:.3f}" for dev, v in pts))
+        ax.axhline(1.0, color=MUTED, lw=1.0)
+        ax.text(2.05, 1.9, "replicated (A) faster", color=MUTED, fontsize=7, va="top")
+        ax.text(2.05, 0.19, "all-reduce (B) faster", color=MUTED, fontsize=7, va="bottom")
+        ax.set(xscale="log", yscale="log", xlabel="devices D", ylim=(0.17, 2.0))
         ax.set_xticks([2, 4, 8])
         ax.set_xticklabels(["2", "4", "8"])
+        ax.set_yticks([0.2, 0.3, 0.5, 0.7, 1.0, 1.5])
+        ax.set_yticklabels(["0.2", "0.3", "0.5", "0.7", "1", "1.5"])
         ax.xaxis.set_minor_locator(NullLocator())
+        ax.yaxis.set_minor_locator(NullLocator())
         _style(ax)
         ax.set_title(name, color=INK, fontsize=10, loc="left")
         if j == 0:
-            ax.set_ylabel("$\\log_{10}(t_B / t_A)$")
-        ax.legend(frameon=False, fontsize=7, labelcolor=MUTED)
-    fig.suptitle("F2b  the crossover ratio against device count, one line per "
-                 "(strategy, d, N) cell", color=INK, x=0.02, ha="left", y=1.02)
-    fig.tight_layout()
+            ax.set_ylabel("$t_B / t_A$")
+    handles = [plt.Line2D([], [], color=HUES[s], marker="o", ms=3.5, lw=1.4)
+               for s in STRATEGIES]
+    handles += [plt.Line2D([], [], color=MUTED, lw=1.4, ls=ls) for ls in ("-", "--")]
+    fig.legend(handles, [LABELS[s] for s in STRATEGIES] + ["d = 2048", "d = 512"],
+               frameon=False, fontsize=8, labelcolor=INK, ncol=6, loc="lower center",
+               bbox_to_anchor=(0.5, -0.06))
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
     fig.savefig(out / "f2b-crossover-vs-d.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(out / "f2b-crossover-vs-d.png")
@@ -263,7 +182,6 @@ def main() -> int:
     platform_rows = [(name, load(dirs)) for name, dirs in PLATFORMS]
     out = HERE / "figures"
     out.mkdir(exist_ok=True)
-    f2(platform_rows, out)
     f2b(platform_rows, out)
     f1(platform_rows, out)
     return 0

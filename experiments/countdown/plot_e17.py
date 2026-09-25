@@ -3,17 +3,16 @@
 
     python plot_e17.py            # writes figures/f9-e17-crossover.png
 
-One panel per perturbation arm, x = device count, y = log10(t_B / t_A) of
-median generation time, one line per population. Negative: the model-sized
-all-reduce placement (B) wins. A cell where either placement ran out of
-memory is drawn as a hollow marker at y=0 with no line through it; a cell
-with no record at all (killed in compilation) is absent. Falls back to
-results-e17 when results-e17b does not exist yet.
+One panel per perturbation arm, x = device count, y = t_B / t_A of median
+generation time on a log axis (the block figure's axis), one line per population.
+Below 1: the all-reduce placement (B) wins. A cell where either placement ran
+out of memory has no point; it used to be a hollow marker at y=0, which read as a
+tie. Prints every plotted value. Falls back to results-e17 when results-e17b does
+not exist yet.
 """
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 import matplotlib
@@ -24,10 +23,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results-e17b" if (HERE / "results-e17b").exists() else HERE / "results-e17"
 FIGURES = HERE / "figures"
-ARMS = [("mirrored_seed", "full rank (seed)"), ("mirrored_lr1", "rank 1"),
+ARMS = [("mirrored_seed", "seed, mirrored"), ("mirrored_lr1", "rank 1"),
         ("mirrored_lr4", "rank 4"), ("mirrored_lr16", "rank 16")]
 DEVICES = (1, 2, 4, 8)
-SHADES = {32: "#08306b", 64: "#2171b5", 128: "#4292c6", 240: "#9ecae1"}
+#: Ordinal blue steps far enough apart to tell at print size, plus a marker each.
+SHADES = {32: "#0d366b", 64: "#256abf", 128: "#5598e7", 240: "#9ec5f4"}
+SHAPES = {32: "o", 64: "s", 128: "^", 240: "D"}
 
 
 def cell(strategy, how, n, d):
@@ -43,44 +44,42 @@ def main() -> None:
     fig, axes = plt.subplots(1, len(arms), figsize=(3.3 * len(arms), 3.6), sharey=True, squeeze=False)
     for ax, (strategy, label) in zip(axes[0], arms):
         for n in pops:
-            xs, ys, ooms = [], [], []
+            xs, ys = [], []
             for d in DEVICES:
                 a, b = cell(strategy, "A", n, d), cell(strategy, "B", n, d)
-                if a is None or b is None:
-                    continue
-                if a == "oom" or b == "oom":
-                    ooms.append(d)
+                if a is None or b is None or a == "oom" or b == "oom":
                     continue
                 xs.append(d)
-                ys.append(math.log10(b / a))
-            color = SHADES.get(n, "#444444")
+                ys.append(b / a)
             if xs:
-                ax.plot(xs, ys, marker="o", ms=5, lw=1.6, color=color, label=f"N={n}")
-            if ooms:
-                # Spread the populations' OOM markers around the device count so
-                # four of them at one D stay tellable apart (a sixth of an octave).
-                k = pops.index(n) - (len(pops) - 1) / 2
-                ax.scatter([d * 2 ** (k / 6) for d in ooms], [0.0] * len(ooms),
-                           facecolors="none", edgecolors=color, s=36, lw=1.2, zorder=3)
-        ax.axhline(0.0, color="#888888", lw=0.8, ls="--")
+                ax.plot(xs, ys, marker=SHAPES.get(n, "o"), ms=4.5, lw=1.5,
+                        color=SHADES.get(n, "#444444"), label=f"N = {n}")
+                print(f"  {label:15s} N={n:<4d} " + " ".join(
+                    f"D={d}:{y:.3f}" for d, y in zip(xs, ys)))
+        ax.axhline(1.0, color="#52514e", lw=1.0)
         ax.set_xscale("log", base=2)
+        ax.set_yscale("log")
+        ax.set_ylim(0.6, 1.9)
+        ax.set_yticks([0.7, 0.8, 1.0, 1.25, 1.5])
+        ax.set_yticklabels(["0.7", "0.8", "1", "1.25", "1.5"])
+        ax.yaxis.set_minor_locator(plt.NullLocator())
         ax.set_xticks(DEVICES)
         ax.set_xticklabels([str(d) for d in DEVICES])
         ax.set_title(label, fontsize=10, loc="left")
-        ax.set_xlabel("devices")
+        ax.set_xlabel("devices D")
+        ax.grid(True, color="#e6e6e3", lw=0.8)
+        ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-    axes[0][0].set_ylabel(r"$\log_{10}(t_B / t_A)$   (negative: all-reduce wins)")
-    # One legend for the figure: every population that drew a line anywhere,
-    # plus the hollow marker, since a panel may have no line for a population.
+    axes[0][0].set_ylabel(r"$t_B / t_A$")
+    axes[0][0].text(1.05, 1.8, "replicated (A) faster", color="#52514e", fontsize=7, va="top")
+    axes[0][0].text(1.05, 0.62, "all-reduce (B) faster", color="#52514e", fontsize=7)
     handles = {}
     for ax in axes[0]:
         for h, l in zip(*ax.get_legend_handles_labels()):
             handles.setdefault(l, h)
-    handles["OOM (either placement)"] = plt.Line2D(
-        [], [], marker="o", ls="none", markerfacecolor="none", color="#444444")
     fig.legend(handles.values(), handles.keys(), frameon=False, fontsize=8,
                loc="lower center", ncol=len(handles), bbox_to_anchor=(0.5, -0.02))
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
     FIGURES.mkdir(exist_ok=True)
     out = FIGURES / "f9-e17-crossover.png"
     fig.savefig(out, dpi=200)
