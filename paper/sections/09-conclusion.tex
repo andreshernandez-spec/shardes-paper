@@ -1,40 +1,27 @@
-% CLAIM: restates the hierarchy and the boundary of evidence. No new claims.
+% CLAIM: restates the results and the rule. No new claims.
 \section{Conclusion}
-The usual scalar-communication account of distributed ES is true under one
-update placement but incomplete as a systems model. Across the measured GPU
-and TPU grids, one host each on a fat fabric, locally contracting
-population shards and all-reducing a
-model-sized update wins every dense and seed-regenerated cell. Repeating the
-contraction after a scalar gather returns as the better placement when
-low-rank perturbations make the avoided work small. The sign map moves with
-the accelerator and recurs, with both signs intact, on Qwen2.5-0.5B. The
-low-rank rewrite's GPU-shaped motivation also strengthens rather than inverts
-on the TPU. Centered-rank shaping adds one shared fitness gather followed by a
-replicated local sort; the sort, rather than communication, dominates that
-barrier at extreme populations.
 
-The validation chain gives the systems result a measured quality boundary. An
-approximately square-root alignment law from a synthetic block predicts
-full-rank cosine with the true teacher-forced-NLL gradient within 10\% at 0.5B
-and 1.5B parameters. The low-rank family lands near half its raw prediction,
-a factor whose own scatter is about a quarter and which drifts with scale,
-so it is a patch rather than a law. On decoded-reward Countdown training, a three-seed experiment
-resolves no quality difference among full rank and ranks 1, 4, and 16 at equal
-training samples, while rank 1 uses 41\% less steady-state time per update.
-That task result is consistent with the NLL alignment evidence, not a claim
-that the objectives are interchangeable. The measurement past the single-host boundary bears this out where it was
-taken: on two A100 nodes the interconnect changes the contraction question
-sharply, flipping the seed-regenerated arm from B to A across a $9.2$\,GiB/s
-socket fabric (Section~\ref{subsec:boundary}). Whether that flip survives at
-the faster InfiniBand of a production cluster is the question the single
-socket point leaves open.
+``ES only communicates scalars'' is true for one placement of the update and a poor
+guide to which placement is faster. The choice follows Eq.~\ref{eq:crossover}: all-reduce
+the partial sums when the share of the sum that saves takes longer than a model-sized
+all-reduce, and repeat the sum on every device otherwise. On one A100 node and one v5e
+host that means all-reduce for full-rank noise and replicating for low-rank noise at large
+width, the same on a real 0.5B model; across two hosts on a slow link the full-rank arm
+switches too, as the equation predicts. Low-rank noise saves more on the TPU than on the
+GPU. At equal population its updates align with the exact gradient about as well as
+full-rank ones, and on Countdown it reaches the same accuracy at 1.44$\times$ the update
+rate, while full rank gets there in fewer samples.
 
-\paragraph{What to do differently.} On a single host with a fat
-interconnect, contract locally and all-reduce (B) unless the perturbation
-is low-rank at large model size, where gathering scalars and repeating the
-contraction (A) is ahead by tens of percent. Keep fitness in float32:
-bfloat16 collapses a population's losses to a handful of ties and
-rank-based shaping of ties is noise. Do not force full matmul precision on
-a low-rank run; it costs $1.6$--$1.9\times$ there and nearly nothing on the
-dense arms. Above populations of about $10^4$, budget for the shaping
-sort, which is replicated local compute, not communication.
+\paragraph{What to do differently.}
+\begin{itemize}
+  \item Time your sum and your model-sized all-reduce, and use Eq.~\ref{eq:crossover}. On
+    a single host with a fast interconnect, all-reduce for full-rank noise and replicate
+    for low-rank noise at large width, where replicating is ahead by 4--15\% on the A100
+    and 17--46\% on the v5e. Across a slow host boundary, replicate.
+  \item Keep fitness in float32: in bfloat16 a population's losses collapse to a handful
+    of ties, and ranks of ties are noise.
+  \item Do not force full-precision matrix multiplies on a low-rank run; it costs
+    1.6--1.9$\times$ there and almost nothing for full-rank noise.
+  \item Above about $10^4$ members, budget for the ranking sort, which every device
+    repeats.
+\end{itemize}

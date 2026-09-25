@@ -1,9 +1,14 @@
 # Build the paper. `make tables` re-emits every generated table from its
-# script; `make` builds the PDF. Tables are never edited by hand.
+# script; `make` builds the PDF, `make anon` the double-blind one. Tables are
+# never edited by hand.
 LATEX=latexmk -pdf -interaction=nonstopmode -halt-on-error
 
 all: tables
 	$(LATEX) main.tex
+
+# Double-blind build: no author, no acknowledgements, no repository URLs.
+anon: tables
+	$(LATEX) -jobname=main-anon -usepretex='\def\anonymousbuild{}' main.tex
 
 tables:
 	cd ../experiments/phase2 && python tb1.py --latex >/dev/null
@@ -15,3 +20,4 @@ tables:
 
 clean:
 	latexmk -C main.tex
+	latexmk -C -jobname=main-anon main.tex

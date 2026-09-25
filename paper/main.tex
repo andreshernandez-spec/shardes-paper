@@ -1,17 +1,13 @@
-% shardes paper -- skeleton, prepared to be extended into the full paper.
+% shardes paper.
 %
-% HOW TO READ THIS SKELETON
-%   - Every section file in sections/ opens with a comment stating the one claim
-%     the section must carry and where its evidence lives in the repo.
-%   - Prose that exists is a clear-language draft: plain sentences first, the
-%     technical term in parentheses after, so a reader outside the area can
-%     follow and an expert can anchor. Rewrite freely; the structure, figures,
-%     tables and number-to-source wiring are the part meant to survive.
-%   - Tables in generated/ are emitted by committed analysis scripts. Never
-%     edit them by hand; rerun the scripts (make tables).
+% - Tables in generated/ are written by committed scripts (make tables); never edit them.
+% - Figures are included straight from experiments/*/figures; each script is named in
+%   the comment above its figure and in the appendix.
+% - `make` builds main.pdf; `make anon` builds main-anon.pdf for double-blind review,
+%   without the author, the acknowledgements and the repository URLs.
 %
-% CLASS: neutral article for now. When the MLSys 2027 CFP lands, replace the
-% next line with their class file and delete the geometry package.
+% CLASS: neutral article for now. When the MLSys 2027 style is in, replace the next line
+% with its class file and delete the geometry package.
 \documentclass[10pt,twocolumn]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage{booktabs}
@@ -19,78 +15,69 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{natbib}
-% Floats stay inside their section: single-column floats are barriered at
-% every \section boundary. Double-column floats (figure*/table*) cannot be
-% barriered by placeins; their drift is bounded by [t] placement.
-\usepackage[section]{placeins}
+% No float barrier at section boundaries: with the full-width tables of Section 6 it
+% left half of a page empty. Every float sits at the top of a page ([t]).
 \usepackage[hidelinks]{hyperref}
 
 \graphicspath{{../experiments/phase2/figures/}{../experiments/phase0/figures/}{../experiments/countdown/figures/}}
 
-\title{Update-contraction placement in sharded evolution strategies on GPUs and TPUs}
-%% FRAMING (decided 2026-08-21): the paper is the investigation; the library is
-%% the instrument, cited and released but not the subject.
+\newif\ifanonymous
+\ifdefined\anonymousbuild\anonymoustrue\fi
+% Repository links, or a neutral phrase in the anonymous build.
+\newcommand{\libraryurl}{\ifanonymous the library's repository (withheld for review)\else\url{https://github.com/andreshernandez-spec/shardes}\fi}
+\newcommand{\paperurl}{\ifanonymous the experiments' repository (withheld for review)\else\url{https://github.com/andreshernandez-spec/shardes-paper}\fi}
+
+\title{Scalars or all-reduce? Placing the update in sharded evolution strategies on GPUs and TPUs}
+\ifanonymous
+\author{Anonymous authors}
+\else
 \author{Andres Hernandez\\
   \href{mailto:andres.hernandez@gmx.net}{\texttt{andres.hernandez@gmx.net}}}
+\fi
 \date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Evolution strategies (ES) are often described as cheap to distribute because
-workers exchange scalar fitnesses rather than gradients, but they must still
-place the population-weighted update contraction. We compare gathering
-fitnesses and repeating the contraction on every device with contracting local
-population shards and all-reducing model-sized partial updates. Using one
-implementation of both seed-regenerated full-rank and never-materialized low-rank
-perturbations, we measure where each placement wins on a single 8$\times$A100 node and a
-single TPU v5e-8 host, where the interconnect (NVLink, ICI) is at its fastest and
-all-reduce at its cheapest. On those fabrics
-all-reduce wins every measured dense and seed-regenerated cell, whereas
-repeated contraction wins when low-rank structure makes the local work small.
-Across two such nodes joined by a 9.2\,GiB/s socket fabric, the seed-regenerated arm
-at the larger model width flips to repeated contraction, so the choice depends on the
-fabric as well as on the perturbation.
-The hardware-dependent outcome recurs with both signs on Qwen2.5-0.5B.
-
-We separately test whether the faster perturbations preserve useful update
-directions. Synthetic measurements yield an approximately square-root law for
-cosine alignment with the true gradient. Across 0.5B- and 1.5B-parameter
-models, it predicts full-rank teacher-forced-NLL alignment within 10\%; the
-low-rank family lands near half its raw prediction, a factor with a quarter's
-scatter of its own that carries from 0.5B to 1.5B within that scatter.
-On decoded-reward Countdown, three seeds resolve no quality difference among
-full rank and ranks 1, 4, and 16 at equal training samples, while rank 1 reduces
-steady-state update time by 41\%. We release the code, configurations, and
-results.
+Evolution strategies (ES) are often called cheap to distribute because workers exchange
+scalar fitnesses rather than gradients. That holds for one way of computing the update:
+gather the fitnesses and let every device recompute the weighted sum of all
+perturbations. The other way splits the sum across devices and all-reduces a
+model-sized partial update. We measure both in one JAX library that runs full-rank
+perturbations regenerated from seeds and low-rank perturbations that are never
+materialized, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
+Qwen2.5-0.5B. The winner follows one inequality: all-reduce wins when the share of the
+sum it saves takes longer than the all-reduce. On a single host it wins every
+full-rank cell, by 1.4 to 5.6$\times$, and repeating the sum wins for low-rank
+perturbations at large width, by 4 to 46\%. Across two A100 nodes joined by TCP
+sockets the full-rank arm flips too, and the same inequality predicts the boundary's
+cost within 6\,ms per cell. Low-rank perturbations cost 0.05--0.16$\times$ the dense
+baseline on the TPU against 0.13--0.42$\times$ on the A100. At equal population their
+updates align with the true gradient about as well as full-rank ones at 0.5B and 1.5B
+parameters, and on Countdown every rank reaches the same held-out accuracy, full rank
+in fewer samples, while rank 1 updates 1.44$\times$ faster. Code, configurations and
+results are released.
 \end{abstract}
 
 \input{sections/01-introduction}
-% Related work sits early (third), so what is novel is clear before the
-% instrument is described; its four threads deliberately end on systems so
-% the instrument section lands next. Filenames keep their historical
-% numbers; this list is the section order.
 \input{sections/02-background}
-\input{sections/09-related}
-% The contraction question precedes the instrument: it is what motivates the
-% instrument's guarantees (review 7).
-\input{sections/04-contraction}
-\input{sections/03-design}
+\input{sections/03-placement}
+\input{sections/04-instrument}
 \input{sections/05-setup}
 \input{sections/06-results}
-\input{sections/07-end-to-end}
-\input{sections/10-conclusion}
+\input{sections/07-quality}
+\input{sections/08-related}
+\input{sections/09-conclusion}
 
+\ifanonymous\else
 \section*{Acknowledgements}
-The TPU measurements ran on Kaggle's free TPU v5e-8 tier; the GPU
-measurements ran on rented commodity A100 nodes. No grant or employer
-resources were used.
+The TPU measurements ran on Kaggle's free TPU v5e-8 tier; the GPU measurements ran on
+rented A100 nodes. No grant or employer resources were used.
+\fi
 
 \bibliographystyle{plainnat}
 \bibliography{references}
-%% Author-year via natbib/plainnat for the draft; swap for the venue's
-%% style with the class file.
 
 \appendix
 \input{sections/appendix}

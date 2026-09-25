@@ -1,60 +1,57 @@
-% CLAIM: none of ours. The update construction, the two algorithms, and why flattening
-% forecloses the structured one. Citations plus docs/00's framing.
+% CLAIM: none of ours. The update, the two published designs, the names used below.
 \section{Background}
 \label{sec:background}
 
-\paragraph{The update direction.} ES constructs a direction of improvement by weighting
-random perturbations by how well they scored \citep{wierstra2014,nesterov2017}: with parameters $\theta$, noise
-$\epsilon_i$, scale $\sigma$ and fitness $f$, the update is proportional to
-$\frac{1}{N\sigma}\sum_i w_i\,\epsilon_i$, where the $w_i$ depend on the
-fitnesses $f(\theta + \sigma\epsilon_i)$. With raw fitnesses, the standard
-Gaussian estimator targets the gradient of a smoothed objective and carries a
-dimension-dependent variance cost \citep{nesterov2017,duchi2015,berahas2022}.
-This paper instead uses centered ranks \citep{salimans2017}: fitnesses are
-replaced by normalized ranks, making the update invariant to strictly increasing
-transformations of fitness but changing its estimand. We therefore call cosine
-with an automatic-differentiation gradient \emph{update--gradient alignment},
-not estimator bias or accuracy. No gradients flow through the ES model; the
-gradient exists only as an offline reference in the validation experiments.
+\paragraph{The update.} With weights $\theta$, noise scale $\sigma$ and a population of
+$N$ random perturbations $\epsilon_i$, ES scores every $f(\theta+\sigma\epsilon_i)$ and
+moves $\theta$ by
+\begin{equation}
+  \Delta\theta = \frac{\alpha}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
+  \label{eq:update}
+\end{equation}
+where the weights $w_i$ come from the fitnesses \citep{wierstra2014,nesterov2017}. We use
+centered ranks \citep{salimans2017}: each fitness is replaced by its rank, scaled to
+$[-\tfrac12,\tfrac12]$, which makes the update ignore any monotone rescaling of the
+reward. The sum in Eq.~\ref{eq:update} is the \emph{contraction} of the population
+against its weights, and where it is computed is the subject of this paper.
+\emph{Mirrored} (antithetic) sampling evaluates each $\epsilon$ together with $-\epsilon$,
+so $N$ members are $N/2$ independent directions. No gradient flows through the model;
+the exact gradient appears only as a reference in Section~\ref{sec:quality}, where we
+report the cosine between Eq.~\ref{eq:update} and it as \emph{alignment}.
 
-For comparing populations, define the sampling dimension $d_{\mathrm{samp}}$
-as the number of independent scalar random variables in one perturbation. It
-equals the full parameter count for dense and seed-regenerated noise. For a
-rank-$r$ perturbation of an $m\times n$ matrix it contributes $r(m+n)$, while
-non-matrix leaves contribute their full size. Section~\ref{sec:endtoend}
-measures alignment against $N/d_{\mathrm{samp}}$; cross-rank comparisons are
-also reported at equal $N$, because $d_{\mathrm{samp}}$ is a property of the
-sampler rather than the dimension of the model gradient. It counts
-independent draws; it does not measure how a rank-$r$ perturbation's support
-overlaps a full-rank gradient, and Section~\ref{sec:endtoend} meets that
-difference as an empirical correction factor rather than deriving the
-variable that would absorb it.
+\paragraph{Two designs.} \citet{qiu2025} keep full-rank Gaussian noise and store none of
+it: each member's noise is regenerated from its seed when it is needed, once to evaluate
+and once to form the sum. Nothing model-sized is kept per member, at the price of
+generating every perturbation twice. They fine-tune billion-parameter models with
+populations as small as 30. EGGROLL \citep{eggroll2025} makes the noise cheap instead:
+each $m\times n$ weight matrix is perturbed by $AB^\top/\sqrt r$ with $A$ and $B$ thin
+Gaussian factors of rank $r$, and always in mirrored pairs. It reports populations in the
+tens of thousands. Table~\ref{tab:arms} gives the name each variant has in the rest of
+the paper.
 
-\paragraph{The two recent algorithms.}
-\citet{qiu2025} keep the perturbation exact and make its \emph{storage} free:
-each candidate's noise is regenerated from a random seed whenever it is
-needed (once to evaluate, once to assemble the update), so nothing
-model-sized is ever kept per candidate, at the price of generating every
-perturbation twice. Their headline demonstration is full-parameter
-fine-tuning of billion-parameter language models with populations as small
-as 30. EGGROLL \citep{eggroll2025} instead makes the perturbation cheap: each
-weight matrix's noise is the product of two thin factors, so per-candidate
-storage and compute shrink by the rank ratio, at the price of the noise no
-longer being full-rank; it reports roughly $100\times$ throughput gains and
-populations in the tens of thousands. Both samplers draw exactly from
-their own distributions; the prices are paid in different currencies
-(regeneration compute against the perturbation's full-dimensional
-support), which is why neither paper subsumes
-the other and why measuring them in one system is informative at all.
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{The perturbation arms and their names in the text, figures and tables.}
+\label{tab:arms}
+\begin{tabular}{lp{0.62\linewidth}}
+\toprule
+name & what it is \\
+\midrule
+dense & full-rank Gaussian noise, stored for every member: the baseline \\
+seed & full-rank noise regenerated from a per-member seed \citep{qiu2025} \\
+seed, mirrored & the same, in mirrored pairs (the full-rank arm of Section~\ref{sec:quality}) \\
+rank $r$ & rank-$r$ factors, never materialized, in mirrored pairs \citep{eggroll2025} \\
+rank $r$, unpaired & the same without pairing \\
+naive & every member gets its own copy of the weights; used only in Table~\ref{tab:tb1} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\paragraph{Why flattening forecloses structure.} A rank-$r$
-perturbation is a statement about one weight \emph{matrix} (its noise is a
-product of an $m\times r$ and an $r\times n$ factor). A library whose core
-object is the flattened population, a dense (population, parameter-count)
-matrix of materialized noise, has nowhere efficient to attach that
-statement: the flattening is invertible (\texttt{ravel\_pytree} returns an
-unflattening function), but a lazy, never-materialized per-matrix
-perturbation is incompatible with an API whose contract is that the dense
-noise matrix exists. This is a design commitment, not a bug. The instrument
-therefore bypasses the flattened population representation rather than
-patching it.
+\paragraph{Why one library.} A library whose central object is the population as a
+dense (population, parameters) matrix, as evosax's is \citep{lange2022evosax}, has
+nowhere to put a perturbation that is never materialized, and at language-model scale
+that matrix does not fit. Comparing the two designs in their own codebases would mix the
+design with the implementation. Section~\ref{sec:instrument} describes the library we
+used instead.
