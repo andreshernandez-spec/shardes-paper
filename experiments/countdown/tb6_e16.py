@@ -10,6 +10,11 @@ the committed E1 fits (sigma 1e-3, centered ranks), neither fit to these measure
 
 - `law`: the full-rank fit at N/P, the same curve for every arm. This is the post hoc
   reading: at equal population the rank barely matters, so one curve should serve all.
+- printed only, `linear`: what a locally linear fitness gives with no fit at all. Centered
+  ranks are about Phi(z) - 1/2 of the standardized projection z, so for N << P the cosine
+  is corr(U, z) sqrt(N/P) = sqrt(3/pi) sqrt(N/P) unpaired, and 1/sqrt(2) of that for
+  mirrored pairs (N/2 directions). Low-rank noise AB^T/sqrt(r) has identity covariance,
+  so the rank does not enter.
 - `frozen`: what was committed before each run, the arm's own E1 fit at N/d_samp
   (e16-gate.yaml, e16-stage2.yaml), and for rank 1 at 1.5B that fit times the 0.53
   correction E15 measured at 0.5B (frozen in e16-stage2.yaml). E1 never measured r=16,
@@ -19,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import jax
@@ -51,12 +57,13 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     law = e1_curve("mirrored_full", "centered_ranks")
-    lines = []
+    lines, p_of = [], {}
     for rdir, label, config, calibrate in ROWS:
         cfg = getattr(qwen2.Config, config)()
         tree = jax.eval_shape(lambda: qwen2.init(jax.random.key(0), cfg,
                                                  dtype=jnp.bfloat16))
         p = sampling_dimension(tree, FULL)
+        p_of[label] = p
         for strategy, (name, e1_name, rank) in ARMS.items():
             files = sorted((HERE / rdir).glob(f"s={strategy}__N=*.json"),
                            key=lambda f: json.loads(f.read_text())["config"]["population"])
@@ -72,17 +79,27 @@ def main(argv=None) -> int:
                 lines.append((label, name, n, d["cosine_median"], sorted(d["cosines"]),
                               fit_predict(law, n / p), frozen))
 
+    lines = [l + (p_of[l[0]],) for l in lines]
     w = max(len(l[0]) for l in lines)
-    for label, name, n, med, cos, pl, pf in lines:
+    for label, name, n, med, cos, pl, pf, p in lines:
+        linear = math.sqrt(3 / math.pi) * math.sqrt(n / p)
+        if "unpaired" not in name:
+            linear /= math.sqrt(2)
         s = (f"{label:{w}s}  {name:16s} N={n:<4d} measured {med:8.2e} "
-             f"[{cos[0]:.1e}-{cos[-1]:.1e}]  law {pl:8.2e} ratio {med / pl:4.2f}x")
+             f"[{cos[0]:.1e}-{cos[-1]:.1e}]  law {pl:8.2e} ratio {med / pl:4.2f}x"
+             f"  linear {linear:8.2e} ratio {med / linear:4.2f}x")
         if pf is not None:
             s += f"  frozen {pf:8.2e} ratio {med / pf:4.2f}x"
         print(s)
+    full = {(l[0], l[2]): l[3] for l in lines if l[1] == "seed, mirrored"}
+    for label, name, n, med, *_ in lines:
+        if (label, n) in full and name != "seed, mirrored":
+            print(f"at equal N: {label:{w}s} {name:16s} N={n:<4d} over full rank "
+                  f"{med / full[(label, n)]:.2f}")
 
     if args.latex:
         rows, prev = [], None
-        for label, name, n, med, cos, pl, pf in lines:
+        for label, name, n, med, cos, pl, pf, _ in lines:
             if prev is not None and label != prev:
                 rows.append("\\midrule")
             prev = label

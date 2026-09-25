@@ -84,6 +84,11 @@ def main() -> None:
                             color=color, alpha=0.15, lw=0, zorder=2)
             print(f"  {field:12s} {label:28s} " + " ".join(
                 f"{x // 1000}k:{m:.2f}" for x, m in zip(xs, mean)))
+            if field == "eval_solved":
+                rew = curves(stem, "generation")[1]
+                print(f"    at {rew[0] // 1000}k: reward {statistics.mean(rew[1]):.3f} "
+                      f"[{min(rew[1]):.3f}, {max(rew[1]):.3f}], solved "
+                      f"{100 * min(pts[1][1]):.2f}-{100 * max(pts[1][1]):.2f}%")
         ax.set_xlabel("training sample evaluations")
         ax.set_ylabel(ylabel)
         ax.set_xlim(0, 500 * EVALS_PER_UNIT)

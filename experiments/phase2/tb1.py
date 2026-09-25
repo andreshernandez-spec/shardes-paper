@@ -127,11 +127,32 @@ def latex() -> str:
     return "\n".join(out)
 
 
+def ratios() -> list[str]:
+    """The ratios the text quotes, per platform, over the four shapes."""
+    one, eight = build(1), dict(build(8))
+    pairs = [("rank 1 vs EGGROLL code, both D=1", "shardes/mirrored_lr1/B", 1, "eggroll/rank1"),
+             ("rank 1 at D=8 vs EGGROLL code at D=1", "shardes/mirrored_lr1/B", 8, "eggroll/rank1"),
+             ("seed vs naive, both D=1", "shardes/seed_regenerated/B", 1, "naive_es")]
+    out = []
+    for label, arm, dev, ref in pairs:
+        for name, _ in SOURCES:
+            rs = []
+            for (d, n), cell in one:
+                num = (cell[name][arm] if dev == 1 else eight.get((d, n), {}).get(name, {}).get(arm))
+                den = cell[name][ref]
+                if isinstance(num, float) and isinstance(den, float):
+                    rs.append(num / den)
+            if rs:
+                out.append(f"{label}, {name}: {min(rs):.2f} to {max(rs):.2f}")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--latex", action="store_true")
     args = ap.parse_args()
     print("\n".join(markdown()))
+    print("\n".join(ratios()))
     if args.latex:
         dest = HERE.parent.parent / "paper" / "generated" / "tb1.tex"
         dest.parent.mkdir(parents=True, exist_ok=True)

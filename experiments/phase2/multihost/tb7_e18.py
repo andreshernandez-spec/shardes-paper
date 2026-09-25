@@ -101,6 +101,12 @@ def main(argv=None) -> int:
         print(f"{t}: alpha {a * 1e6:.0f} us, beta {b / 2**30:.2f} GiB/s at the payload moved "
               f"(record says {pre[t]['beta_bytes_per_second'] / 2**30:.1f})")
 
+    ar = costmodel.params_bytes(2048)
+    print(f"a {ar / 2**20:.0f} MiB all-reduce at 12 and 50 GiB/s: "
+          f"{ar / (12 * 2**30) * 1e3:.1f} and {ar / (50 * 2**30) * 1e3:.1f} ms")
+    print("boundary penalty on B, 1x8 -> 2x4 (ms): " + ", ".join(
+        f"{label} d={d} N={n} {(v[1] - v[0]) * 1e3:.1f}" for label, d, n, v in rows))
+
     if args.latex:
         out = HERE.parent.parent.parent / "paper" / "generated" / "tb7.tex"
         body = [f"{label} & {d} & {n} & " + " & ".join(f"${ms(v)}$" for v in vals) + r" \\"
