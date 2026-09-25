@@ -42,10 +42,11 @@ Evolution strategies (ES) are often described as cheap to distribute because
 workers exchange scalar fitnesses rather than gradients, but they must still
 place the population-weighted update contraction. We compare gathering
 fitnesses and repeating the contraction on every device with contracting local
-population shards and all-reducing model-sized partial updates. In a common
-implementation of seed-regenerated full-rank and never-materialized low-rank
-perturbations, we measure where each placement wins on an 8$\times$A100 node and a TPU
-v5e-8, one host each, the fattest interconnects available. On those fabrics
+population shards and all-reducing model-sized partial updates. Using one
+implementation of both seed-regenerated full-rank and never-materialized low-rank
+perturbations, we measure where each placement wins on a single 8$\times$A100 node and a
+single TPU v5e-8 host, where the interconnect (NVLink, ICI) is at its fastest and
+all-reduce at its cheapest. On those fabrics
 all-reduce wins every measured dense and seed-regenerated cell, whereas
 repeated contraction wins when low-rank structure makes the local work small.
 The hardware-dependent outcome recurs with both signs on Qwen2.5-0.5B.
