@@ -2,13 +2,13 @@
 \begin{table*}[t]
 \centering
 \small
-\caption{The placement across a host boundary: $t_B - t_A$ in ms, negative where all-reduce (B) wins. Two 8$\times$A100 nodes joined by TCP sockets (InfiniBand carried no NCCL traffic); \texttt{1x8} is one node at $D{=}8$, \texttt{2x4} the same eight devices split across the boundary, \texttt{2x8} sixteen devices across it. The all-reduce runs at 64\,GiB/s on NVLink and 0.82 (\texttt{2x4}) and 0.58\,GiB/s (\texttt{2x8}) across the boundary. \emph{frozen}: the prediction committed before the \texttt{2x8} cells ran, whose bandwidth was $D$ times too high (the calibration all-reduced $1/D$ of its label); \emph{model} and \emph{corrected}: Eq.~\eqref{eq:crossover} on the same inputs at the payload actually moved. The \texttt{1x8} column is re-measured on the cluster's first node; the model starts from the single-node sweep.}
+\caption{The placement across a host boundary: $t_B - t_A$ in ms, negative where all-reduce (B) wins. Two 8$\times$A100 nodes joined by TCP sockets (InfiniBand carried no NCCL traffic); \texttt{1x8} is one node at $D{=}8$, \texttt{2x4} the same eight devices split across the boundary, \texttt{2x8} sixteen devices across it. The all-reduce runs at 64\,GiB/s on NVLink and 0.82 (\texttt{2x4}) and 0.58\,GiB/s (\texttt{2x8}) across the boundary. \emph{prereg.}: the prediction committed before the \texttt{2x8} cells ran, whose bandwidth was $D$ times too high (the calibration all-reduced $1/D$ of its label); \emph{model} and \emph{corrected}: Eq.~\eqref{eq:crossover} on the same inputs at the payload actually moved. The \texttt{1x8} column is re-measured on the cluster's first node; the model starts from the single-node sweep.}
 \label{tab:tb7}
 \begin{tabular}{llrrrrrrr}
 \toprule
  & & & & \multicolumn{2}{c}{\texttt{2x4}} & \multicolumn{3}{c}{\texttt{2x8}} \\
 \cmidrule(lr){5-6}\cmidrule(lr){7-9}
-arm & $d$ & $N$ & \texttt{1x8} & measured & model & measured & frozen & corrected \\
+arm & $d$ & $N$ & \texttt{1x8} & measured & model & measured & prereg. & corrected \\
 \midrule
 seed & 2048 & 128 & $-21.4$ & $+86.8$ & $+91.0$ & $+74.1$ & $-13.9$ & $+137.2$ \\
 seed & 2048 & 256 & $-50.8$ & $+57.2$ & $+58.7$ & $+56.7$ & $-48.2$ & $+103.0$ \\

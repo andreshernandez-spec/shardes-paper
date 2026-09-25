@@ -49,7 +49,7 @@ perturbations regenerated from seeds and low-rank perturbations that are never
 materialized, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
 Qwen2.5-0.5B. The winner follows one inequality: all-reduce wins when the share of the
 sum it saves takes longer than the all-reduce. On a single host it wins every
-full-rank cell, by 1.4 to 5.6$\times$, and repeating the sum wins for low-rank
+full-rank configuration measured, by 1.4 to 5.6$\times$, and repeating the sum wins for low-rank
 perturbations at large width, by 4 to 46\%. Across two A100 nodes joined by TCP
 sockets the full-rank arm flips too, and the same inequality predicts the boundary's
 cost within 6\,ms per cell. Low-rank perturbations cost 0.05--0.16$\times$ the dense

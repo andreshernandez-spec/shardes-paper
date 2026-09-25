@@ -122,7 +122,7 @@ def main(argv=None) -> int:
             r"sixteen devices across it. The all-reduce runs at "
             f"{nv:.0f}\\,GiB/s on NVLink and {s24:.2f} (\\texttt{{2x4}}) and "
             f"{s28:.2f}\\,GiB/s (\\texttt{{2x8}}) across the boundary. "
-            r"\emph{frozen}: the prediction committed before the \texttt{2x8} cells ran, "
+            r"\emph{prereg.}: the prediction committed before the \texttt{2x8} cells ran, "
             r"whose bandwidth was $D$ times too high (the calibration all-reduced $1/D$ "
             r"of its label); \emph{model} and \emph{corrected}: Eq.~\eqref{eq:crossover} "
             r"on the same inputs at the payload actually moved. The \texttt{1x8} column "
@@ -132,7 +132,7 @@ def main(argv=None) -> int:
             r"\begin{tabular}{llrrrrrrr}", r"\toprule",
             r" & & & & \multicolumn{2}{c}{\texttt{2x4}} & \multicolumn{3}{c}{\texttt{2x8}} \\",
             r"\cmidrule(lr){5-6}\cmidrule(lr){7-9}",
-            r"arm & $d$ & $N$ & \texttt{1x8} & measured & model & measured & frozen "
+            r"arm & $d$ & $N$ & \texttt{1x8} & measured & model & measured & prereg. "
             r"& corrected \\",
             r"\midrule",
             *body,

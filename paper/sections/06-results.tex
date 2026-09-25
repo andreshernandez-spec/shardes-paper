@@ -88,7 +88,9 @@ A single host is where an all-reduce is cheapest. We repeated six cells on two
 8$\times$A100 nodes with both placement predictions fixed before the run. InfiniBand
 carried no NCCL traffic on any of five clusters we drew, so the nodes talk over TCP
 sockets; measured at the payload it moves, the all-reduce runs at 64\,GiB/s within a
-node and 0.6--0.8\,GiB/s across the two (Table~\ref{tab:tb7}).
+node and 0.6--0.8\,GiB/s across the two (Table~\ref{tab:tb7}). The in-node figure is
+timed per call on the cluster's first node; Table~\ref{tab:tb8}'s 98\,GiB/s is the slope
+inside a running program on another A100 node, and each is used where it was measured.
 
 Splitting the same eight devices across the boundary (\texttt{1x8} to \texttt{2x4})
 adds 107--110\,ms to B's generation at width 2048, which is more than the 21--51\,ms B

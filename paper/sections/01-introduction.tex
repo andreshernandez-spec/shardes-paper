@@ -38,7 +38,7 @@ whether they train as well on a task.
 
 \paragraph{Contributions, most important first.}
 \begin{itemize}
-  \item \textbf{Where to compute the update.} All-reduce wins every full-rank cell on
+  \item \textbf{Where to compute the update.} All-reduce wins every full-rank configuration on
     one A100 node and one v5e host, and replicating wins for rank 1 at width 2048; the
     signs hold on Qwen2.5-0.5B, and across two TCP-connected nodes the full-rank arm
     flips as well. Eq.~\ref{eq:crossover}, with its terms timed separately, accounts
