@@ -95,6 +95,7 @@ def test_cost_counts_member_batches_and_skips_smoke(tmp_path, monkeypatch):
     rec = {"setting": "olmo3_if", "smoke": False,
            "env": {"torch_device": "NVIDIA A100-SXM4-80GB"},
            "cell": {"gpu_memory_utilization": 0.85, "prompts_per_member": 32, "members": 2},
+           "spec": {},
            "members": [{"wall_seconds": 30.0, "weight_rewrite": {"seconds": 0.0}}] * 2,
            "lengths": {"mean": 300.0, "cap_hits": 0, "sequences": 64}}
     d = tmp_path / "results-x"

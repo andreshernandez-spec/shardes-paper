@@ -60,8 +60,10 @@ def table(dirs) -> list:
             for label, rollouts in RUNS[rec["setting"]].items():
                 gpu_h = rollouts / P * per_member / 3600 * UPTIME_OVERHEAD
                 lo, hi = PRICES[gpu]
+                t = rec["spec"].get("temperature", 0.0)
                 rows.append({
                     "gpu": gpu, "setting": rec["setting"], "run": label,
+                    "decode": "greedy" if not t else f"T={t:g}",
                     "util": rec["cell"]["gpu_memory_utilization"], "P": P,
                     "s_per_member": per_member, "gpu_hours": gpu_h,
                     "usd": (gpu_h * lo, gpu_h * hi),
@@ -76,11 +78,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("dirs", nargs="+")
     args = ap.parse_args(argv)
-    print("| gpu | setting | matched to | util | P | s/member | mean len | cap hits | "
-          "GPU-h | USD |")
-    print("|---|---|---|---|---|---|---|---|---|---|")
+    print("| gpu | setting | decode | matched to | util | P | s/member | mean len | "
+          "cap hits | GPU-h | USD |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
     for r in table(args.dirs):
-        print(f"| {r['gpu']} | {r['setting']} | {r['run']} | {r['util']:.2f} | {r['P']} | "
+        print(f"| {r['gpu']} | {r['setting']} | {r['decode']} | {r['run']} | "
+              f"{r['util']:.2f} | {r['P']} | "
               f"{r['s_per_member']:.1f} | {r['mean_len']:.0f} | "
               f"{r['cap_hits']}/{r['sequences']} | {r['gpu_hours']:.1f} | "
               f"{r['usd'][0]:.0f}-{r['usd'][1]:.0f} |")
