@@ -177,8 +177,9 @@ def by_population(records: list[dict], out: Path) -> int:
     print(f"mirrored ranks at equal N: largest over smallest {min(spread):.2f}-"
           f"{max(spread):.2f} over the {len(spread)} populations all three ran")
 
+    # The record is cos(g_hat, grad L); the update is -g_hat, so this is cos(update, -grad L).
     ax.set(xscale="log", yscale="log", xlabel="$N/P$ (population over parameters)",
-           ylabel=r"$\cos(\hat{g}, \nabla f)$")
+           ylabel=r"$\cos(\Delta\theta, -\nabla L)$")
     ax.grid(True, color="#e6e6e3", lw=0.8, which="major")
     ax.set_axisbelow(True)
     ax.spines[["top", "right"]].set_visible(False)

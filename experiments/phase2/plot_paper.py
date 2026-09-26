@@ -57,22 +57,27 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
     One line per (strategy, d, N) configuration of the strong-scaling sweep, solid at
     d=2048 and dashed at d=512, open markers for the smaller population of each width and
     filled for the larger, from D=2. Plotted as the ratio on a log axis, so 0.5 and 2 are
-    the same distance from a tie. At D=1 the two placements do the same work, so the
-    spread of their ratio there is drawn as a grey band: a difference inside it is not
-    one the sweep can tell from a tie. Prints every plotted value and the band, which is
-    where the text's ranges come from.
+    the same distance from a tie. At D=1 the two placements do the same work, and the
+    range of their ratio there, pooled over configurations, is drawn as a grey band for
+    reference. It is not a per-configuration uncertainty. That comes from each
+    configuration's own repeats: the ratio runs from min(t_B)/max(t_A) to
+    max(t_B)/min(t_A) over the five repeats of each placement, and a configuration whose
+    range contains 1 is unresolved. Prints every plotted value, the band and that
+    classification at D=8, which is where the text's ranges and counts come from.
     """
     fig, axes = plt.subplots(1, len(platform_rows), figsize=(4.4 * len(platform_rows), 3.5),
                              sharey=True, squeeze=False)
     for j, (name, rows) in enumerate(platform_rows):
         ax = axes[0][j]
         cells: dict = collections.defaultdict(dict)
+        repeats: dict = collections.defaultdict(dict)
         for r in rows:
             c = r["config"]
             if c["mode"] != "strong" or c["strategy"] not in STRATEGIES:
                 continue
-            cells[(c["strategy"], c["d_model"], c["population"])][
-                (c["devices"], c["how"])] = r["seconds_median"]
+            key = (c["strategy"], c["d_model"], c["population"])
+            cells[key][(c["devices"], c["how"])] = r["seconds_median"]
+            repeats[key][(c["devices"], c["how"])] = r["seconds_all"]
         larger = {d: max(n for _, dd, n in cells if dd == d) for _, d, _ in cells}
         at_one = [by[(1, "B")] / by[(1, "A")] for by in cells.values()
                   if (1, "A") in by and (1, "B") in by]
@@ -91,6 +96,19 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
                     mfc=HUES[s] if filled else "white", mew=1.2)
             print(f"  {name:10s} {LABELS[s]:17s} d={d:<5d} N={n:<5d} "
                   + " ".join(f"D={dev}:{v:.3f}" for dev, v in pts))
+        unresolved = collections.defaultdict(list)
+        for key, by in sorted(repeats.items()):
+            if (8, "A") not in by or (8, "B") not in by:
+                continue
+            a, b = by[(8, "A")], by[(8, "B")]
+            lo, hi = min(b) / max(a), max(b) / min(a)
+            family = "rank 1" if key[0] in ("mirrored_lr1", "lowrank_r1") else "full rank"
+            unresolved[(family, key[1])].append(lo <= 1.0 <= hi)
+            print(f"  {name:10s} D=8 {LABELS[key[0]]:17s} d={key[1]:<5d} N={key[2]:<5d} "
+                  f"repeats {lo:.3f}-{hi:.3f}{'  contains 1' if lo <= 1.0 <= hi else ''}")
+        for (family, d), flags in sorted(unresolved.items()):
+            print(f"  {name:10s} D=8 {family} d={d}: {sum(flags)} of {len(flags)} "
+                  "repeat ranges contain 1")
         ax.axhline(1.0, color=MUTED, lw=1.0)
         ax.text(2.05, 1.9, "replicated (A) faster", color=MUTED, fontsize=7, va="top")
         ax.text(2.05, 0.19, "all-reduce (B) faster", color=MUTED, fontsize=7, va="bottom")
@@ -115,7 +133,7 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
              for mfc in ("white", MUTED)]
     marks += [plt.Rectangle((0, 0), 1, 1, color="#d6d5d0", lw=0)]
     fig.legend(marks, ["smaller N (256 at d = 512, 128 at d = 2048)",
-                       "larger N (1024, 256)", "spread at D = 1"],
+                       "larger N (1024, 256)", "range at D = 1 (same work)"],
                frameon=False, fontsize=8, labelcolor=INK, ncol=3, loc="upper center",
                bbox_to_anchor=(0.5, -0.03))
     fig.tight_layout()
