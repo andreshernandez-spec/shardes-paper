@@ -1,0 +1,67 @@
+# 03. Tulu 3.1 pilot: preregistration
+
+Written and committed 2026-09-27, before any pilot run. T4 of `01-tulu31-plan.md`. The
+gate below is fixed here and not changed after the data; a different question after the
+result gets a new document that says it came after.
+
+## What runs
+
+Four arms, each on its own H100 80GB SXM (the GPU type the matched run and its
+evaluation will use), from `allenai/Llama-3.1-Tulu-3-8B-DPO`, driver
+`experiments/end_to_end/es_vllm/run_tulu.py`, configs `es_vllm/tulu-pilot-*.yaml`:
+
+| arm | sigma | alpha (lr = alpha x sigma) | reward |
+|---|---|---|---|
+| s5e-4 | 5e-4 | 5e-4 | the run's verifiers |
+| s1e-3 | 1e-3 | 5e-4 | the run's verifiers |
+| s2e-3 | 2e-3 | 5e-4 | the run's verifiers |
+| random | 1e-3 | 5e-4 | seeded uniform (the control) |
+
+Common: full-rank `SeedRegenerated`, N = 16 members, `group_relative` on `(N, 1)`
+(Qiu's z-score), greedy decoding, cap 2,048, stop on eos, a response without eos
+scores 0 (the run's `--non_stop_penalty`), 30 iterations, seed 0.
+
+**N = 16 is what "same data, matched rollouts" requires.** The RL run drew 48 prompts
+and 16 samples per prompt each step. An ES iteration here takes the 192 prompts of RL
+steps 4g+1 to 4g+4, in the run's own order, and scores each with 16 members: 3,072
+rollouts, exactly those four RL steps' 4 x 768. So after iteration g both methods have
+seen the same prompts and generated the same number of rollouts, at every iteration.
+Thirty iterations cover RL steps 1 to 120 (`step_120` is a released branch).
+
+## What is measured
+
+Each iteration first decodes the current weights (the view) on its own 192 prompts,
+before any member sees them: `center_reward`, on the 0-10 scale, with per-source
+means. In the first epoch those prompts are new to the run, so this is a held-out
+measurement of the weights so far. All four arms see the same prompts at the same
+iteration, so the arms are compared pairwise, iteration by iteration.
+
+Also logged: every member's fitness (the rebuild record), response lengths, cap hits,
+the member fitness spread, a digest every 5 iterations, and at iteration 0 a
+bit-for-bit check that the engine held member 0's weights and, after the update, the
+view.
+
+## Gate G3
+
+For each true-reward arm, `d_g = center_reward(arm, g) - center_reward(random, g)` for
+g = 0..29, and the ordinary least squares slope of `d_g` on g with its standard error.
+
+- **Pass** for an arm: slope > 2 standard errors above zero, and the mean of `d_g` over
+  g = 20..29 above zero.
+- **Sigma for the matched run**: the passing arm with the largest slope; if two slopes
+  are within one standard error of each other, the smaller sigma.
+- **Negative**: no arm passes. Reported as "no detectable learning within 30 iterations
+  (RL steps 1 to 120's data)", with the diagnostics below, and the next step is decided
+  with Andres; no configuration is added to rescue it.
+
+Reported whatever the outcome: every arm's `center_reward` curve, the per-source curves,
+the fitness spread per iteration (an arm whose members all score alike has no signal:
+`group_relative` gives zero weights), lengths and cap hits.
+
+## Cost
+
+Measured by the probe: 17.8 s per 192-prompt batch on an H100. An iteration is 17
+batches (center plus 16 members) plus the member writes and the update, about 5.5
+minutes; 30 iterations about 2.75 h per arm. Three pods for about 3 h each, the random
+arm chained after one of them (it decodes only the center, about 12 minutes): about
+$25-35 at $2.69-3.49/h. All pods deleted after harvest.

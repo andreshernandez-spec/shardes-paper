@@ -16,7 +16,12 @@ run resumes by replaying them, with no generation. `es_digest` every `digest_eve
 iterations is what a rebuild is checked against.
 
 `reward: random` is the control: members get seeded uniform fitness and nothing is
-generated, so it costs only the updates.
+generated for them, so it costs only the updates.
+
+With `eval_center`, each iteration first decodes the current weights (the view) on the
+iteration's own prompts, before any member sees them. In the first epoch those prompts
+are new to the run, so this is a held-out measurement of the weights so far, and the one
+number the random-reward control and the true-reward arms share.
 """
 
 import os
@@ -138,7 +143,9 @@ def main(argv=None) -> int:
 
     done = [json.loads(line) for line in log_path.read_text().splitlines()] \
         if log_path.exists() else []
-    env = env_block(E2E, [str(out.relative_to(E2E))],
+    # runs/ holds nothing but run outputs, so none of it makes a tree dirty: an arm chained
+    # after another on the same pod must not see the first one's directory as a stray file.
+    env = env_block(E2E, ["runs"],
                     ("vllm", "torch", "jax", "jaxlib", "transformers", "numpy"))
     if not done:
         (out / "run.json").write_text(json.dumps(
@@ -172,7 +179,9 @@ def main(argv=None) -> int:
     tok = AutoTokenizer.from_pretrained(repo, revision=revision)
     iterations = load_prompts(E2E / cfg["data"], cfg["iterations"], P)
     greedy = SamplingParams(temperature=0.0, max_tokens=cfg["max_tokens"])
-    verifier = None if random_control else Verifier(REPO / ".venv-verify" / "bin" / "python")
+    center = cfg.get("eval_center", False)
+    verifier = None if random_control and not center else \
+        Verifier(REPO / ".venv-verify" / "bin" / "python")
     rng = np.random.default_rng(cfg["seed"])
     for _ in range(len(done)):
         rng.uniform(size=N)  # keep the control's stream aligned across resumes
@@ -182,11 +191,38 @@ def main(argv=None) -> int:
         llm.collective_rpc("es_ask")
         rows = iterations[g][: cfg.get("smoke_prompts")] if args.smoke else iterations[g]
         record = {"iteration": g, "prompts": len(rows)}
+        ids = [render(tok, r) for r in rows]
+
+        def decode_and_score():
+            outs = llm.generate([{"prompt_token_ids": i} for i in ids], greedy,
+                                use_tqdm=False)
+            items = [{"text": o.outputs[0].text, "ground_truth": r["ground_truth"],
+                      "dataset": r["dataset"],
+                      "stopped": o.outputs[0].finish_reason == "stop"}
+                     for o, r in zip(outs, rows)]
+            rewards = verifier.score(items)
+            if len(rewards) != len(rows):  # the work asked for is the work done
+                raise SystemExit(f"{len(rewards)} rewards for {len(rows)} prompts")
+            return outs, rewards
+
+        def by_source(rewards):
+            acc = {}
+            for r, rw in zip(rows, rewards):
+                s = acc.setdefault(r["dataset"], [0.0, 0])
+                s[0] += rw
+                s[1] += 1
+            return {k: v[0] / v[1] for k, v in acc.items()}
+
+        if center:
+            outs, rewards = decode_and_score()
+            record.update({"center_reward": float(np.mean(rewards)),
+                           "center_by_source": by_source(rewards),
+                           "center_mean_len": float(np.mean(
+                               [len(o.outputs[0].token_ids) for o in outs]))})
         if random_control:
             fitness = rng.uniform(size=N).tolist()
         else:
-            ids = [render(tok, r) for r in rows]
-            fitness, lengths, capped, by_source = [], [], 0, {}
+            fitness, lengths, capped, all_rewards = [], [], 0, []
             for m in range(N):
                 llm.collective_rpc("es_perturb", args=(m,))
                 if g == 0 and m in cfg.get("check_members", [0]):
@@ -194,26 +230,19 @@ def main(argv=None) -> int:
                     record.setdefault("checks", []).append({"member": m, **check})
                     if not check["ok"]:
                         raise SystemExit(f"engine weights are not member {m}: {check}")
-                outs = llm.generate([{"prompt_token_ids": i} for i in ids], greedy,
-                                    use_tqdm=False)
-                items = [{"text": o.outputs[0].text, "ground_truth": r["ground_truth"],
-                          "dataset": r["dataset"],
-                          "stopped": o.outputs[0].finish_reason == "stop"}
-                         for o, r in zip(outs, rows)]
-                rewards = verifier.score(items)
-                if len(rewards) != len(rows):  # the work asked for is the work done
-                    raise SystemExit(f"{len(rewards)} rewards for {len(rows)} prompts")
+                outs, rewards = decode_and_score()
                 fitness.append(float(np.mean(rewards)))
-                for r, rw in zip(rows, rewards):
-                    s = by_source.setdefault(r["dataset"], [0.0, 0])
-                    s[0] += rw
-                    s[1] += 1
+                all_rewards += rewards
                 lengths += [len(o.outputs[0].token_ids) for o in outs]
                 capped += sum(o.outputs[0].finish_reason == "length" for o in outs)
             record.update({
                 "mean_len": float(np.mean(lengths)), "max_len": int(max(lengths)),
                 "capped": int(capped),
-                "reward_by_source": {k: v[0] / v[1] for k, v in by_source.items()},
+                # all_rewards is member-major: member m's rewards for rows 0.., then m+1.
+                "reward_by_source": {
+                    k: float(np.mean([v for i, v in enumerate(all_rewards)
+                                      if rows[i % len(rows)]["dataset"] == k]))
+                    for k in sorted({r["dataset"] for r in rows})},
             })
         tell = llm.collective_rpc("es_tell", args=(fitness,))[0]
         llm.collective_rpc("es_restore")
@@ -228,8 +257,9 @@ def main(argv=None) -> int:
             record["digest"] = llm.collective_rpc("es_digest")[0]
         with log_path.open("a") as f:
             f.write(json.dumps(record) + "\n")
-        print(f"[{g}] mean fitness {record['mean_fitness']:.3f} "
-              f"{record.get('reward_by_source', '')} {record['seconds']:.0f}s", flush=True)
+        print(f"[{g}] center {record.get('center_reward', float('nan')):.3f} mean fitness "
+              f"{record['mean_fitness']:.3f} {record.get('reward_by_source', '')} "
+              f"{record['seconds']:.0f}s", flush=True)
 
     if verifier is not None:
         verifier.close()
