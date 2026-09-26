@@ -20,6 +20,9 @@ dependency; it is kept off the GPU so vLLM gets the memory the config assigns.
 import os
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")  # before anything can import jax
+# Greedy decoding never samples, and FlashInfer's sampler JIT-compiles at warmup, which
+# needs nvcc; vLLM's own sampler does the same job with nothing to build.
+os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
 
 import argparse  # noqa: E402
 import datetime  # noqa: E402
@@ -224,6 +227,7 @@ def main(argv=None) -> int:
     env = env_block(PROBE, [str(out.relative_to(PROBE))],
                     ("vllm", "torch", "transformers", "numpy", "jax"))
     env.update(gpu_facts())
+    env["vllm_env"] = {k: v for k, v in os.environ.items() if k.startswith("VLLM_")}
     for setting, spec in cfg["settings"].items():
         if args.only and setting != args.only:
             continue
