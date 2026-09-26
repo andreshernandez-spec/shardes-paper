@@ -175,8 +175,8 @@ def strong_scaling(rows, out: pathlib.Path) -> str | None:
     for ax in axes.flat:
         for h, lab in zip(*ax.get_legend_handles_labels()):
             handles.setdefault(lab, h)
-    axes[1][-1].legend(handles.values(), handles.keys(), frameon=False, fontsize=8,
-                       labelcolor=MUTED, loc="center left", bbox_to_anchor=(1.02, 0.5))
+    fig.legend(handles.values(), handles.keys(), frameon=False, fontsize=12,
+               labelcolor=INK, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 0.0))
 
     if simulated(rows):
         watermark(fig)
@@ -187,7 +187,7 @@ def strong_scaling(rows, out: pathlib.Path) -> str | None:
 
 
 def weak_scaling(rows, out: pathlib.Path) -> str | None:
-    """M2 throughput over M6 memory, one column per (model size, population per device).
+    """M2 weak-scaling efficiency over M6 memory, one column per (model size, population per device).
 
     **A weak-scaling series is only a series within one experiment**, and this used to key on
     `(strategy, how)` alone. The sweep runs two model sizes and two per-device populations,
@@ -225,18 +225,24 @@ def weak_scaling(rows, out: pathlib.Path) -> str | None:
         ax_t, ax_m = axes[0][j], axes[1][j]
         for (strategy, how), by_d in sorted(series[cell].items()):
             ds = sorted(by_d)
-            ax_t.plot(ds, [by_d[d][0] for d in ds], marker=MARKERS[how], ms=7, lw=2,
-                      color=HUES[strategy], label=f"{LABELS.get(strategy, strategy)} / {PLACEMENT[how]}")
+            # Members per second per device against the series' own smallest device count,
+            # as M1 does: one ideal (1.0) serves every series, where an ideal line in
+            # members/second can only be anchored to one of them.
+            d0 = ds[0]
+            eff = [(by_d[d][0] / d) / (by_d[d0][0] / d0) for d in ds]
+            ax_t.plot(ds, eff, marker=MARKERS[how], ms=7, lw=2, color=HUES[strategy],
+                      label=f"{LABELS.get(strategy, strategy)} / {PLACEMENT[how]}")
+            print(f"  M2 d={d_model} N/device={per_device} {LABELS.get(strategy, strategy)}"
+                  f" / {PLACEMENT[how]}: D0={d0} "
+                  + " ".join(f"D={d}:{e:.2f}" for d, e in zip(ds, eff)))
             mem = [by_d[d][1] for d in ds]
             if any(mem):
                 ax_m.plot(ds, mem, marker=MARKERS[how], ms=7, lw=2, color=HUES[strategy])
 
         ds = sorted({d for by_d in series[cell].values() for d in by_d})
-        first = next(iter(series[cell].values()))
-        ax_t.plot(ds, [first[min(first)][0] * d for d in ds], ls="--", lw=1.5, color=MUTED,
-                  label="ideal (linear)")
+        ax_t.axhline(1.0, ls="--", lw=1.5, color=MUTED, label="ideal" if j == 0 else None)
 
-        ax_t.set(xscale="log", yscale="log", xlabel="devices",
+        ax_t.set(xscale="log", xlabel="devices", ylim=(0, None),
                  title=f"d={d_model}, N/device={per_device}")
         ax_m.set(xscale="log", yscale="log", xlabel="devices")
         for ax in (ax_t, ax_m):
@@ -244,7 +250,7 @@ def weak_scaling(rows, out: pathlib.Path) -> str | None:
             ax.set_xticklabels([str(d) for d in ds])
             ax.xaxis.set_minor_locator(NullLocator())
             _style(ax)
-    axes[0][0].set_ylabel("members / second")
+    axes[0][0].set_ylabel("weak-scaling efficiency")
     axes[1][0].set_ylabel("peak MiB / device")
 
     # Handles come from a throughput panel, which is where the labelled artists are. Asking
@@ -252,8 +258,8 @@ def weak_scaling(rows, out: pathlib.Path) -> str | None:
     # figure once shipped with eight series and no key to any of them. matplotlib says so on
     # stderr and then draws it anyway.
     handles, labels = axes[0][0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, fontsize=8, labelcolor=MUTED,
-               loc="center left", bbox_to_anchor=(1.0, 0.5))
+    fig.legend(handles, labels, frameon=False, fontsize=12, labelcolor=INK, ncol=4,
+               loc="upper center", bbox_to_anchor=(0.5, 0.0))
 
     if simulated(rows):
         watermark(fig)
@@ -382,7 +388,10 @@ def main(argv=None) -> int:
               "no timing from them is a scaling measurement.")
 
     for name, fn in (("M1", strong_scaling), ("M2", weak_scaling), ("M3", crossover)):
-        why = fn(rows, args.out)
+        # The grids print four columns wide at 0.9 of the text width; default sizes
+        # come out near 4 pt there.
+        with plt.rc_context({"font.size": 13} if name != "M3" else {}):
+            why = fn(rows, args.out)
         print(f"  {name}: {'SKIPPED - ' + why if why else 'written'}")
     print(f"\n{len(rows)} results -> {args.out}")
     return 0

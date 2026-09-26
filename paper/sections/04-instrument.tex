@@ -11,17 +11,14 @@ isotropic ES the distribution state is no larger than the weights, so there is n
 to gain from splitting it. Three properties make the comparisons in this paper fair.
 
 \paragraph{The device count does not change what is computed.} Member $i$'s seed depends
-on $i$ alone, so the population is the same on 1 and on 8 devices, and for fixed
-fitnesses the update formed on 1 device and on 8 agrees to floating-point tolerance.
-The library's tests check this on simulated devices. On eight A100s, with the fitnesses
-held fixed, the $D{=}1$ and $D{=}8$ updates of Qwen2.5-0.5B agree to
+on $i$ alone, so the population is the same on 1 and on 8 devices. On eight A100s, with
+the fitnesses held fixed, the $D{=}1$ and $D{=}8$ updates of Qwen2.5-0.5B agree to
 $6.3\times10^{-6}$ relative error, and two 20-generation runs of the same $D{=}8$
-program agree byte for byte in every reward and in all 494M final parameters. What is not
-guaranteed is that two separately compiled programs follow the same training trajectory:
-compiler fusion can flip near-tied greedy tokens, after which the runs diverge.
+program agree byte for byte. Two separately compiled programs need not follow the same
+training trajectory: compiler fusion can flip near-tied greedy tokens.
 
-\paragraph{Low-rank noise is never materialized.} A rank-$r$ perturbation stays as its
-two factors through evaluation: a dense layer computes $x(W+\tfrac{\sigma}{\sqrt r}AB^\top)^\top$
+\paragraph{Low-rank noise is never formed as a full matrix.} A rank-$r$ perturbation stays as its
+two factors through evaluation and through the sum (Section~\ref{sec:placement}): a dense layer computes $x(W+\tfrac{\sigma}{\sqrt r}AB^\top)^\top$
 as $xW^\top + ((xB)A^\top)\tfrac{\sigma}{\sqrt r}$, so no $m\times n$ noise matrix exists
 and all members share the base multiply $xW^\top$. The price is at the API: a model must
 route its matrix multiplies and embedding lookups through the library's layers, so an
@@ -31,8 +28,10 @@ existing model does not run unmodified.
 distinct values, and ranks computed from ties are noise. The library refuses rather than
 casts; the model itself may run in bfloat16.
 
-\paragraph{One synchronization point.} Centered ranks need every fitness, so \emph{tell}
+\paragraph{Gathering fitnesses.} Centered ranks need every fitness, so \emph{tell}
 gathers the $N$ scalars to every device and sorts them there. The gather costs
-microseconds (Table~\ref{tab:tb8}). The sort is local and repeated on every device: at
-$N{=}2^{18}$ it takes 12\,ms, the same on 1 and 8 devices, and at the populations used in
-this paper the whole step is 60\,$\mu$s or less (Appendix~\ref{sec:barrier}).
+microseconds (Table~\ref{tab:tb8}). The sort is local and repeated on every device: on
+the v5e at $N{=}2^{18}$ it takes 12\,ms, the same on 1 and 8 devices. Up to a thousand
+members, which covers every experiment here except the largest populations of the cost
+grid, the whole ranking step is 60\,$\mu$s or less; at 4096 members it is 0.2\,ms
+(Appendix~\ref{sec:barrier}).

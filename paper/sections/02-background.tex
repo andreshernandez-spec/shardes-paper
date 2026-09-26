@@ -6,14 +6,14 @@
 $N$ random perturbations $\epsilon_i$, ES scores every $f(\theta+\sigma\epsilon_i)$ and
 moves $\theta$ by
 \begin{equation}
-  \Delta\theta = \frac{\alpha}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
+  \Delta\theta = \frac{\eta}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
   \label{eq:update}
 \end{equation}
-where the weights $w_i$ come from the fitnesses \citep{wierstra2014,nesterov2017}. We use
-centered ranks \citep{salimans2017}: each fitness is replaced by its rank, scaled to
-$[-\tfrac12,\tfrac12]$, which makes the update ignore any monotone rescaling of the
-reward. The sum in Eq.~\ref{eq:update} is the \emph{contraction} of the population
-against its weights, and where it is computed is the subject of this paper.
+where $\eta$ is the learning rate and the weights $w_i$ come from the fitnesses
+\citep{wierstra2014,nesterov2017}. We use centered ranks \citep{salimans2017}: each
+fitness is replaced by its rank, scaled to $[-\tfrac12,\tfrac12]$, which makes the
+update ignore any monotone rescaling of the reward. Where the weighted sum in
+Eq.~\ref{eq:update} is computed is the subject of this paper.
 \emph{Mirrored} (antithetic) sampling evaluates each $\epsilon$ together with $-\epsilon$,
 so $N$ members are $N/2$ independent directions. No gradient flows through the model;
 the exact gradient appears only as a reference in Section~\ref{sec:quality}, where we
@@ -42,16 +42,9 @@ name & what it is \\
 dense & full-rank Gaussian noise, stored for every member: the baseline \\
 seed & full-rank noise regenerated from a per-member seed \citep{qiu2025} \\
 seed, mirrored & the same, in mirrored pairs (the full-rank arm of Section~\ref{sec:quality}) \\
-rank $r$ & rank-$r$ factors, never materialized, in mirrored pairs \citep{eggroll2025} \\
+rank $r$ & rank-$r$ noise kept as two thin factors, the full perturbation matrix never formed, in mirrored pairs \citep{eggroll2025} \\
 rank $r$, unpaired & the same without pairing \\
 naive & every member gets its own copy of the weights; used only in Table~\ref{tab:tb1} \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\paragraph{Why one library.} A library whose central object is the population as a
-dense (population, parameters) matrix, as evosax's is \citep{lange2022evosax}, has
-nowhere to put a perturbation that is never materialized, and at language-model scale
-that matrix does not fit. Comparing the two designs in their own codebases would mix the
-design with the implementation. Section~\ref{sec:instrument} describes the library we
-used instead.

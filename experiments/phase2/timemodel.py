@@ -212,6 +212,47 @@ def crossover_population(rows_, d_model: int, devices=DEVICES) -> dict:
     return out
 
 
+FULL_RANK = ("iid_gaussian", "seed_regenerated", "mirrored_seed")
+LOW_RANK = ("lowrank_r1", "mirrored_lr1")
+
+
+def summary(rows_) -> list[str]:
+    """The ranges Section 6 and Appendix B quote, each over the subset it names."""
+    def rng(vals, fmt="%.2f"):
+        vals = [v for v in vals if v is not None]
+        return (fmt + "-" + fmt) % (min(vals), max(vals)) if vals else "n/a"
+
+    full = [r for r in rows_ if r["strategy"] in FULL_RANK]
+    low = [r for r in rows_ if r["strategy"] in LOW_RANK]
+    out = []
+    for s in FULL_RANK:
+        sel = [r["t_B"] / r["t_A"] for r in full if r["strategy"] == s]
+        if sel:
+            out.append(f"t_B/t_A, {s}: {rng(sel, '%.3f')}")
+    for d in (512, 2048):
+        out.append("t_B/t_A, low rank, d=%d: %s"
+                   % (d, rng([r["t_B"] / r["t_A"] for r in low if r["d_model"] == d], "%.3f")))
+    # What the model-sized all-reduce is worth next to the gap it decides.
+    out.append("all-reduce over what B saves, every full-rank configuration: %s%%"
+               % rng([100 * r["allreduce_seconds"] / r["delta_measured"] for r in full
+                      if r["delta_measured"] > 0], "%.1f"))
+    a_wins = [r for r in rows_ if r["delta_measured"] < 0]
+    out.append("all-reduce over B's deficit, the %d configurations A wins: %s%%"
+               % (len(a_wins), rng([100 * r["allreduce_seconds"] / -r["delta_measured"]
+                                    for r in a_wins], "%.1f")))
+    for name, sel in (("full rank", full), ("low rank", low)):
+        out.append("%s: C_A %s ms, C_A/(D C_B) %s, in-program over isolated all-reduce "
+                   "%s (d=512) and %s (d=2048)"
+                   % (name, rng([r["contraction_measured"] and r["contraction_measured"] * 1e3
+                                 for r in sel]),
+                      rng([r["shard_ratio"] for r in sel]),
+                      rng([r["allreduce_insitu_over_ladder"] for r in sel
+                           if r["d_model"] == 512]),
+                      rng([r["allreduce_insitu_over_ladder"] for r in sel
+                           if r["d_model"] == 2048])))
+    return out
+
+
 def render(platform, rows_, fab, devices=DEVICES) -> str:
     have_model = any(r["delta_predicted"] is not None for r in rows_)
     lines = [f"## {platform}, D={devices}", ""]
@@ -275,6 +316,8 @@ def render(platform, rows_, fab, devices=DEVICES) -> str:
             % (len(resid) - len(miss), len(resid),
                (worst["delta_measured"] - worst["delta_predicted"]) * 1e3,
                worst["strategy"], worst["d_model"], worst["population"]))
+    lines.append("")
+    lines += summary(rows_)
     lines.append("")
     for d_model in sorted({r["d_model"] for r in rows_}):
         star = crossover_population(rows_, d_model, devices)

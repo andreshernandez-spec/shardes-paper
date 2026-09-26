@@ -2,26 +2,26 @@
 \section{Conclusion}
 
 ``ES only communicates scalars'' is true for one placement of the update and a poor
-guide to which placement is faster. The choice follows Eq.~\ref{eq:crossover}: all-reduce
-the partial sums when the share of the sum that saves takes longer than a model-sized
-all-reduce, and repeat the sum on every device otherwise. On one A100 node and one v5e
-host that means all-reduce for full-rank noise and replicating for low-rank noise at large
-width, the same on a real 0.5B model; across two hosts on a slow link the full-rank arm
-switches too, as the equation predicts. Low-rank noise saves more on the TPU than on the
-GPU. At equal population its updates align with the exact gradient about as well as
-full-rank ones, and on Countdown it reaches the same accuracy at 1.44$\times$ the update
-rate, while full rank gets there in fewer samples.
+guide to which placement is faster. Splitting the sum helps when the computation it
+saves takes longer than the model-sized all-reduce it adds. On one A100 node and one v5e
+host that means all-reduce for full-rank noise and replicating for low-rank noise at
+large width, also on a real 0.5B model. Low-rank noise saves more on the TPU than on the
+GPU, aligns with the gradient about as well at equal population, and on Countdown ends
+at similar accuracy, behind full rank at the first checkpoint.
 
 \paragraph{What to do differently.}
 \begin{itemize}
-  \item Time your sum and your model-sized all-reduce, and use Eq.~\ref{eq:crossover}. On
-    a single host with a fast interconnect, all-reduce for full-rank noise and replicate
-    for low-rank noise at large width, where replicating is ahead by 4--15\% on the A100
-    and 17--46\% on the v5e. Across a slow host boundary, replicate.
+  \item Time your sum and your model-sized all-reduce, both inside the program, and
+    compare them with Eq.~\ref{eq:crossover}. On a single host with a fast interconnect
+    we found all-reduce faster for full-rank noise, and replication faster for low-rank
+    noise at large width, where the all-reduce took 4--15\% longer on the A100 and
+    17--46\% longer on the v5e. Across a slow host boundary the all-reduce kept its lead only
+    where the model-sized buffer was small: full-rank noise at width 512 (6\,MiB).
   \item Keep fitness in float32: in bfloat16 a population's losses collapse to a handful
     of ties, and ranks of ties are noise.
-  \item Do not force full-precision matrix multiplies on a low-rank run; it costs
-    1.6--1.9$\times$ there and almost nothing for full-rank noise.
+  \item Forcing full-precision matrix multiplies cost the low-rank arms 1.6--1.9$\times$
+    in time and the full-rank arms at most 8\%; whether it buys any accuracy we did not
+    measure, so check before paying for it.
   \item Above about $10^4$ members, budget for the ranking sort, which every device
     repeats.
 \end{itemize}

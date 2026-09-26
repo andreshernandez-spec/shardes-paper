@@ -122,12 +122,13 @@ def main(argv=None) -> int:
             r"sixteen devices across it. The all-reduce runs at "
             f"{nv:.0f}\\,GiB/s on NVLink and {s24:.2f} (\\texttt{{2x4}}) and "
             f"{s28:.2f}\\,GiB/s (\\texttt{{2x8}}) across the boundary. "
-            r"\emph{prereg.}: the prediction committed before the \texttt{2x8} cells ran, "
-            r"whose bandwidth was $D$ times too high (the calibration all-reduced $1/D$ "
-            r"of its label); \emph{model} and \emph{corrected}: Eq.~\eqref{eq:crossover} "
-            r"on the same inputs at the payload actually moved. The \texttt{1x8} column "
-            r"is re-measured on the cluster's first node; the model starts from the "
-            r"single-node sweep.}",
+            r"\emph{prereg.}: the prediction committed before the \texttt{2x8} "
+            r"configurations ran, whose bandwidth was $D$ times too high (the "
+            r"calibration all-reduced $1/D$ of its label). \emph{model} and "
+            r"\emph{corrected}: Eq.~\eqref{eq:crossover} on the same inputs with the "
+            r"bandwidth at the payload actually moved, computed after the measurements. "
+            r"The \texttt{1x8} column is re-measured on the cluster's first node; the "
+            r"model starts from the single-node sweep.}",
             r"\label{tab:tb7}",
             r"\begin{tabular}{llrrrrrrr}", r"\toprule",
             r" & & & & \multicolumn{2}{c}{\texttt{2x4}} & \multicolumn{3}{c}{\texttt{2x8}} \\",

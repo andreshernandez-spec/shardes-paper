@@ -3,9 +3,9 @@
 \label{sec:grids}
 
 Figures~\ref{fig:m1-a100}--\ref{fig:m2-tpu} are the full strong- and weak-scaling grids,
-every arm under both placements. Weak scaling is shown as parallel efficiency, each series
-against its own smallest measured device count; the lower row of the weak-scaling figures
-is peak memory per device. At $d{=}2048$ and 32 members per device the rank-1 arms keep
+every arm under both placements. Both show parallel efficiency, each series against its
+own smallest measured device count, so the ideal is 1 for every series; the strong-scaling
+figures add time per generation, and the weak-scaling figures peak memory per device. At $d{=}2048$ and 32 members per device the rank-1 arms keep
 0.86--0.93 efficiency at eight devices on the A100 and 0.71--0.91 on the v5e. What
 degrades is a placement: under replication the dense and seed arms fall to 0.39 and 0.50
 on the A100 (0.18 and 0.54 on the v5e), because they have the most work to repeat, and
@@ -32,7 +32,8 @@ is normalized at $D{=}2$.
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures/m2-weak-scaling.png}
-  \caption{Weak scaling on 8$\times$A100: members per second (top) and peak memory per
+  \caption{Weak scaling on 8$\times$A100: parallel efficiency, members per second per
+    device against the series' own smallest device count (top), and peak memory per
     device (bottom).}
   \label{fig:m2-a100}
 \end{figure*}
@@ -43,37 +44,39 @@ is normalized at $D{=}2$.
   \label{fig:m2-tpu}
 \end{figure*}
 
-\section{The time model, cell by cell}
+\section{The time model, configuration by configuration}
 \label{sec:timemodel}
 
-Eq.~\ref{eq:crossover} with the isolated collective of Table~\ref{tab:tb8} and a
-contraction $C$ timed on its own (\texttt{contraction\_isolation.py}) leaves a residual in
-eight of the eleven cells where replication wins: B is slower than its local sum plus
-the isolated all-reduce account for. Two measured effects explain most of it, and both are
-largest where the sum is smallest. First, B's local sum does not shrink to $C/D$: measured
-as $C/(D\,C_{\mathrm{local}})$ it reaches 0.60--1.01 for dense and seed noise, where $C$
-is 3.6--61\,ms and the per-device fixed cost amortizes, and only 0.18--0.46 for rank 1,
-where $C$ is 0.15--1.3\,ms. Second, the same 96\,MiB all-reduce costs
+Eq.~\ref{eq:crossover} with ideal splitting ($C_B = C_A/D$), the isolated collective of
+Table~\ref{tab:tb8} and $C_A$ timed on its own (\texttt{contraction\_isolation.py})
+leaves a residual in eight of the eleven configurations where replication wins: B is
+slower than its local sum plus the isolated all-reduce account for. Two measured effects
+explain most of it, and both are largest where the sum is smallest
+(\texttt{timemodel.py} prints every range here). First, B's local sum does not shrink to
+$C_A/D$: on the A100, $C_A/(D\,C_B)$ is 0.60--1.01 for full-rank noise, where $C_A$ is
+3.6--61\,ms and the per-device fixed cost amortizes, and only 0.18--0.46 for rank 1,
+where $C_A$ is 0.15--1.3\,ms. Second, at width 2048 the same 96\,MiB all-reduce costs
 1.75--1.80$\times$ its isolated step time inside the low-rank programs and
-1.15--1.41$\times$ inside the dense ones, the lean program having less compute to hide
-it behind.
+1.15--1.41$\times$ inside the full-rank ones, the lean program having less compute to
+hide it behind.
 
 With both measured terms substituted, the four low-rank $d{=}2048$ residuals fall from
 0.98--1.17\,ms to 0.012--0.224\,ms, and across the A100 grid the median absolute
-residual falls from 1.13 to 0.63\,ms, with the sign right at 18 of 20 cells. Bootstrapping
-each cell's difference of medians, nine of the twenty residuals exceed twice their noise;
-that noise is measured within one process after one compilation, so nine is an upper
-bound on the cells genuinely unexplained. Two stand out, both dense at $d{=}512$, where
+residual falls from 1.13 to 0.63\,ms, with the sign right at 18 of 20 configurations. Bootstrapping
+each configuration's difference of medians, nine of the twenty residuals exceed twice
+their noise; that noise is measured within one process after one compilation, so nine is
+an upper bound on the configurations genuinely unexplained. Two stand out, both dense at $d{=}512$, where
 replication is 1.5 and 5.4\,ms slower than the model says. Rerun on a second node of the
 same type, the $N{=}256$ residual reproduces (1.6\,ms) and the $N{=}1024$ one becomes
 $-0.6$\,ms, so the latter was the host. For the one that survives, the two obvious
 explanations were measured and rejected: holding a population-sized buffer (up to
 3\,GiB per device) during the isolated measurement moves it by under 0.31\%, and feeding
-the contraction from the evaluation instead of handing it the weights changes a
+the sum from the evaluation instead of handing it the weights changes a
 one-device run by about 1\,ms where the effect would need 7. On the v5e the same
-decomposition finds both effects at the same sizes ($C/(D\,C_{\mathrm{local}})$ of
-0.95--1.00 for dense and seed noise against 0.16--0.62 for rank 1; in-program
-all-reduce at 1.18--1.60$\times$ its isolated time) and the sign right at 15 of 16 cells.
+decomposition finds both effects at the same sizes ($C_A/(D\,C_B)$ of 0.97--1.07 for
+full-rank noise against 0.16--0.62 for rank 1; the in-program all-reduce at
+1.04--1.60$\times$ its isolated time for rank 1) and the sign right at 15 of 16
+configurations.
 
 \section{The real model's memory}
 \label{sec:memory}
@@ -95,7 +98,7 @@ Table~\ref{tab:tb5} gives the absolute times.
 \section{The ranking step, priced}
 \label{sec:barrier}
 
-Measured in isolation over 84 cells on the v5e, going from one device to eight adds
+Measured in isolation over 84 configurations on the v5e, going from one device to eight adds
 9--10\,$\mu$s to the ranking step at populations up to a thousand, and 26\,$\mu$s at
 $N{=}2^{18}$, where the 1\,MiB gather is bandwidth-bound; the 16\,$\mu$s between the two
 is what Table~\ref{tab:tb8} gives for that gather on its own. The sort grows faster: 12.1\,ms
@@ -103,35 +106,47 @@ at $N{=}2^{18}$, the same within 0.3\% on one device and eight, about 46\,ns per
 because every chip sorts the same replicated array. At populations up to a thousand the
 whole step is 60\,$\mu$s or less against generations of milliseconds; at four thousand it
 is 0.2\,ms, and at the tens of thousands EGGROLL targets it approaches a millisecond. In
-full generations with shaping on and off at the largest cells measured, the difference is
+full generations with shaping on and off at the largest configurations measured, the difference is
 41\,$\mu$s ($d{=}512$, $N{=}1024$) and 149\,$\mu$s ($d{=}2048$, $N{=}256$), inside the
 repeat spread.
 
 \section{Synthetic alignment}
 \label{sec:alignment}
 
-% F5 -- experiments/phase0/figures/f5-estimator-quality.png
-% (experiments/phase0/plot.py --sigma 0.001 --shaping centered_ranks)
-\begin{figure*}[t]
+% F5 -- experiments/phase0/figures/f5-estimator-quality.png (experiments/phase0/plot.py)
+\begin{figure}[t]
   \centering
-  \includegraphics[width=\textwidth]{f5-estimator-quality.png}
+  \includegraphics[width=\linewidth]{f5-estimator-quality.png}
   \caption{Alignment on the synthetic block ($\sigma{=}10^{-3}$, centered ranks): cosine
-    between the ES update and the exact squared-error gradient against
-    $N/d_{\mathrm{samp}}$, one panel per rank, median and interquartile band over 30
-    replicates. Fitted log-log slopes are 0.494--0.508. Orthogonal (Hadamard) and
-    scrambled Sobol sampling show no gain over plain mirroring. Unpaired sampling lies
-    1.34--1.41$\times$ above mirrored, about $\sqrt2$.}
+    between the ES update and the exact squared-error gradient against $N/P$, median and
+    interquartile band over 30 replicates. The three ranks lie on top of each other.
+    Dotted: the heuristic constant of Section~\ref{sec:quality}, unpaired and
+    mirrored.}
   \label{fig:f5}
-\end{figure*}
+\end{figure}
 
-Figure~\ref{fig:f5} is the synthetic study behind Section~\ref{sec:quality}. Its x-axis
-is the one the frozen predictions used: $d_{\mathrm{samp}}$ is the number of independent
-random numbers in one perturbation, the parameter count for full-rank noise and $r(m+n)$
-per $m\times n$ matrix at rank $r$ (other parameters count fully). The low-rank curves sit
-lower against this axis, and their smaller $d_{\mathrm{samp}}$ moves an equal-$N$
-comparison to the right, which is why at equal population the arms nearly coincide. The
-null result for orthogonal and quasi-random sampling holds for this high-dimensional,
-small-population regime; it is not a claim about coupled sampling in general.
+\input{generated/tb6a}
+
+Figure~\ref{fig:f5} is the synthetic study behind Section~\ref{sec:quality}, one slice
+of 456 configurations of 30 replicates each. Against $N/P$ the mirrored arms of every
+rank coincide, the largest over the smallest at equal $N$ being 1.01--1.04, and every
+arm is within 0.91--1.02 of the heuristic constant; its log-log slopes are
+0.494--0.508. Unpaired sampling lies 1.34--1.53$\times$ above mirrored, about $\sqrt2$.
+Orthogonal (Hadamard) and scrambled Sobol sampling, not drawn, are within 0.97--1.04 of
+plain mirroring. That null result holds for this high-dimensional, small-population
+regime; it is not a claim about coupled sampling in general.
+
+The predictions frozen before the real-model runs used $N/d_{\mathrm{samp}}$ instead,
+where $d_{\mathrm{samp}}$ is the number of independent random numbers in one
+perturbation: the parameter count for full-rank noise and $r(m+n)$ per $m\times n$
+matrix at rank $r$ (other parameters count fully). Each arm's own fit against that axis
+was the prediction, and Table~\ref{tab:tb6-audit} keeps it next to the synthetic
+reference. On the block, where every matrix is $512\times512$, $P/d_{\mathrm{samp}}$ is
+256 at rank 1 and 64 at rank 4. On Qwen2.5 the matrices are larger and not square, and it
+is 638 and 171 at 0.5B and 1063 and 287 at 1.5B, so the same $N$ sits further right on
+the $N/d_{\mathrm{samp}}$ axis than on the block and the fit reads a higher cosine. At a
+slope of one half that overstates rank 1 by $\sqrt{638/256}\approx1.6$ and rank 4 by
+$\sqrt{171/64}\approx1.6$ at 0.5B, against measured shortfalls of 1.9--2.0 and 1.5--1.8.
 
 \section{Countdown details}
 \label{sec:countdown}
@@ -143,15 +158,19 @@ small-population regime; it is not a claim about coupled sampling in general.
   completion (held-out scoring is not counted); every ES arm uses 240 per update (30
   members $\times$ 8 puzzles), so 120,000 is 500 updates.}
 \label{tab:e2e}
-\begin{tabular}{lp{0.78\linewidth}}
+\begin{tabular}{lp{0.76\linewidth}}
 \toprule
 task, reward & Countdown; 1.0 solved, 0.1 well formed but wrong, 0.0 otherwise \\
 data & training pool of 256 puzzles, 8 per update; 2000 disjoint held-out puzzles \\
 prompts, decoding & chat template, prompts padded to 128 tokens, 96 new tokens; greedy \\
-ES arms & $N{=}30$, $\sigma{=}10^{-3}$, $\alpha{=}5\times10^{-4}$ (the published values;
-  implemented as $\mathrm{lr}{=}\alpha\sigma{=}5\times10^{-7}$ because the library's update
-  divides by $\sigma$), centered ranks; seed, mirrored and ranks 1, 4, 16, plus rank 1 with
-  the embedding (27\% of the parameters) frozen \\
+ES arms & $N{=}30$, $\sigma{=}10^{-3}$, $\eta{=}5\times10^{-7}$ in Eq.~\ref{eq:update},
+  centered ranks; seed, mirrored and ranks 1, 4, 16, plus rank 1 with the embedding (27\%
+  of the parameters) frozen \\
+published & \citet{qiu2025} step by $\Delta\theta = \frac{\alpha}{N}\sum_i z_i\epsilon_i$
+  with $\alpha{=}5\times10^{-4}$ and $z_i$ standardized rewards; $\eta = \alpha\sigma$
+  gives the same step in Eq.~\ref{eq:update}. Two differences: centered ranks in place of standardized rewards
+  (standard deviation 0.29 against 1, so our steps are about 3.5$\times$ smaller), and 8
+  puzzles per update in place of 200 samples \\
 budget, seeds & 120,000 sample evaluations per run; seeds 0--2 per arm \\
 evaluation & 2000 held-out puzzles every 50 updates, before the first and after the last \\
 hardware & one A100-SXM4-80GB; about 13\,h for the campaign \\
@@ -163,16 +182,18 @@ hardware & one A100-SXM4-80GB; about 13\,h for the campaign \\
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{f7c-e19-n16.png}
-  \caption{Full rank and rank 1 at population 30 (solid) and 16 (dashed) on the same
-    120,000-sample budget, three seeds each. At equal samples population 16 takes 937
-    updates to population 30's 500 and reaches the plateau sooner.}
+  \caption{Full rank and rank 1 at population 30 (solid, 500 updates, 120,000 samples) and
+    16 (dashed, 940 updates, 120,320 samples), three seeds each. Population 16 reaches the
+    plateau sooner.}
   \label{fig:f7c}
 \end{figure}
 
 Table~\ref{tab:e2e} gives the setup. Figure~\ref{fig:f7c} is the population-16 run
 discussed in Section~\ref{sec:quality}: it reaches a mean held-out reward of 0.15 at
-24k samples against 36k at population 30, and ends at the same accuracy. Timing
-excludes updates 0 and 1, which compile (322--635\,s each), and held-out decoding.
+24k samples against 36k at population 30, and ends at the same accuracy. Per-update
+timing excludes updates 0 and 1, which compile (322--635\,s each), and held-out
+decoding. The matched-batching times of Section~\ref{sec:quality} (3.62 and 2.52\,s)
+come from a separate 30-update probe on one host, not from a training run.
 A GRPO reference with the settings \citet{qiu2025} used (TRL, group 30, learning rate
 $10^{-5}$) ran in the first campaign; its three seeds ended between no solved puzzles and a
 4.9\% plateau, it runs another framework with another decoder (its base model scores 0.037
@@ -190,7 +211,7 @@ implementations, not of the algorithms. The reference rank-1 path does not compi
 16\,GB TPU chip at $d{=}512$, $N{=}16384$: the compiler allocates 24.1\,GiB of temporaries,
 reproducible without a TPU by the compile-only probe released with the experiments. The
 library works around the same pathology by padding rank-1 factors with one zero column on
-the TPU so the compiler keeps a fused multiply, and runs that cell in 245\,ms; the GPU
+the TPU so the compiler keeps a fused multiply, and runs that configuration in 245\,ms; the GPU
 compiler does not need the pad and it is off there. The reference also declines embedding
 tables, which the library perturbs through the same layer seam as matrices.
 
@@ -206,11 +227,12 @@ and~\ref{fig:f9} from \texttt{plot\_cost.py}, \texttt{phase0/plot.py},
 from \texttt{plot.py}. Table~\ref{tab:tb1} comes from \texttt{tb1.py},
 Table~\ref{tab:tb8} from \texttt{tb8.py}, Table~\ref{tab:tb7} from
 \texttt{multihost/tb7\_e18.py}, Table~\ref{tab:tb3} from \texttt{tb3.py},
-Table~\ref{tab:tb6} from \texttt{tb6\_e16.py} and Table~\ref{tab:tb5} from
-\texttt{tb5\_e17.py}; each accepts \texttt{--latex} and writes the file this document
-inputs. The overlap bound of Section~\ref{sec:placement} is \texttt{overlap\_bound.py},
-and the byte counts come from the compiled programs (\texttt{comms.py},
-\texttt{tb2.py}). The library's tests run on CPU with eight simulated devices, so the
+Tables~\ref{tab:tb6} and~\ref{tab:tb6-audit} from \texttt{tb6\_e16.py} and
+Table~\ref{tab:tb5} from \texttt{tb5\_e17.py}; each accepts \texttt{--latex} and writes
+the file this document inputs. The time model's ranges in Section~\ref{sec:results} and
+Appendix~\ref{sec:timemodel} are printed by \texttt{timemodel.py}, the overlap bound of
+Section~\ref{sec:placement} by \texttt{overlap\_bound.py}, and the byte counts come
+from the compiled programs (\texttt{comms.py}, \texttt{tb2.py}). The library's tests run on CPU with eight simulated devices, so the
 device-count invariance test needs no accelerator. The library is at \libraryurl{}; the
 experiments and this manuscript are at \paperurl{}, where \texttt{make -C paper} rebuilds
 every table and the PDF, and continuous integration fails if a regenerated table changes

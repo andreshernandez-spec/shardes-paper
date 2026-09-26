@@ -1,6 +1,7 @@
-% CLAIM: the cheap perturbation is not a worse one: at equal population it aligns with the
-% exact gradient about as well, and on Countdown it reaches the same accuracy.
-% Evidence: tb6_e16.py (E15, E16), plot_e13.py and plot_e19.py (E13, E19).
+% CLAIM: at equal population the cheap perturbation aligns with the exact gradient about
+% as well, and on Countdown it ends at the same accuracy, with full rank ahead early.
+% Evidence: tb6_e16.py (E15, E16), phase0/plot.py (E1), plot_e13.py and plot_e19.py
+% (E13, E19).
 \section{Is the cheaper update as good?}
 \label{sec:quality}
 
@@ -10,85 +11,100 @@ loss, and training on a task scored by a non-differentiable reward.
 
 \subsection{Alignment with the exact gradient}
 
+% F7 -- experiments/countdown/figures/f7-e13-heldout.png (plot_e13.py)
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.84\textwidth]{f7-e13-heldout.png}
+  \caption{Countdown with Qwen2.5-0.5B: the share of 2000 held-out puzzles solved,
+    against scored training completions (left; 240 per update) and against cumulative
+    update time (right), mean over three seeds with a min--max band. The time axis is
+    each run's own seconds per update, as each arm was configured, without the first two
+    updates (which compile) and without held-out decoding. At 12k samples full rank
+    solves 4.4\% against 1.5--2.2\% for ranks 1, 4 and 16, with no overlap between
+    seeds; every arm ends near 6\%.}
+  \label{fig:f7}
+\end{figure*}
+
 On the synthetic block the cosine between the update and the exact squared-error
-gradient grows as the square root of the population, for every arm: log-log slopes of
-0.494--0.508 over 456 cells of 30 replicates each (Appendix~\ref{sec:alignment}). That
-exponent is the classical one for Gaussian smoothing \citep{nesterov2017,duchi2015}, and
-it survives centered ranks. The constant is expected too. For a locally linear fitness,
-centered ranks are close to $\Phi(z)-\tfrac12$ of each member's standardized projection
-$z$ onto the gradient, which gives $\cos\approx\sqrt{3/\pi}\,\sqrt{N/P}$ for $N\ll P$, and
-$1/\sqrt2$ of that for mirrored pairs. Low-rank noise $AB^\top/\sqrt r$ has identity
-covariance, so the rank does not enter. With $P$ = 494M and $N$ = 30, $\sqrt{N/P}$ is
-$2.5\times10^{-4}$, which is why the cosines below are of order $10^{-4}$: each update is
-mostly noise, and what training uses is the part along the gradient, which accumulates
-over updates while the rest averages out.
+gradient grows as the square root of the population for every arm, with log-log slopes of
+0.494--0.508 (Appendix~\ref{sec:alignment}). That exponent is the classical one for
+Gaussian smoothing \citep{nesterov2017,duchi2015}, and it survives centered ranks. A
+heuristic gives the constant too. Suppose the fitness is locally linear, and each
+member's standardized projection $z$ onto the gradient is close to Gaussian. Then
+centered ranks are close to $\Phi(z)-\tfrac12$, and for $N\ll P$ the cosine is about
+$\sqrt{3/\pi}\,\sqrt{N/P}$, or $1/\sqrt2$ of that for mirrored pairs, which have $N/2$
+independent directions. The rank does not appear, because low-rank noise
+$AB^\top/\sqrt r$ has the same covariance as full-rank noise. The Gaussian assumption is
+the weak point: a low-rank member's projection is a sum of products of Gaussians, close
+to Gaussian when the gradient is spread over many entries and not when it sits on a few.
+On the synthetic block every arm is within 0.91--1.02 of this constant, at every rank
+(Figure~\ref{fig:f5}). With $P$ = 494M and $N$ = 30, $\sqrt{N/P}$ is
+$2.5\times10^{-4}$, which is why the cosines below are of order $10^{-4}$: most of each
+update is not along the gradient.
 
 \input{generated/tb6}
 
 Table~\ref{tab:tb6} measures the same cosine on Qwen2.5-0.5B against the exact gradient
-of the teacher-forced NLL, five perturbation seeds per cell, and repeats cells on a second
-prompt batch and on Qwen2.5-1.5B. At equal population the rank barely matters: rank 1
-aligns 0.92--0.98 times as well as full rank at both model sizes and on both batches,
-rank 16 0.97--1.05, and rank 4 1.04--1.31. Every arm lies within 0.87--1.20 of the
-full-rank synthetic fit evaluated at the same $N/P$ (the \emph{law} column), and most
-mirrored cells measure 0.80--0.92 of the no-fit constant above. Unpaired rank 1 is
-1.36$\times$ mirrored rank 1 at $N{=}240$, close to the $\sqrt2$ that $N$ versus $N/2$
-independent directions predict; mirroring halves the directions and in exchange halves
-the stored factors.
+of the next-token loss, five perturbation seeds per configuration, and repeats two
+configurations on a second prompt batch and on Qwen2.5-1.5B. At equal population the
+rank barely matters: rank 1 aligns 0.92--0.98 times as well as full rank at both model
+sizes and on both batches, rank 16 0.97--1.05, and rank 4 1.04--1.31 (the 1.31 is at
+$N{=}30$, where five seeds spread widely: full rank measures 1.3--1.9 and rank 4
+0.7--2.0, Table~\ref{tab:tb6-audit}). The mirrored arms
+lie within 0.87--1.20 of the synthetic reference, and all but that rank-4 configuration
+at 0.80--0.92 of the heuristic constant. Unpaired rank 1 is 1.36$\times$ mirrored rank 1
+at $N{=}240$, close to the $\sqrt2$ that $N$ against $N/2$ directions gives, and
+1.17$\times$ at $N{=}30$; mirroring halves the directions and in exchange halves the
+stored factors.
 
-The predictions we fixed before these runs used a different variable, and did worse. Each
+The predictions we fixed before these runs used a different variable and missed. Each
 arm was predicted from its own synthetic fit against $N/d_{\mathrm{samp}}$, where
 $d_{\mathrm{samp}}$ counts the independent random numbers in one perturbation ($r(m+n)$
 per matrix at rank $r$). That predicted full rank within 9\% but put the low-rank arms at
-about twice their measured alignment (the \emph{preregistered} column), and a 0.53 correction
-measured at 0.5B and fixed in advance for 1.5B missed there by 23--26\%.
-$d_{\mathrm{samp}}$ counts draws, not how much of the gradient a rank-$r$ family can
-reach, and the population alone predicts better. We found that after seeing the data, so
-the \emph{law} column is a post hoc reading, reported beside the preregistered one.
+about twice their measured alignment, and a 0.53 correction measured at 0.5B and fixed
+in advance for 1.5B still overshot there: the observations were 23--26\% below the
+predictions (Table~\ref{tab:tb6-audit}). The miss is in the transfer. On the block the
+arms coincide at equal $N/P$, so a fit read at $N/d_{\mathrm{samp}}$ carries over the
+block's $P/d_{\mathrm{samp}}$, 256 for rank 1, to models where it is 638 (0.5B) and 1063
+(1.5B); that alone overstates rank 1 by $\sqrt{638/256}\approx1.6$ at 0.5B, most of the
+miss. $N/P$ describes these measurements better. We found that after seeing the data, so
+the synthetic reference is a post hoc reading, reported beside the preregistered one.
 
 \subsection{Training on a task}
 
-% F7 -- experiments/countdown/figures/f7-e13-heldout.png (plot_e13.py)
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.9\textwidth]{f7-e13-heldout.png}
-  \caption{Countdown with Qwen2.5-0.5B: the share of 2000 held-out puzzles solved and
-    the share of answers well formed, against scored training completions (240 per
-    update), mean over three seeds with a min--max band; the reward is
-    $0.9\times$solved $+\,0.1\times$well-formed. Every arm learns the format within the
-    first 50 updates and ends near 6\% solved. At 12k samples full rank solves 4.4\%
-    against 1.5--2.2\% for ranks 1, 4 and 16, with no overlap between seeds.}
-  \label{fig:f7}
-\end{figure*}
-
 We trained on Countdown, arithmetic puzzles in the style of TinyZero \citep{tinyzero2025},
-with the published ES settings of \citet{qiu2025} (population 30, $\sigma{=}10^{-3}$,
-learning rate $5\times10^{-4}$), except for 8 puzzles per update where their protocol
-uses 200 samples: 500 updates, 120,000 scored training completions, three seeds per arm,
-one A100 (Appendix~\ref{sec:countdown} has the full setup). A completion scores 1 if it
-solves the puzzle and 0.1 if it is well formed but wrong. Held-out accuracy is measured on
-2000 disjoint puzzles by greedy decoding every 50 updates.
+with settings adapted from \citet{qiu2025}: their population of 30, noise scale
+$\sigma{=}10^{-3}$ and learning rate, converted to Eq.~\ref{eq:update}; centered ranks
+where they standardize rewards, which makes our steps about 3.5$\times$ smaller; and 8
+puzzles per update where their protocol uses 200 samples
+(Appendix~\ref{sec:countdown} has the full setup). Each arm runs 500 updates, 120,000
+scored training completions, with three seeds, on one A100. A completion scores 1 if it
+solves the puzzle and 0.1 if it is well formed but wrong. Held-out accuracy is measured
+on 2000 disjoint puzzles by greedy decoding every 50 updates.
 
-Figure~\ref{fig:f7} splits the held-out reward into its two parts, which matters: the
-base model solves 1.2\% of the puzzles and formats 43\% of its answers, and every arm
-formats 99\% or more by the first evaluation. The rest of training raises the solve rate
-to a plateau, 6.0--6.2\% for full rank and ranks 1, 4 and 16 at the end, and 5.6\% with
-the embedding frozen (27\% of the parameters). The plateau is the same across ranks. The
-approach is not: at the first evaluation, 12k samples in, full rank solves 4.4\% of the
-puzzles and ranks 1, 4 and 16 solve 1.5--2.2\%, with the seed ranges apart; by 36k samples
-every arm is at 5.3--5.9\%. With one evaluation on the rising part of the curve we can
-say that full rank learns faster per sample early on, not by how much.
+The base model solves 1.2\% of the held-out puzzles and formats 43\% of its answers.
+Formatting is learned at once: every arm formats 98.5\% or more by the first evaluation,
+so Figure~\ref{fig:f7} shows the solve rate, which carries everything that differs
+between arms. Training raises it to a plateau, 6.0--6.2\% for full rank and ranks 1, 4
+and 16 at the end, and 5.55\% with the embedding frozen (27\% of the parameters). The
+approach differs. At the first evaluation, 12k samples in, full rank solves 4.4\% of the
+puzzles and ranks 1, 4 and 16 solve 1.5--2.2\%, with the seed ranges apart; by 36k
+samples every arm is at 5.3--5.9\%. With one evaluation on the rising part of the curve
+we can say that full rank learns faster per sample early on, not by how much.
 
 Per update, rank 1 is faster. As configured, a steady-state update took 4.44\,s at full
 rank and 2.62\,s at rank 1, 1.69$\times$. Part of that is how the two arms evaluate: the
 full-rank arm scored its members in chunks of five, and the low-rank arm scores the whole
 population in one batch. With both batching every member, on one host, the times are
-3.62\,s and 2.52\,s: rank 1 updates 1.44$\times$ faster for the same evaluation.
+3.62\,s and 2.52\,s: rank 1 updates 1.44$\times$ faster for the same evaluation. Against
+update time (Figure~\ref{fig:f7}, right) the early gap mostly closes: full rank solves
+4.4\% after 212\,s of updates and 5.5\% after 434\,s, rank 1 5.3\% after 257\,s. The
+evaluations are too sparse to say which reaches a given solve rate first, and that axis
+uses the arms as configured, not with matched batching.
 
-The task separates training from failure (in a stress test released with the code, an
-arm at four times the noise scale stayed at the base model for 150 updates), not small
-differences in update quality once the plateau is reached. A population-16 run, fixed in
-advance as a positive control because it aligns 27\% worse per update, does not test
-that either: at equal samples it takes 937 updates to population 30's 500 and reaches the
-plateau sooner (Appendix~\ref{sec:countdown}). On one task at one model size with three
-seeds, no rank breaks training or reaches a different accuracy.
+The task separates training from failure, not small differences in update quality. A
+population-16 run, fixed in advance as a positive control because by the square-root scaling
+it aligns 27\% worse per update, does not test that either: on about the same budget it
+takes 940 updates (120,320 completions) to population 30's 500 and reaches the plateau
+sooner (Figure~\ref{fig:f7c}). On one task at one model size with three seeds, no rank
+breaks training or ends at a different accuracy.

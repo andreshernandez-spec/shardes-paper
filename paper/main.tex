@@ -15,9 +15,15 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{natbib}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
 % No float barrier at section boundaries: with the full-width tables of Section 6 it
-% left half of a page empty. Every float sits at the top of a page ([t]).
+% left half of a page empty. Every float sits at the top of a page ([t]), and a page may
+% carry two full-width floats, so Section 6's figures stay next to their text.
 \usepackage[hidelinks]{hyperref}
+
+\renewcommand{\dbltopfraction}{0.85}
+\renewcommand{\topfraction}{0.85}
 
 \graphicspath{{../experiments/phase2/figures/}{../experiments/phase0/figures/}{../experiments/countdown/figures/}}
 
@@ -45,19 +51,22 @@ scalar fitnesses rather than gradients. That holds for one way of computing the 
 gather the fitnesses and let every device recompute the weighted sum of all
 perturbations. The other way splits the sum across devices and all-reduces a
 model-sized partial update. We measure both in one JAX library that runs full-rank
-perturbations regenerated from seeds and low-rank perturbations that are never
-materialized, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
-Qwen2.5-0.5B. The winner follows one inequality: all-reduce wins when the share of the
-sum it saves takes longer than the all-reduce. On a single host it wins every
-full-rank configuration measured, by 1.4 to 5.6$\times$, and repeating the sum wins for low-rank
-perturbations at large width, by 4 to 46\%. Across two A100 nodes joined by TCP
-sockets the full-rank arm flips too, and the same inequality predicts the boundary's
-cost within 6\,ms per cell. Low-rank perturbations cost 0.05--0.16$\times$ the dense
-baseline on the TPU against 0.13--0.42$\times$ on the A100. At equal population their
-updates align with the true gradient about as well as full-rank ones at 0.5B and 1.5B
-parameters, and on Countdown every rank reaches the same held-out accuracy, full rank
-in fewer samples, while rank 1 updates 1.44$\times$ faster. Code, configurations and
-results are released.
+perturbations regenerated from seeds and low-rank perturbations kept as two thin
+factors per weight matrix, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
+Qwen2.5-0.5B. A simple timing model accounts for the winner: splitting the sum helps
+when the computation it saves takes longer than the all-reduce it adds. On a single host
+at eight devices the all-reduce wins every full-rank configuration measured, by 1.2 to
+5.6$\times$, and for low-rank perturbations at large width it takes 4 to 46\% longer
+than repeating the sum. Across two A100 nodes joined by TCP sockets, full-rank noise at
+large width is faster replicated too. With a calibration error corrected after the runs,
+the model matches the two-node measurements on eight devices within 6\,ms and picks the
+faster placement in all six sixteen-device configurations, though its timing errors
+there reach 63\,ms. Low-rank perturbations cost 0.05--0.16$\times$ the dense baseline on
+the TPU against 0.13--0.42$\times$ on the A100. At equal population their updates align
+with the true gradient about as well as full-rank ones at 0.5B and 1.5B parameters. On
+Countdown every rank ends at similar held-out accuracy; full rank is ahead at the first
+checkpoint, and rank 1 updates 1.44$\times$ faster with the evaluation batched alike.
+Code, configurations and results are released.
 \end{abstract}
 
 \input{sections/01-introduction}
