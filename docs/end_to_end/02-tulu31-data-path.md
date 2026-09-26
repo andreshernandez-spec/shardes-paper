@@ -29,13 +29,13 @@ at 3f37c29, the commit the Tulu 3.1 model card names, with the card's command.
    `penalty_reward_value`, 0.0 in the card's command: a response that runs to the 2,048
    cap scores 0.
 7. **Tokenizer.** `TokenizerConfig(chat_template_name="tulu", add_bos=False)` (the
-   default; the command has no `--add_bos`), built by `get_tokenizer_tulu_v1`. The
-   `tulu` template has no bos token, so prompts carried none unless that function adds
-   one (to check).
+   default; the command has no `--add_bos`), built by `get_tokenizer_tulu_v1`, which
+   only adds a `<pad>` token when a Llama tokenizer lacks one and then sets the `tulu`
+   template. The template has no bos token and `apply_chat_template(tokenize=True)`
+   encodes without special tokens, so the run's prompts carried no bos.
 
 ## To do
 
-- Check `get_tokenizer_tulu_v1` for anything that changes the template or adds tokens.
-- Rebuild the filtered set and the prompt stream for steps 1 to 2,440 (the last branch);
-  record them as for Olmo 3, with the count the filter keeps.
+- Rebuild the filtered set and the prompt stream for steps 1 to 2,440 (the last branch):
+  `experiments/end_to_end/tulu31_data.py`.
 - Vendor the verifiers (GSM8K, MATH flex, IF) with tests.

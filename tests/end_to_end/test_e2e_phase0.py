@@ -130,3 +130,18 @@ def test_filtered_set_is_taken_from_the_release_only_if_it_is_the_sample_in_orde
         data.filtered_from_release(sample, ["a", "z"])
     with pytest.raises(ValueError, match="duplicate"):
         data.filtered_from_release([(1, "a"), (2, "a")], ["a"])
+
+
+tulu = load("tulu31_data")
+
+
+def test_tulu_constants_match_the_card():
+    assert tulu.PROMPTS_PER_STEP * tulu.SAMPLES_PER_PROMPT == releases.TULU31_ROLLOUTS_PER_STEP
+    assert tulu.STEPS == int(releases.TULU31_RL_BRANCHES[-1].split("_")[1])
+    assert tulu.MAX_PROMPT == tulu.MAX_FULL == 2048
+
+
+def test_tulu_row_hash_is_stable_and_sees_the_ground_truth():
+    row = {"messages": [{"content": "q", "role": "user"}], "ground_truth": "4"}
+    assert tulu.row_hash(row) == tulu.row_hash({**row, "messages": repr(row["messages"])})
+    assert tulu.row_hash(row) != tulu.row_hash({**row, "ground_truth": "5"})
