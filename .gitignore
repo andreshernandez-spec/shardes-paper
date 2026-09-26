@@ -17,3 +17,5 @@ experiments/phase2/figures-rehearsal/
 .venv-*/
 # Probe smoke runs debug the driver on a small model; never a result.
 experiments/end_to_end/probe/results-smoke/
+# ES smoke runs check the wiring on a small model; never a result.
+experiments/end_to_end/runs/*-smoke/

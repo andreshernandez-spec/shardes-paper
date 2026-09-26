@@ -1,0 +1,16 @@
+# Wiring only, never a result: run with --smoke, which swaps in Qwen2.5-0.5B-Instruct and
+# tiny shapes. Checks that every piece runs: data, template, engine, member writes (bit
+# for bit), verifier, update, restore, digest, log, resume.
+model: TULU31_START
+data: data/tulu31
+population: 4
+prompts_per_member: 48
+sigma: 0.001
+alpha: 0.0005
+iterations: 2
+seed: 0
+max_tokens: 64
+max_model_len: 4096
+gpu_memory_utilization: 0.4
+check_members: [0, 3]
+digest_every: 1
