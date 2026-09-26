@@ -16,16 +16,16 @@ update. Each generation evaluates the whole population on one batch of 8 sequenc
 length 32. The placement grid is $d\in\{512,2048\}$, two populations per width (256 and
 1024 at $d{=}512$, 128 and 256 at $d{=}2048$), and $D\in\{1,2,4,8\}$; the cost grid of
 Figure~\ref{fig:f4} is wider. The simplifications change arithmetic intensity and
-memory, so absolute ratios belong to this workload; what should carry to real models is
-the sign of a comparison and how it moves with $N$, $d$ and $D$.
+memory, so absolute ratios belong to this workload, and we test whether the placement
+preference carries over to a real model.
 
 \paragraph{The real model.} Qwen2.5-0.5B \citep{qwen25}, for three things: timing one
 full update under both placements on the v5e (Figure~\ref{fig:f9}); the alignment of
-that update with the exact gradient, also at 1.5B (Section~\ref{sec:quality}); and
+that update with the gradient-descent direction, also at 1.5B (Section~\ref{sec:quality}); and
 training on Countdown on one A100. For the first two the fitness is the model's
 next-token loss on a fixed batch of eight Countdown prompts (the mean negative
 log-likelihood of each token given the ones before it), which is differentiable, so its
-exact gradient is available as a reference.
+gradient can be computed exactly for reference.
 
 \paragraph{Protocol.} Per configuration, 3 warm-up generations (the first compiles), then 5 timed
 repeats (7 for the host boundary and the ranking step); we report the median, and every timed call waits for

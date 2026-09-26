@@ -6,8 +6,9 @@ guide to which placement is faster. Splitting the sum helps when the computation
 saves takes longer than the model-sized all-reduce it adds. On one A100 node and one v5e
 host that means all-reduce for full-rank noise and replicating for low-rank noise at
 large width, also on a real 0.5B model. Low-rank noise saves more on the TPU than on the
-GPU, aligns with the gradient about as well at equal population, and on Countdown ends
-at similar accuracy, behind full rank at the first checkpoint.
+GPU, aligns with the gradient-descent direction about as well at equal population, and
+on Countdown, updating all parameters, ends at similar accuracy, behind full rank at the
+first checkpoint.
 
 \paragraph{What to do differently.}
 \begin{itemize}

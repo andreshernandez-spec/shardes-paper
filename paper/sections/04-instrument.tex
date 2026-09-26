@@ -6,9 +6,8 @@
 shardes is built on JAX and its compiler-driven sharding \citep{jax2018,gspmd2021}. It
 exposes the usual ask, evaluate and tell loop: \emph{ask} for $N$ perturbed copies of
 the model, \emph{evaluate} their fitnesses, \emph{tell} the fitnesses back to get the
-update. The population is split across devices and everything else is replicated; for
-isotropic ES the distribution state is no larger than the weights, so there is nothing
-to gain from splitting it. Three properties make the comparisons in this paper fair.
+update. We replicate the model and distribution state and study sharding across
+population members. Three properties make the comparisons in this paper fair.
 
 \paragraph{The device count does not change what is computed.} Member $i$'s seed depends
 on $i$ alone, so the population is the same on 1 and on 8 devices. On eight A100s, with

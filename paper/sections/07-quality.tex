@@ -1,15 +1,16 @@
-% CLAIM: at equal population the cheap perturbation aligns with the exact gradient about
-% as well, and on Countdown it ends at the same accuracy, with full rank ahead early.
+% CLAIM: at equal population the cheap perturbation aligns with the descent direction
+% about as well, and on Countdown it ends at the same accuracy, with full rank ahead early.
 % Evidence: tb6_e16.py (E15, E16), phase0/plot.py (E1), plot_e13.py and plot_e19.py
 % (E13, E19).
 \section{Is the cheaper update as good?}
 \label{sec:quality}
 
-A faster update is only worth having if it points in a useful direction. We check that
-two ways: the cosine between one ES update and the exact gradient of a differentiable
-loss, and training on a task scored by a non-differentiable reward.
+A faster update is only worth having if it points in a useful direction. We compare the
+perturbations at the same population, on the same loss, two ways: the alignment of one
+update with the gradient-descent direction of a differentiable loss, and training on a
+task scored by a non-differentiable reward.
 
-\subsection{Alignment with the exact gradient}
+\subsection{Alignment with the descent direction}
 
 % F7 -- experiments/countdown/figures/f7-e13-heldout.png (plot_e13.py)
 \begin{figure*}[t]
@@ -25,58 +26,45 @@ loss, and training on a task scored by a non-differentiable reward.
   \label{fig:f7}
 \end{figure*}
 
-On the synthetic block the cosine between the update and the exact squared-error
-gradient grows as the square root of the population for every arm, with log-log slopes of
-0.494--0.508 (Appendix~\ref{sec:alignment}). That exponent is the classical one for
-Gaussian smoothing \citep{nesterov2017,duchi2015}, and it survives centered ranks. A
-heuristic gives the constant too. Suppose the fitness is locally linear, and each
-member's standardized projection $z$ onto the gradient is close to Gaussian. Then
-centered ranks are close to $\Phi(z)-\tfrac12$, and for $N\ll P$ the cosine is about
-$\sqrt{3/\pi}\,\sqrt{N/P}$, or $1/\sqrt2$ of that for mirrored pairs, which have $N/2$
-independent directions. The rank does not appear, because low-rank noise
-$AB^\top/\sqrt r$ has the same covariance as full-rank noise. The Gaussian assumption is
-the weak point: a low-rank member's projection is a sum of products of Gaussians, close
-to Gaussian when the gradient is spread over many entries and not when it sits on a few.
-On the synthetic block every arm is within 0.91--1.02 of this constant, at every rank
-(Figure~\ref{fig:f5}). With $P$ = 494M and $N$ = 30, $\sqrt{N/P}$ is
-$2.5\times10^{-4}$, which is why the cosines below are of order $10^{-4}$: most of each
-update is not along the gradient.
+We measure alignment as $\cos(\Delta\theta, -\nabla L)$, the cosine between one ES
+update and the negative gradient of the next-token loss of Section~\ref{sec:setup}, on
+Qwen2.5-0.5B with five perturbation seeds per configuration, and repeat two
+configurations on a second prompt batch and on Qwen2.5-1.5B (Table~\ref{tab:tb6}). At
+equal population the rank barely matters: rank 1 aligns 0.92--0.98 times as well as full
+rank at both model sizes and on both batches, rank 16 0.97--1.05, and rank 4 1.04--1.31
+(the 1.31 is at $N{=}30$, where five seeds spread widely: full rank measures 1.3--1.9
+and rank 4 0.7--2.0, Table~\ref{tab:tb6-audit}). Unpaired rank 1 is 1.36$\times$
+mirrored rank 1 at $N{=}240$, close to the $\sqrt2$ that $N$ against $N/2$ directions
+gives, and 1.17$\times$ at $N{=}30$; mirroring halves the directions and in exchange
+halves the stored factors.
 
 \input{generated/tb6}
 
-Table~\ref{tab:tb6} measures the same cosine on Qwen2.5-0.5B against the exact gradient
-of the next-token loss, five perturbation seeds per configuration, and repeats two
-configurations on a second prompt batch and on Qwen2.5-1.5B. At equal population the
-rank barely matters: rank 1 aligns 0.92--0.98 times as well as full rank at both model
-sizes and on both batches, rank 16 0.97--1.05, and rank 4 1.04--1.31 (the 1.31 is at
-$N{=}30$, where five seeds spread widely: full rank measures 1.3--1.9 and rank 4
-0.7--2.0, Table~\ref{tab:tb6-audit}). The mirrored arms
-lie within 0.87--1.20 of the synthetic reference, and all but that rank-4 configuration
-at 0.80--0.92 of the heuristic constant. Unpaired rank 1 is 1.36$\times$ mirrored rank 1
-at $N{=}240$, close to the $\sqrt2$ that $N$ against $N/2$ directions gives, and
-1.17$\times$ at $N{=}30$; mirroring halves the directions and in exchange halves the
-stored factors.
+The cosines are of order $10^{-4}$, and that is expected. A Gaussian-projection
+approximation predicts alignment proportional to $\sqrt{N/P}$: $\sqrt{3/\pi}\,\sqrt{N/P}$
+for unpaired sampling and $1/\sqrt2$ of that for mirrored pairs, and with $P$ = 494M and
+$N$ = 30, $\sqrt{N/P}$ is $2.5\times10^{-4}$. The approximation closely describes the
+synthetic block, where every arm is within 0.91--1.02 of it at every rank
+(Figure~\ref{fig:f5}), and the mirrored arms here measure 0.80--0.92 of it (1.10 for
+rank 4 at $N{=}30$). Its applicability to low-rank perturbations depends on the
+gradient's structure (Appendix~\ref{sec:alignment}). Most of each update is not along the
+descent direction.
 
-The predictions we fixed before these runs used a different variable and missed. Each
-arm was predicted from its own synthetic fit against $N/d_{\mathrm{samp}}$, where
-$d_{\mathrm{samp}}$ counts the independent random numbers in one perturbation ($r(m+n)$
-per matrix at rank $r$). That predicted full rank within 9\% but put the low-rank arms at
-about twice their measured alignment, and a 0.53 correction measured at 0.5B and fixed
-in advance for 1.5B still overshot there: the observations were 23--26\% below the
-predictions (Table~\ref{tab:tb6-audit}). The miss is in the transfer. On the block the
-arms coincide at equal $N/P$, so a fit read at $N/d_{\mathrm{samp}}$ carries over the
-block's $P/d_{\mathrm{samp}}$, 256 for rank 1, to models where it is 638 (0.5B) and 1063
-(1.5B); that alone overstates rank 1 by $\sqrt{638/256}\approx1.6$ at 0.5B, most of the
-miss. $N/P$ describes these measurements better. We found that after seeing the data, so
-the synthetic reference is a post hoc reading, reported beside the preregistered one.
+The predictions we committed before these runs overestimated low-rank alignment: the
+measurements came out at 0.43--0.67 of the prediction at 0.5B, and 23--26\% below it at
+1.5B even after a correction fixed in advance. They read each arm's synthetic fit against a
+different variable. The $N/P$ reading used here, and Table~\ref{tab:tb6}'s reference
+column, were developed afterward; Appendix~\ref{sec:alignment} gives both predictions and
+why the first missed.
 
 \subsection{Training on a task}
 
 We trained on Countdown, arithmetic puzzles in the style of TinyZero \citep{tinyzero2025},
 with settings adapted from \citet{qiu2025}: their population of 30, noise scale
 $\sigma{=}10^{-3}$ and learning rate, converted to Eq.~\ref{eq:update}; centered ranks
-where they standardize rewards, which makes our steps about 3.5$\times$ smaller; and 8
-puzzles per update where their protocol uses 200 samples
+where they standardize rewards (the weights' standard deviation is 0.29 against 1, and
+we did not match the resulting update magnitudes); and 8 puzzles per update where their
+protocol uses 200 samples
 (Appendix~\ref{sec:countdown} has the full setup). Each arm runs 500 updates, 120,000
 scored training completions, with three seeds, on one A100. A completion scores 1 if it
 solves the puzzle and 0.1 if it is well formed but wrong. Held-out accuracy is measured
@@ -106,5 +94,6 @@ The task separates training from failure, not small differences in update qualit
 population-16 run, fixed in advance as a positive control because by the square-root scaling
 it aligns 27\% worse per update, does not test that either: on about the same budget it
 takes 940 updates (120,320 completions) to population 30's 500 and reaches the plateau
-sooner (Figure~\ref{fig:f7c}). On one task at one model size with three seeds, no rank
-breaks training or ends at a different accuracy.
+sooner (Figure~\ref{fig:f7c}). Among the runs that update all parameters, no rank breaks
+training or ends at a different accuracy, on one task at one model size with three
+seeds; the run with the embedding frozen ends lower.
