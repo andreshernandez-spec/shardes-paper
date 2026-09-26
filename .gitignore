@@ -14,3 +14,4 @@ experiments/phase1/kaggle/output/
 experiments/phase2/results-rehearsal/
 experiments/phase2/env.json
 experiments/phase2/figures-rehearsal/
+.venv-*/
