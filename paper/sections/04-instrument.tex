@@ -17,7 +17,7 @@ $6.3\times10^{-6}$ relative error, and two 20-generation runs of the same $D{=}8
 program agree byte for byte. Two separately compiled programs need not follow the same
 training trajectory: compiler fusion can flip near-tied greedy tokens.
 
-\paragraph{Low-rank noise is never materialized.} A rank-$r$ perturbation stays as its
+\paragraph{Low-rank noise is never formed as a full matrix.} A rank-$r$ perturbation stays as its
 two factors through evaluation and through the sum (Section~\ref{sec:placement}): a dense layer computes $x(W+\tfrac{\sigma}{\sqrt r}AB^\top)^\top$
 as $xW^\top + ((xB)A^\top)\tfrac{\sigma}{\sqrt r}$, so no $m\times n$ noise matrix exists
 and all members share the base multiply $xW^\top$. The price is at the API: a model must

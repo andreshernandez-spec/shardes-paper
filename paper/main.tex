@@ -51,8 +51,8 @@ scalar fitnesses rather than gradients. That holds for one way of computing the 
 gather the fitnesses and let every device recompute the weighted sum of all
 perturbations. The other way splits the sum across devices and all-reduces a
 model-sized partial update. We measure both in one JAX library that runs full-rank
-perturbations regenerated from seeds and low-rank perturbations that are never
-materialized, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
+perturbations regenerated from seeds and low-rank perturbations kept as two thin
+factors per weight matrix, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
 Qwen2.5-0.5B. A simple timing model accounts for the winner: splitting the sum helps
 when the computation it saves takes longer than the all-reduce it adds. On a single host
 at eight devices the all-reduce wins every full-rank configuration measured, by 1.2 to
