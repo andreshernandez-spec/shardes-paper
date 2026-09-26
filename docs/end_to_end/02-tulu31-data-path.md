@@ -34,8 +34,15 @@ at 3f37c29, the commit the Tulu 3.1 model card names, with the card's command.
    template. The template has no bos token and `apply_chat_template(tokenize=True)`
    encodes without special tokens, so the run's prompts carried no bos.
 
+## Rebuilt (2026-09-26)
+
+`experiments/end_to_end/tulu31_data.py` -> `data/tulu31/`: 29,946 rows, 29,689 kept by the
+length filters (256 IF and 1 MATH prompts dropped), none within 5 tokens of either
+limit, so no tokenizer-version difference can move a row across it (Olmo 3 had one that
+did). Prompts under `tulu`: median 577 tokens, mean 465, p95 783, max 1,988 (the GSM8K
+and MATH prompts carry few-shot examples). The stream gives the 48 prompts of each of
+steps 1 to 2,440.
+
 ## To do
 
-- Rebuild the filtered set and the prompt stream for steps 1 to 2,440 (the last branch):
-  `experiments/end_to_end/tulu31_data.py`.
 - Vendor the verifiers (GSM8K, MATH flex, IF) with tests.
