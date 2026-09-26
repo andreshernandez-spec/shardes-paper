@@ -43,6 +43,20 @@ did). Prompts under `tulu`: median 577 tokens, mean 465, p95 783, max 1,988 (the
 and MATH prompts carry few-shot examples). The stream gives the 48 prompts of each of
 steps 1 to 2,440.
 
+## Verifiers (2026-09-26)
+
+Vendored verbatim in `experiments/end_to_end/verifiers/tulu31/` (only two import lines
+changed; Apache 2.0), with the run's dispatch: the row's `dataset` picks GSM8K (last
+number), MATH (flex: boxed, Minerva, dollar-delimited, sympy equivalence) or IFEval
+(`IF_FUNCTIONS_MAP`); 10 for a verified answer, else 0; 0 for a response without eos.
+
+The run's environment pinned `antlr4-python3-runtime==4.11.0` and `sympy==1.13.1`. The
+MATH verifier parses LaTeX with sympy and returns False on an ImportError, so a missing
+antlr would silently zero MATH rewards; `check_environment()` raises instead. Still open:
+whether the sympy torch requires changes any verdict; if it does, the verifier runs in
+its own small environment.
+
 ## To do
 
-- Vendor the verifiers (GSM8K, MATH flex, IF) with tests.
+- Pin the verifier environment (antlr 4.11.0; sympy 1.13.1 or a checked newer one).
+- T0 item 4: the evaluation harness (OLMES), next.

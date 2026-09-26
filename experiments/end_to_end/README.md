@@ -25,6 +25,10 @@ python pin_releases.py --out pins/releases-<date>.json
 python olmo3_if_data.py --out data/olmo3_if
 ```
 
+Tulu 3.1 (T0 of `docs/end_to_end/01-tulu31-plan.md`): `tulu31_data.py` rebuilds the
+run's training set and prompt stream into `data/tulu31/`; `verifiers/tulu31/` holds the
+run's verifiers, vendored from open-instruct 3f37c29.
+
 ## Phase 0 results
 
 See `docs/end_to_end/00-plan.md`, "Phase 0 results". In short: every pin resolves;
