@@ -23,10 +23,14 @@ The perturbation design changes this balance. \citet{qiu2025} use full-rank Gaus
 noise, regenerated from a seed whenever needed, which saves memory but makes update
 reconstruction expensive. EGGROLL \citep{eggroll2025} uses products of thin matrices as
 low-rank perturbations. These permit efficient batched evaluation with a shared base
-weight matrix and make the update cheap to reconstruct. Neither paper compares these
-two update placements in a common implementation.
+weight matrix and make the update cheap to reconstruct. Neither paper compares update placements, and they do not compare both perturbation
+designs in one implementation. Existing systems illustrate two ways of keeping the
+complete reconstruction together: Algorithm 2 of \citet{salimans2017} repeats it on
+every worker, while EGGROLL's vLLM setup reconstructs on a primary rank and broadcasts
+the updated model \citep[Appendix L.2]{eggroll2025}. We test whether dividing that
+reconstruction work is worth its communication cost.
 
-We built \textbf{shardes} \citep{shardes}, a JAX \citep{jax2018} library, to make that
+We built a JAX \citep{jax2018} library\ifanonymous\else, \textbf{shardes} \citep{shardes},\fi{} to make that
 comparison. Every device holds the complete model; the population is what is split
 across devices. The library supports both perturbation designs under both placements,
 so their costs can be compared with the same model and evaluation code. We ask three
@@ -36,12 +40,13 @@ questions:
     between repeated computation and communication. On the block benchmark, splitting
     wins for full-rank noise on a single host, while replication wins for rank-1 noise
     at the larger matrix width.
-  \item \textbf{Does the result carry over?} We test a real language model, a slow
-    connection between hosts, and both GPU and TPU hardware. We also measure the
-    relative cost of low-rank perturbations on each platform.
-  \item \textbf{Do cheaper perturbations remain useful?} We compare one-update alignment
-    with a loss-reducing gradient direction and then train on Countdown. The tested
-    ranks reach similar observed final accuracy, but differ early in training.
+  \item \textbf{Does the result carry over?} The placement preference holds on
+    Qwen2.5-0.5B on the TPU. Across a slow connection between hosts, replication wins
+    for large full-rank updates too.
+  \item \textbf{Do cheaper perturbations remain useful?} On matched block configurations,
+    rank-1 generation time is 0.22 times the dense time on the A100 and 0.08 times on
+    the v5e. The tested ranks have close one-update alignment and reach similar observed
+    final Countdown accuracy, but differ early in training.
 \end{itemize}
 The placement measurements are the main result. The learning experiments check the
 practical relevance of the cheaper perturbations within one model family and one task.

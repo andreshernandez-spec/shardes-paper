@@ -2,13 +2,13 @@
 \begin{table*}[t]
 \centering
 \small
-\caption{Alignment measurements and prediction audit ($\times10^{-4}$; median [min, max] across five seeds). \emph{Later reference} uses the full-rank synthetic fit at $N/P$, selected after the runs. \emph{Original prediction} was fixed before each run and uses the variant's fit at $N/d_{\mathrm{samp}}$ (with the advance correction at 1.5B described in the text). Ratios are measured / predicted.}
+\caption{Alignment measurements and prediction audit ($\times10^{-4}$; median [min, max] across five seeds). \emph{Later reference} uses the full-rank synthetic fit at $N/P$, selected after the runs. \emph{Original prediction} was fixed before each run and uses the variant's fit at $N/d_{\mathrm{samp}}$ (with the advance correction at 1.5B described in the text). Ratios are measured / predicted. The second 0.5B batch reuses the same perturbations and changes only the puzzle numbers in the prompts; it is a sensitivity check, not an independent replication.}
 \label{tab:tb6-audit}
 \begin{tabular}{lllrrrrr}
 \toprule
  & & & & \multicolumn{2}{c}{later reference} & \multicolumn{2}{c}{original prediction} \\
 \cmidrule(lr){5-6}\cmidrule(lr){7-8}
-model & arm & $N$ & measured & pred. & ratio & pred. & ratio \\
+model & variant & $N$ & measured & pred. & ratio & pred. & ratio \\
 \midrule
 0.5B & seed, mirrored & 30 & $1.42$ [1.3, 1.9] & $1.56$ & $0.91$ & $1.56$ & $0.91$ \\
 0.5B & seed, mirrored & 240 & $4.23$ [3.8, 4.4] & $4.48$ & $0.94$ & $4.48$ & $0.94$ \\

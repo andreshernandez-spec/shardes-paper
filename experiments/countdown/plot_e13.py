@@ -132,15 +132,13 @@ def main() -> None:
     axes[1].set_xlabel("steady-state update time (s)")
     axes[0].set_title("Equal completion budget", fontsize=10, loc="left")
     axes[1].set_title("Original batching: full rank in chunks, low rank in one batch", fontsize=9, loc="left")
-    axes[1].text(0.98, 0.12, "excludes compilation and held-out evaluation",
-                 transform=axes[1].transAxes, ha="right", fontsize=7, color="#52514e")
     axes[1].set_xlim(0, None)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, fontsize=9, ncol=4, loc="lower center",
                bbox_to_anchor=(0.5, -0.02))
     fig.tight_layout(rect=(0, 0.07, 1, 1))
     out = FIGURES / "f7-e13-heldout.png"
-    fig.savefig(out, dpi=200)
+    fig.savefig(out, dpi=200, metadata={"Date": None, "Software": None})
     print(out)
 
     plt.close(fig)
@@ -158,7 +156,7 @@ def main() -> None:
     ax.grid(color="#e6e6e3")
     ax.legend(frameon=False, fontsize=8, loc="lower right")
     fig.tight_layout()
-    fig.savefig(FIGURES / "f7-e13-frozen.png", dpi=200)
+    fig.savefig(FIGURES / "f7-e13-frozen.png", dpi=200, metadata={"Date": None, "Software": None})
     plt.close(fig)
 
 

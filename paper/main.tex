@@ -4,13 +4,15 @@
 % - Figures are included straight from experiments/*/figures; each script is named in
 %   the comment above its figure and in the appendix.
 % - `make` builds main.pdf; `make anon` builds main-anon.pdf for double-blind review,
-%   without the author, the acknowledgements and the experiments' repository URL. The
-%   library is cited by its GitHub address in both.
+%   without author details, acknowledgements, identifying library names or repository URLs.
 %
-% CLASS: neutral article for now. When the MLSys 2027 style is in, replace the next line
-% with its class file and delete the geometry package.
+% Keep a neutral reading copy; the submission target uses the official style.
+\ifdefined\submissionbuild
+\documentclass{article}
+\else
 \documentclass[10pt,twocolumn]{article}
 \usepackage[margin=1in]{geometry}
+\fi
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{amsmath}
@@ -19,7 +21,20 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning}
 % Allow full-width figures and tables near the discussion they support.
+\ifdefined\submissionbuild\usepackage{float}\fi
+\ifdefined\submissionpart\usepackage{xr-hyper}\fi
 \usepackage[hidelinks]{hyperref}
+\ifdefined\submissionbuild
+\usepackage{mlsys2025}
+\mlsystitlerunning{Update Placement in Distributed Evolution Strategies}
+\fi
+\ifdefined\submissionpart
+  \ifdefined\appendixonly
+    \externaldocument{submission-main-refs}[main-submission.pdf]
+  \else
+    \externaldocument{submission-appendix-refs}[appendix-anon.pdf]
+  \fi
+\fi
 
 \renewcommand{\dbltopfraction}{0.85}
 \renewcommand{\topfraction}{0.85}
@@ -31,6 +46,8 @@
 % The experiments' repository, or a neutral phrase in the anonymous build.
 \newcommand{\paperurl}{\ifanonymous the experiments' repository (withheld for review)\else\url{https://github.com/andreshernandez-spec/shardes-paper}\fi}
 
+\newcommand{\librarycite}{\ifanonymous\else\citep{shardes}\fi}
+
 \title{Update Placement in Distributed Evolution Strategies}
 \ifanonymous
 \author{Anonymous authors}
@@ -40,25 +57,36 @@
 \fi
 \date{}
 
-\begin{document}
-\maketitle
+% Appendix citations are plain text; its bibliography is in the main upload.
+\ifdefined\appendixonly
+\makeatletter
+\def\hyper@natlinkstart#1{}
+\let\hyper@natlinkend\relax
+\def\hyper@natlinkbreak#1#2{#1}
+\makeatother
+\fi
 
-\begin{abstract}
-Evolution strategies (ES) can distribute model evaluations by exchanging only scalar
-fitness scores, but every device must then reconstruct the same parameter update. We
-compare this replication with splitting the reconstruction across devices and combining
-partial updates with an all-reduce. The faster choice depends on whether the computation
-saved outweighs the communication added. Using one JAX implementation, we measure this
-tradeoff for full-rank and low-rank perturbations on A100 GPUs and TPU v5e chips. On a
-transformer-block benchmark with eight devices in one host, splitting gives
-1.2--5.6$\times$ speedups for full-rank perturbations; for low-rank perturbations at the
-larger matrix width, it takes 4--46\% longer than replication. The placement preference
-carries over to Qwen2.5-0.5B on the TPU, while a slow connection between two A100 hosts
-reverses the full-rank preference for large updates. Supporting learning experiments find
-similar directional alignment and observed final Countdown accuracy across the tested
-perturbations, with full rank ahead at the first training checkpoint. These checks do not
-establish equivalent learning efficiency. Code, configurations, and results are released.
-\end{abstract}
+\begin{document}
+\ifdefined\appendixonly
+  \twocolumn[\mlsystitle{Appendix: Update Placement in Distributed Evolution Strategies}\vskip 0.2in]
+  \input{submission-counters}
+  \appendix
+  \input{sections/appendix}
+\else
+  \ifdefined\submissionbuild
+    \twocolumn[
+      \mlsystitle{Update Placement in Distributed Evolution Strategies}
+      \begin{mlsysauthorlist}\mlsysauthor{Anonymous authors}{anon}\end{mlsysauthorlist}
+      \mlsysaffiliation{anon}{Anonymous institution}
+      \mlsyscorrespondingauthor{Anonymous author}{anonymous@example.com}
+      \vskip 0.3in
+      \input{sections/abstract}
+    ]
+    \begin{NoHyper}\printAffiliationsAndNotice{}\end{NoHyper}
+  \else
+    \maketitle
+    \input{sections/abstract}
+  \fi
 
 \input{sections/01-introduction}
 \input{sections/02-background}
@@ -76,11 +104,26 @@ The TPU measurements ran on Kaggle's free TPU v5e-8 tier; the GPU measurements r
 rented A100 nodes. No grant or employer resources were used.
 \fi
 
-\bibliographystyle{plainnat}
-\bibliography{references}
-
-\clearpage
-\appendix
-\input{sections/appendix}
-
+\label{sec:body-end}
+\ifdefined\submissionpart
+  % Include references cited in the separately uploaded appendix too.
+  \input{submission-all.bbl}
+\else
+  \ifdefined\submissionbuild\bibliographystyle{mlsys2025}\else\bibliographystyle{plainnat}\fi
+  \bibliography{references}
+  \clearpage
+  \ifdefined\submissionbuild
+    % Continue figure/table/equation numbering in the separate appendix.
+    \newwrite\counterfile
+    \immediate\openout\counterfile=submission-counters.tex
+    \immediate\write\counterfile{\string\setcounter{figure}{\arabic{figure}}}
+    \immediate\write\counterfile{\string\setcounter{table}{\arabic{table}}}
+    \immediate\write\counterfile{\string\setcounter{equation}{\arabic{equation}}}
+    \immediate\closeout\counterfile
+  \fi
+  \appendix
+  \label{sec:appendix-start}
+  \input{sections/appendix}
+\fi
+\fi
 \end{document}

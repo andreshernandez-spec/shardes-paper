@@ -1,14 +1,14 @@
 \section{A common implementation}
 \label{sec:instrument}
 
-shardes uses JAX and compiler-driven sharding \citep{jax2018,gspmd2021}. It generates
+The library uses JAX and compiler-driven sharding \citep{jax2018,gspmd2021}. It generates
 perturbations, evaluates candidates, and reconstructs an update. The model is replicated
 and the population is split across devices. Three controls make the comparisons useful.
 
 \paragraph{The population stays fixed.} A candidate's random seed depends on its
 identity, not its device. Changing device count therefore evaluates the same
 perturbations. With scores held fixed, Qwen2.5-0.5B updates on one and eight A100s agree
-to $6.3\times10^{-6}$ relative error. Floating-point and compilation differences can
+to $6.3\times10^{-6}$ relative error in the norm of the whole parameter tree. Floating-point and compilation differences can
 still change training trajectories; Appendix~\ref{sec:implementation} describes the checks.
 
 \paragraph{Low-rank perturbations stay factored.} A layer computes
@@ -20,7 +20,7 @@ must route matrix multiplies and embedding lookups through the library's layers,
 an existing model needs adaptation.
 
 \paragraph{Scores retain enough precision to rank.} The library requires float32 or
-wider fitness scores even when model evaluation uses bfloat16. In one measured case,
+wider fitness scores even when model evaluation uses bfloat16. On a synthetic block,
 casting 256 losses to bfloat16 left only two distinct values, losing distinctions needed
 to rank the candidates. Casting those rounded values back to float32 cannot recover
 the lost information. Ranking and reproducibility details are in

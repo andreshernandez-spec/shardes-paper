@@ -23,3 +23,13 @@ Per the gate's committed decision rule, stage 2 proceeds: Qwen2.5-1.5B on the
 ORIGINAL E15 batch, full rank and mirrored rank 1, N in {30, 240}, five
 seeds, with two predictions frozen before the run: the unmodified F5 fit, and
 the fit times the 0.53x geometric-mean E15 correction for the low-rank arm.
+
+## Prompt-sensitivity scope, 2026-09-26
+
+The committed config `e16-gate.yaml` uses puzzle seed 41; the original E15 config
+uses 7. Both calls to `e15_accuracy.py` initialize perturbation replicate `rep`
+with `key(1000 + rep)`. This reuses exactly the same perturbations while changing
+the puzzle numbers in a shared prompt template. It is a prompt-sensitivity check,
+not an independent replication. The main paper table excludes it; the appendix
+retains it with this qualification. Historical records omit `puzzle_seed`; they
+are not rewritten. Future records now include it and the perturbation seed base.

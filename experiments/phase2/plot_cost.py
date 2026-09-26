@@ -178,7 +178,7 @@ def common_comparison(platforms: dict, dtype: str, out: pathlib.Path) -> None:
                frameon=False, fontsize=10)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     dest = out / f"f4-cost-common-{dtype}.png"
-    fig.savefig(dest, dpi=200)
+    fig.savefig(dest, dpi=200, metadata={"Date": None, "Software": None})
     plt.close(fig)
     print(dest)
 
@@ -230,7 +230,7 @@ def main(argv=None) -> int:
     bar.set_ticks([np.log10(t) for t in ticks])
     bar.set_ticklabels([f"{t:g}x" for t in ticks])
     out = args.out / f"f4-cost-{args.dtype}.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight")
+    fig.savefig(out, dpi=150, bbox_inches="tight", metadata={"Date": None, "Software": None})
     print(out)
     plt.close(fig)
     common_comparison(platforms, args.dtype, args.out)

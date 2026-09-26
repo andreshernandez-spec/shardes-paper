@@ -112,7 +112,7 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
     fig.legend(handles, [names[s] for s in main_strategies], frameon=False, ncol=3,
                loc="lower center", fontsize=9)
     fig.tight_layout(rect=(0, 0.05, 1, 1))
-    fig.savefig(out / "f2b-crossover-vs-d.png", dpi=200)
+    fig.savefig(out / "f2b-crossover-vs-d.png", dpi=200, metadata={"Date": None, "Software": None})
     plt.close(fig)
 
 
@@ -183,7 +183,7 @@ def f1(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
                labelcolor=MUTED, loc="center left", bbox_to_anchor=(0.99, 0.5))
     fig.suptitle("F1  scaling by platform", color=INK, x=0.02, ha="left", y=1.0)
     fig.tight_layout()
-    fig.savefig(out / "f1-scaling.png", dpi=200, bbox_inches="tight")
+    fig.savefig(out / "f1-scaling.png", dpi=200, bbox_inches="tight", metadata={"Date": None, "Software": None})
     plt.close(fig)
     print(out / "f1-scaling.png")
 

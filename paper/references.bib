@@ -12,7 +12,7 @@
 }
 @article{eggroll2025,
   title={Evolution Strategies at the Hyperscale},
-  author={Sarkar, Bidipta and Fellows, Mattie and Duque, Juan Agustin and Letcher, Alistair and others},
+  author={Sarkar, Bidipta and Fellows, Mattie and Duque, Juan Agustin and Letcher, Alistair and Le{\'o}n Villares, Antonio and Sims, Anya and Wibault, Clarisse and Samsonov, Dmitry and Cope, Dylan and Liesen, Jarek and Li, Kang and Seier, Lukas and Wolf, Theo and Berdica, Uljad and Mohl, Valentin and Goldie, Alexander David and Courville, Aaron and Sevegnani, Karin and Whiteson, Shimon and Foerster, Jakob Nicolaus},
   journal={arXiv preprint arXiv:2511.16652},
   year={2025}
 }
@@ -354,32 +354,12 @@
   journal={arXiv preprint arXiv:2503.24290},
   year={2025}
 }
-@inproceedings{hoy2026geometry,
-  title={Matching Accuracy, Different Geometry: Evolution Strategies vs {GRPO} in {LLM} Post-Training},
-  author={Hoy, William and Wang, Binxu and Pan, Xu},
-  booktitle={Conference on Language Modeling},
-  year={2026},
-  note={arXiv:2604.01499}
-}
-@article{schweighofer2026awd,
-  title={Overcoming Forgetting in {LLM} Fine-Tuning with Evolution Strategies},
-  author={Schweighofer, Kajetan and Hayes, Conor F. and Dailey, Roberto and Miikkulainen, Risto and Qiu, Xin},
-  journal={arXiv preprint arXiv:2605.30148},
-  year={2026}
-}
 @article{cho2026reward,
   title={Reward-Aware Population Scaling of Evolutionary Strategies in {LLM} Fine-Tuning},
   author={Cho, Sung and Han, Gyubin},
   journal={arXiv preprint arXiv:2607.19408},
   year={2026}
 }
-@article{abdi2026forgetting,
-  title={Evolutionary Strategies lead to Catastrophic Forgetting in {LLMs}},
-  author={Abdi, Immanuel and Gupta, Akshat and Mok, Micah and Lu, Alexander and Lee, Nicholas and Anumanchipalli, Gopala},
-  journal={arXiv preprint arXiv:2601.20861},
-  year={2026}
-}
-% abdi2026forgetting verified against the arXiv listing 2026-08-21 (authors, abstract).
 
 % ---- systems: the substrate and the incumbent ----
 @inproceedings{rajbhandari2020zero,
@@ -410,7 +390,7 @@
 }
 @article{gspmd2021,
   title={{GSPMD}: General and Scalable Parallelization for {ML} Computation Graphs},
-  author={Xu, Yuanzhong and Lee, HyoukJoong and Chen, Dehao and others},
+  author={Xu, Yuanzhong and Lee, HyoukJoong and Chen, Dehao and Hechtman, Blake and Huang, Yanping and Joshi, Rahul and Krikun, Maxim and Lepikhin, Dmitry and Ly, Andy and Maggioni, Marcello and Pang, Ruoming and Shazeer, Noam and Wang, Shibo and Wang, Tao and Wu, Yonghui and Chen, Zhifeng},
   journal={arXiv preprint arXiv:2105.04663},
   year={2021}
 }
@@ -447,4 +427,59 @@
   author={Shao, Zhihong and Wang, Peiyi and Zhu, Qihao and others},
   journal={arXiv preprint arXiv:2402.03300},
   year={2024}
+}
+
+
+% Verified against proceedings, publisher or author pages on 2026-09-26.
+@inproceedings{vogels2019,
+  title={{PowerSGD}: Practical Low-Rank Gradient Compression for Distributed Optimization},
+  author={Vogels, Thijs and Karimireddy, Sai Praneeth and Jaggi, Martin},
+  booktitle={Advances in Neural Information Processing Systems},
+  volume={32}, year={2019},
+  url={https://arxiv.org/abs/1905.13727}
+}
+@article{thakur2005,
+  title={Optimization of Collective Communication Operations in {MPICH}},
+  author={Thakur, Rajeev and Rabenseifner, Rolf and Gropp, William},
+  journal={The International Journal of High Performance Computing Applications},
+  volume={19}, number={1}, pages={49--66}, year={2005},
+  doi={10.1177/1094342005051521}
+}
+@article{patarasuk2009,
+  title={Bandwidth optimal all-reduce algorithms for clusters of workstations},
+  author={Patarasuk, Pitch and Yuan, Xin},
+  journal={Journal of Parallel and Distributed Computing},
+  volume={69}, number={2}, pages={117--124}, year={2009},
+  doi={10.1016/j.jpdc.2008.09.002}
+}
+@inproceedings{solomonik2011,
+  title={Communication-Optimal Parallel {2.5D} Matrix Multiplication and {LU} Factorization Algorithms},
+  author={Solomonik, Edgar and Demmel, James},
+  booktitle={Euro-Par 2011 Parallel Processing}, pages={90--109}, year={2011},
+  url={https://www2.eecs.berkeley.edu/Pubs/TechRpts/2011/EECS-2011-72.pdf}
+}
+@article{li2020ddp,
+  title={{PyTorch Distributed}: Experiences on Accelerating Data Parallel Training},
+  author={Li, Shen and Zhao, Yanli and Varma, Rohan and Salpekar, Omkar and Noordhuis, Pieter and Li, Teng and Paszke, Adam and Smith, Jeff and Vaughan, Brian and Damania, Pritam and Chintala, Soumith},
+  journal={Proceedings of the VLDB Endowment}, volume={13}, number={12},
+  pages={3005--3018}, year={2020}, note={arXiv:2006.15704}
+}
+@inproceedings{qin2024fedkseed,
+  title={Federated Full-Parameter Tuning of Billion-Sized Language Models with Communication Cost under 18 Kilobytes},
+  author={Qin, Zhen and Chen, Daoyuan and Qian, Bingchen and Ding, Bolin and Li, Yaliang and Deng, Shuiguang},
+  booktitle={Proceedings of the 41st International Conference on Machine Learning},
+  volume={235}, pages={41473--41497}, year={2024},
+  url={https://proceedings.mlr.press/v235/qin24a.html}
+}
+@inproceedings{shu2025ferret,
+  title={Ferret: Federated Full-Parameter Tuning at Scale for Large Language Models},
+  author={Shu, Yao and Hu, Wenyang and Ng, See-Kiong and Low, Bryan Kian Hsiang and Yu, Fei},
+  booktitle={Proceedings of the 42nd International Conference on Machine Learning},
+  volume={267}, pages={55379--55402}, year={2025},
+  url={https://proceedings.mlr.press/v267/shu25a.html}
+}
+@article{korotyshova2025essa,
+  title={{ESSA}: Evolutionary Strategies for Scalable Alignment},
+  author={Korotyshova, Daria and Shaposhnikov, Boris and Malakhov, Alexey and Khokhulin, Alexey and Surnachev, Nikita and Ovcharenko, Kirill and Bredis, George and Gorbatovski, Alexey and Sinii, Viacheslav and Gavrilov, Daniil},
+  journal={arXiv preprint arXiv:2507.04453}, year={2025}
 }

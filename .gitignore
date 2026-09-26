@@ -14,3 +14,9 @@ experiments/phase1/kaggle/output/
 experiments/phase2/results-rehearsal/
 experiments/phase2/env.json
 experiments/phase2/figures-rehearsal/
+
+# Intermediate shared state for the linked submission/appendix build.
+paper/submission-counters.tex
+paper/main-submission.pdf
+paper/appendix-anon.pdf
+paper/submission-all.pdf

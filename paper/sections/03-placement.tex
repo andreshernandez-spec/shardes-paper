@@ -40,14 +40,17 @@ sum can then be formed in two ways (Figure~\ref{fig:placements}).
 
 \paragraph{Replicated update (A).} Every device reconstructs the contributions from all
 $N$ candidates and forms the complete sum. Only scalar arrays are communicated. Our
-implementation gathers both the raw scores and, in a second operation, the weights
-computed from their ranks: two arrays of $4N$ bytes for float32 values.
+shared implementation places the rank-derived weights back on the population axis
+for B's local reconstruction; A then gathers them again. This second gather is a
+consequence of sharing a code path, not a requirement of replication. The two gathers
+each carry $4N$ bytes for float32 values. Even the dense variant regenerates the noise
+from seeds for reconstruction; it does not gather stored noise arrays.
 
 \paragraph{Split update (B).} Each device reconstructs only its $N/D$ contributions.
 An all-reduce adds the partial sums and returns the result to every device. It
 communicates the $4N$-byte score array and a $4P$-byte update array. These are the
 sizes passed to the communication operations; bytes sent over the connection also
-depend on the collective algorithm.
+depend on the collective algorithm \citep{thakur2005,patarasuk2009}.
 
 \paragraph{The decision rule.} Splitting helps when the computation it saves takes
 longer than the communication it adds. Write $C_A$ for the time to reconstruct the
@@ -74,8 +77,9 @@ with one matrix multiplication per weight matrix:
 This avoids a full noise array for every candidate. The resulting update is dense in
 storage under either placement; with mirrored sampling its matrix rank is at most
 $\min(m,n,Nr/2)$. Splitting therefore adds the same model-sized communication for
-low-rank noise while saving less reconstruction work. The communication cost also
-grows with model size and depends on the connection between devices.
+low-rank noise while saving less reconstruction work. Both reconstruction and communication grow with model size. Their balance also depends
+on population, rank, matrix shapes and the connection between devices; Appendix~\ref{sec:size}
+derives a conditional scaling rule and explains why it is not a prediction for a larger model.
 
 Eq.~\ref{eq:crossover} is an approximate accounting model: separately timed components
 can have different costs when combined by the compiler. We measure that difference in

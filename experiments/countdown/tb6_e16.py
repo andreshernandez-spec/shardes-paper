@@ -120,6 +120,8 @@ def main(argv=None) -> int:
         short = {"0.5B": "0.5B", "0.5B, second batch": "0.5B, batch 2", "1.5B": "1.5B"}
         rows = []
         for label, n in dict.fromkeys((l[0], l[2]) for l in lines):
+            if label == "0.5B, second batch":
+                continue
             vals = []
             for c in cols:
                 entry = cell.get((label, n, c))
@@ -160,13 +162,15 @@ def main(argv=None) -> int:
             r"selected after the runs. \emph{Original prediction} was fixed before "
             r"each run and uses the variant's fit at $N/d_{\mathrm{samp}}$ "
             r"(with the advance correction at 1.5B described in the text). "
-            r"Ratios are measured / predicted.}",
+            r"Ratios are measured / predicted. The second 0.5B batch reuses the same "
+            r"perturbations and changes only the puzzle numbers in the prompts; it is "
+            r"a sensitivity check, not an independent replication.}",
             "\\label{tab:tb6-audit}",
             "\\begin{tabular}{lllrrrrr}", "\\toprule",
             " & & & & \\multicolumn{2}{c}{later reference} & "
             "\\multicolumn{2}{c}{original prediction} \\\\",
             "\\cmidrule(lr){5-6}\\cmidrule(lr){7-8}",
-            "model & arm & $N$ & measured & pred. & ratio & pred. & ratio \\\\",
+            "model & variant & $N$ & measured & pred. & ratio & pred. & ratio \\\\",
             "\\midrule",
             *rows,
             "\\bottomrule", "\\end{tabular}", "\\end{table*}", ""]))

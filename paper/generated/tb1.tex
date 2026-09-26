@@ -3,7 +3,7 @@
 \centering
 \small
 \setlength{\tabcolsep}{5pt}
-\caption{Throughput at matched shapes: token-position evaluations per second (tokens = population $\times$ batch $\times$ sequence). \emph{rank 1} and \emph{seed} are this library's arms; \emph{EGGROLL} is its authors' released code; \emph{naive} gives every member its own copy of the weights, the baseline both papers improve on; \emph{evosax} is OpenES in the incumbent JAX library. None of the three references shards, so only the library's arms have a $D{=}8$ column. Qiu et al.'s released code is not included. OOM: does not fit the device at this shape.}
+\caption{Throughput at matched shapes: token-position evaluations per second (tokens = population $\times$ batch $\times$ sequence). \emph{rank 1} and \emph{seed} are this library's variants; \emph{EGGROLL} is its authors' released code; \emph{naive} gives every member its own copy of the weights, evaluating the population in parallel; \emph{evosax} is OpenES in the incumbent JAX library. None of the three references shards, so only the library's variants have a $D{=}8$ column. Seed evaluates one candidate at a time to keep weight memory at $O(P)$. Qiu et al.'s released code is not included. OOM: does not fit the device at this shape.}
 \label{tab:tb1}
 \begin{tabular}{llrrrrrrr}
 \toprule

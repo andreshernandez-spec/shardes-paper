@@ -12,9 +12,9 @@ use the same population and objective; the two experiments use different objecti
 
 We measure $\cos(\Delta\theta,-\nabla L)$ for the next-token loss on a fixed prompt
 batch, using five perturbation seeds per configuration. At 0.5B we compare full-rank
-noise with ranks 1, 4 and 16; at 1.5B, and on a second 0.5B prompt batch, we check full
-rank against rank 1 (Table~\ref{tab:tb6}). Rank-1 median alignment is 0.92--0.98 times
-the full-rank median across these checks. The other tested ranks have similar medians
+noise with ranks 1, 4 and 16; at 1.5B we check full rank against rank 1 (Table~\ref{tab:tb6}). Rank-1 median alignment is 0.92--0.98 times
+the full-rank median across these checks: 2--8\% lower in every case, with overlapping
+seed ranges. The other tested ranks have similar medians
 at 0.5B, with substantial seed variation at the smaller population. The ranges in the
 table make that variation explicit.
 
@@ -29,7 +29,10 @@ Appendix~\ref{sec:alignment} gives the derivation and the unpaired-sampling comp
 This is evidence about update direction at the tested settings. Cosine ignores update
 magnitude and does not measure progress over repeated updates. Earlier predictions,
 fixed before these experiments, overestimated low-rank alignment. The $N/P$ explanation
-was developed afterward; Table~\ref{tab:tb6-audit} preserves both the original predictions
+was developed afterward. Evaluated at Qwen's $N/P$, the full-rank synthetic reference
+puts the measured mirrored medians at 0.87--0.99 times its prediction, except rank 4
+at $N=30$, whose
+median is 1.20 times the prediction and whose seed range is wide. Table~\ref{tab:tb6-audit} preserves both the original predictions
 and the later reference.
 
 \subsection{Training on Countdown}
@@ -40,8 +43,8 @@ and the later reference.
   \caption{Countdown solve rate with Qwen2.5-0.5B, mean and min--max range over three
     seeds. Left: scored training completions; all variants use 240 per update. Right:
     cumulative steady-state update time with the training runs' original batching.
-    Compilation and held-out evaluation are excluded. The matched-batching 1.44$\times$
-    timing result comes from a separate probe, not these curves. Markers are measured
+    Compilation and held-out evaluation are excluded. Full rank uses chunks of five
+    candidates; low rank uses one batch. Markers are measured
     checkpoints; connecting lines do not establish when a solve rate was first reached.}
   \label{fig:f7}
 \end{figure*}
@@ -61,15 +64,19 @@ base model solves 1.2\% of held-out puzzles. At the first checkpoint, after 12,0
 training completions, full rank solves 4.4\%, compared with 1.5--2.2\% for ranks 1, 4
 and 16, with non-overlapping seed ranges. By 36,000 completions every variant reaches
 5.3--5.9\%, and their final means are 6.0--6.2\%. Formatting exceeds 98.5\% for every
-variant by the first checkpoint; the solve rate carries the remaining differences.
+rank by the first checkpoint; the solve rate carries the remaining differences.
 
-The timing comparison needs two qualifications. In the training runs, full-rank
-candidates were evaluated in chunks of five and low-rank candidates in one batch.
-Their mean steady-state update times were 4.44\,s and 2.62\,s for full rank and rank 1.
-The right panel uses those runs, so it includes the batching difference. In a separate
-30-update probe with both variants evaluating all candidates in one batch, the times
-were 3.62\,s and 2.52\,s: rank 1 was 1.44$\times$ faster per update. That probe did not
-measure a learning curve. Neither comparison includes compilation or held-out decoding.
+All twelve main runs use the same learning rate. Their Euclidean distance from the
+initial weights is 4.47--4.62 after 50 updates and 11.25--11.75 after 500. This supports
+comparable overall movement across ranks; it does not show that this learning rate is
+optimal for each variant, or that individual update norms match.
+
+The timing comparison includes a batching difference. Full-rank candidates were
+evaluated in chunks of five and low-rank candidates in one batch. Their mean steady-state
+update times were 4.44\,s and 2.62\,s for full rank and rank 1. The right panel uses
+those runs, so its difference cannot be attributed to perturbation rank alone.
+Compilation and held-out decoding are excluded. A clean training comparison with
+matched evaluation batching remains unmeasured.
 
 The observed final accuracies are similar, but this does not establish equivalent
 learning efficiency. There is only one early checkpoint before the curves approach the

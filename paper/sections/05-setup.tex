@@ -22,8 +22,11 @@ preference carries over to a real model.
 \paragraph{The real model.} Qwen2.5-0.5B \citep{qwen25}, for three things: timing one
 full update under both placements on the v5e (Figure~\ref{fig:f9}); the alignment of
 that update with the gradient-descent direction, also at 1.5B (Section~\ref{sec:quality}); and
-training on Countdown on one A100. The timing comparison evaluates candidates in a single batch for low-rank
-noise and one at a time for regenerated full-rank noise. This changes activation memory
+training on Countdown on one A100. The real-model placement grid used the available
+free TPU allocation; an equivalent A100 grid was not run. The timing comparison evaluates candidates in a single batch for low-rank
+noise and one at a time for regenerated full-rank noise, which avoids holding separate
+full weight arrays for many candidates. Master weights, reconstruction and all-reduce
+use float32; model evaluation uses a bfloat16 view. This changes activation memory
 and throughput across perturbation types; each placement comparison keeps the evaluation
 procedure fixed. For the timing and alignment experiments the fitness is the model's
 next-token loss on a fixed batch of eight Countdown prompts (the mean negative
@@ -33,8 +36,9 @@ gradient can be computed exactly for reference.
 \paragraph{Protocol.} Per configuration, 3 warm-up generations (the first compiles), then 5 timed
 repeats (7 for the host boundary and the ranking step); we report the median, and every timed call waits for
 the device to finish. Matmul precision is fixed per experiment and recorded: the scaling
-and placement sweeps use full precision so that it is the same at every device count;
-the cost grid uses the default setting
+and placement sweeps on the block, and their reconstruction probes, use float32 storage
+and JAX's highest matrix-multiplication precision on both platforms. The cost grid uses
+the default setting
 (Appendix~\ref{sec:systems-ablations} reports the timing comparison). Both platforms run the
 same (model size, population, perturbation type, datatype) configurations. We record configurations that do not fit as out of memory (OOM), keeping the
 model and population fixed so memory limits remain part of the comparison.

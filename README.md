@@ -1,7 +1,6 @@
 # shardes-paper
 
-The paper *Update-contraction placement in sharded evolution strategies on GPUs and
-TPUs*, every experiment behind it, and their results.
+The paper *Update Placement in Distributed Evolution Strategies*, every experiment behind it, and their results.
 
 The library it measures is [shardes](https://github.com/andreshernandez-spec/shardes),
 installed here as a pinned dependency. This repository was split out of that one, with
@@ -45,11 +44,16 @@ against a dirty or unpushed library.
 
 ```sh
 pip install -r requirements.txt
-make -C paper            # re-emits every generated table from its script, then the PDF
+make -C paper            # combined reading copy: paper/main.pdf
+make -C paper anon       # anonymous combined reading copy
+make -C paper submission # MLSys main-submission.pdf and appendix-anon.pdf
 ```
 
 The generated tables reproduce byte for byte and the figures pixel for pixel from the
-committed results. Nothing here needs an accelerator.
+committed results. Nothing here needs an accelerator. The submission build uses the
+official style linked by the 2027 CFP, checks the ten-page body limit and visible
+anonymity, and keeps appendix numbering and cross-references consistent. See
+[the paper build notes](paper/README.md) for dependencies and artifact details.
 
 ## Rerun an experiment
 
