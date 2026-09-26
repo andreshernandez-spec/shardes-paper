@@ -32,6 +32,7 @@ probe = load(PROBE / "probe_throughput.py", "e2e_probe_throughput")
 releases = load(E2E / "releases.py", "e2e_releases_probe")
 templates = load(E2E / "templates.py", "e2e_templates_probe")
 CFG = yaml.safe_load((PROBE / "probe.yaml").read_text())
+SAMPLING = yaml.safe_load((PROBE / "probe-sampling.yaml").read_text())
 
 
 def test_every_setting_names_a_pinned_model_and_template():
@@ -105,3 +106,13 @@ def test_cost_counts_member_batches_and_skips_smoke(tmp_path, monkeypatch):
     assert len(rows) == 1, "the smoke record must not count"
     # 512,000 rollouts / 32 per member = 16,000 members x 30 s, x1.2 uptime
     assert rows[0]["gpu_hours"] == pytest.approx(16_000 * 30 / 3600 * 1.2)
+
+
+def test_sampling_probe_differs_from_the_greedy_one_only_in_sampling():
+    greedy, sampled = CFG["settings"]["olmo3_if"], SAMPLING["settings"]["olmo3_if"]
+    logged = json.loads((E2E / "pins" / "wandb-wn9zgjj3-config.json").read_text())["config"]
+    assert sampled["temperature"] == logged["temperature"]
+    extra = {"temperature", "sampling_seed"}
+    assert {k: v for k, v in sampled.items() if k not in extra | {"cells"}} == \
+        {k: v for k, v in greedy.items() if k != "cells"}
+    assert sampled["cells"] == greedy["cells"][:1]

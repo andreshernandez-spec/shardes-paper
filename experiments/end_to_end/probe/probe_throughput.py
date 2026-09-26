@@ -157,8 +157,7 @@ def run_setting(setting, spec, cells, out, cfg, smoke, env):
                   gpu_memory_utilization=util, max_model_len=spec["max_model_len"],
                   enable_prefix_caching=False,
                   worker_extension_cls="probe_worker.WeightRewriter")
-        greedy = SamplingParams(temperature=0.0, max_tokens=spec["max_tokens"],
-                                stop=spec["stop"] or None)
+        temperature = spec.get("temperature", 0.0)
         w = cfg["warmup"]
         llm.generate([{"prompt_token_ids": i} for i in ids[: w["prompts"]]],
                      SamplingParams(temperature=0.0, max_tokens=w["max_tokens"]),
@@ -170,7 +169,14 @@ def run_setting(setting, spec, cells, out, cfg, smoke, env):
                 batch = ids[m * P:(m + 1) * P]
                 rw = llm.collective_rpc("rewrite_all")[0]
                 t0 = time.perf_counter()
-                res = llm.generate([{"prompt_token_ids": i} for i in batch], greedy,
+                # Greedy by default. With a temperature, each prompt gets its own seed,
+                # the same for every member (common random numbers across members).
+                params = [SamplingParams(
+                    temperature=temperature, top_p=1.0, max_tokens=spec["max_tokens"],
+                    stop=spec["stop"] or None,
+                    seed=(spec.get("sampling_seed", 0) + m * P + j) if temperature else None)
+                    for j in range(len(batch))]
+                res = llm.generate([{"prompt_token_ids": i} for i in batch], params,
                                    use_tqdm=False)
                 wall = time.perf_counter() - t0
                 gen = [len(r.outputs[0].token_ids) for r in res]
