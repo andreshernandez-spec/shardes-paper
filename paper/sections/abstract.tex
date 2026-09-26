@@ -1,16 +1,18 @@
 \begin{abstract}
-Evolution strategies (ES) can distribute model evaluations by exchanging only scalar
-fitness scores, but each device then usually reconstructs the same parameter update. We
-compare this replication with splitting the reconstruction across devices and combining
-partial updates with an all-reduce. The faster choice depends on whether the computation
-saved outweighs the communication added. Using one JAX implementation, we measure this
-tradeoff for full-rank and low-rank perturbations on A100 GPUs and TPU v5e chips. On a
-transformer-block benchmark with eight devices in one host, splitting gives
+Evolution strategies (ES) lend themselves well to distributed workloads because most of
+the work is independent. However, the gradient estimation requires the bringing together
+of information, and there are two main strategies to do this: exchange only scalar
+fitness scores, but each device then reconstructs the same parameter update, or have
+each device calculate partial updates and exchange those. The faster choice depends on
+whether the computation saved outweighs the communication added. Using one JAX implementation,
+we measure this tradeoff for full-rank and low-rank perturbations on A100 GPUs and TPU v5e
+chips. On a transformer-block benchmark with eight devices in one host, splitting gives
 1.5--5.6$\times$ speedups for the unpaired full-rank variants; for low-rank perturbations at the
 larger matrix width, it takes 4--46\% longer than replication. The placement preference
-carries over to Qwen2.5-0.5B on the TPU, while a slow connection between two A100 hosts
-reverses the full-rank preference for large updates. Supporting learning experiments find
-similar directional alignment and observed final Countdown accuracy across the tested
-perturbations, with full rank ahead at the first training checkpoint. These checks do not
-establish equivalent learning efficiency. Code, configurations, and results are released.
+carries over to Qwen2.5-0.5B on the TPU, while across a slow connection between two A100
+hosts, replication wins for both perturbation types at the larger matrix width, reversing
+the full-rank preference. In training experiments with Qwen2.5-0.5B, the tested
+perturbations align similarly with the true gradient and reach similar final accuracy on
+the Countdown arithmetic task, but full rank learns faster early on. Code, configurations,
+and results are released.
 \end{abstract}
