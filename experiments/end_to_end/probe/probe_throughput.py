@@ -64,17 +64,33 @@ def cell_name(setting: str, cell: dict) -> str:
 def prompt_messages(setting: str, spec: dict, needed: int) -> list:
     """`needed` prompts, each a message list, in the order members consume them."""
     if spec["prompts"] == "olmo3_if_stream":
-        sys.path.insert(0, str(E2E))
-        import olmo3_if_data  # noqa: PLC0415
+        # Read from Dolci (8 MB) rather than the 4 GB source: the Phase 0 record proves
+        # Dolci is the run's training set, prompt for prompt. Use it only on that proof.
+        import pyarrow.parquet as pq  # noqa: PLC0415
+        from huggingface_hub import HfFileSystem  # noqa: PLC0415
 
         tset = json.loads((E2E / "data/olmo3_if/training-set.json").read_text())
         stream = json.loads((E2E / "data/olmo3_if/prompt-stream.json").read_text())
-        if stream["order_keys_sha256"] != tset["order_keys_sha256"]:
-            raise SystemExit("prompt stream and training set disagree")
-        positions = [i for step in stream["stream"] for i in step][:needed]
-        source, _ = olmo3_if_data.load_source()
-        rows = [source[tset["order_source_indices"][p]] for p in positions]
-        return [olmo3_if_data.as_messages(r["messages"]) for r in rows]
+        d = tset["dolci"]
+        if (stream["order_keys_sha256"] != tset["order_keys_sha256"]
+                or d["revision"] != R.OLMO3_IF_DOLCI.commit
+                or d["common_keys"] != tset["training_rows"]
+                or d["prompt_differences"]["count"] != 0):
+            raise SystemExit("the Phase 0 record does not prove Dolci is the run's set")
+        fs = HfFileSystem()
+        base = f"datasets/{R.OLMO3_IF_DOLCI.repo}@{R.OLMO3_IF_DOLCI.commit}/data"
+        raw = {r["key"]: r["prompt"]
+               for f in sorted(fs.ls(base, detail=False)) if f.endswith(".parquet")
+               for r in pq.read_table(f, filesystem=fs, columns=["key", "prompt"]).to_pylist()}
+        keys = [tset["order_keys"][p] for step in stream["stream"] for p in step][:needed]
+        out = []
+        for k in keys:
+            # Dolci's prompt is open-instruct's raw prompt, "user: <content>" for the
+            # single-message rows; anything else is not what this probe expects.
+            if not raw[k].startswith("user: "):
+                raise SystemExit(f"{k}: not a single user message")
+            out.append([{"role": "user", "content": raw[k][len("user: "):]}])
+        return out
     if spec["prompts"] == "tulu31_sample":
         import pyarrow.parquet as pq  # noqa: PLC0415
         from huggingface_hub import HfFileSystem  # noqa: PLC0415

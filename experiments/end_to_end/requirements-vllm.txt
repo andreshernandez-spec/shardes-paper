@@ -6,3 +6,4 @@
 #     python -m venv .venv-vllm && .venv-vllm/bin/pip install -r experiments/end_to_end/requirements-vllm.txt
 -r ../../requirements.txt
 vllm==0.30.0
+pyarrow           # the probe reads prompts from the pinned parquet sources

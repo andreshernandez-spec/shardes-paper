@@ -21,7 +21,9 @@ git checkout -q "$sha"
 . .venv-vllm/bin/activate
 pip install -q -r experiments/end_to_end/requirements-vllm.txt
 
-# One GPU, visible to torch, before anything long starts.
+# One GPU, visible to torch, before anything long starts. vLLM 0.30.0's torch is built
+# for CUDA 13.0, so the host driver must support 13.0 (create the pod with
+# allowedCudaVersions 13.0 or later); on an older driver torch sees no GPU and this fails.
 python -c "import torch, vllm; n = torch.cuda.device_count(); assert n == 1, n; print(vllm.__version__, torch.cuda.get_device_name(0))"
 
 cd experiments/end_to_end/probe
