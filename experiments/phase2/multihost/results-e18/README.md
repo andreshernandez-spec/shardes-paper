@@ -52,7 +52,8 @@ inverts at the host boundary for the expensive-perturbation arm. The small model
 `seed_regenerated d=512` keeps B everywhere (its all-reduce is cheap), and
 `mirrored_lr1` stays A throughout with the margin growing at the boundary.
 
-**H4: the model gets 4 of 6 signs, and the two misses are the finding.** Both
+**H4: the model gets 4 of 6 signs, and the two misses are the finding.** (Superseded:
+see the correction below; the misses came from a calibration bug.) Both
 misses are `seed_regenerated d=2048`: `predict.py` predicted B still wins at 2x8
 (bracket -14 and -48 ms) but it measures +74 and +57 ms. `predict_e18b`'s flip
 formula put the sign change at 3.1 GiB/s, yet the arm is already A at 9.2 GiB/s,
@@ -60,6 +61,32 @@ so the real flip bandwidth is above 9 GiB/s, not 3. The calibrated alpha-beta
 model under-predicts strategy B's boundary penalty for the seed-regenerated arm
 at large d by roughly 90 to 105 ms; the mirrored arm it predicts correctly. That
 is a concrete model-refinement result, not a null.
+
+## Correction, 2026-09-25: the ladder moved 1/D of its label
+
+The preflight ladder summed a `(D, n/D + 1)` array over its sharded axis, so every point
+all-reduced 1/D of the payload it was labelled with (the "1 MiB" point lowers to
+`f32[32769]` on 8 devices; `tests/test_preflight_ladder.py`). The beta figures in the
+fabric table above are therefore D times too high. At the payload actually moved
+(`costmodel.ladder_alpha_beta`, printed by `tb7_e18.py`):
+
+| link | alpha | beta as recorded | beta at the payload moved |
+|---|---|---|---|
+| NVLink, intra-node (1x8, D=8) | 326 us | 515 GiB/s | 64 GiB/s |
+| socket, 2x4 (D=8) | 318 us | 6.6 GiB/s | 0.82 GiB/s |
+| socket, 2x8 (D=16) | 430 us | 9.2 GiB/s | 0.58 GiB/s |
+
+The frozen predictions used the recorded beta, which is why they put the boundary penalty
+near 10 ms. Rerun on the same inputs with the corrected beta (`tb7_e18.py`, nothing
+refitted), the model gets all six 2x8 signs, including both `seed_regenerated d=2048`
+cells scored as misses above, and predicts every 2x4 cell within 6 ms. At 2x8 it
+overshoots the seed arm at d=2048 by 46 to 63 ms and one rank-1 cell by 32 ms, all on the
+side that keeps the sign. So H4's reading below is wrong: the misses were the calibration,
+not the model. The frozen predictions stay as written. `preflight.py` now gives every
+device a full-size partial and records `ladder_payload_bytes`.
+
+`predict_e18b.py` reads the same recorded beta; E18b never ran, so nothing was predicted
+from it.
 
 ## E18b, the throttle sweep: not obtained here
 

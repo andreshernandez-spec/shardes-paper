@@ -1,0 +1,35 @@
+% CLAIM: none of ours.
+\section{Related work}
+\label{sec:related}
+
+\paragraph{ES at scale.} \citet{salimans2017} made distributed ES practical by sending
+scalar returns rather than gradients; ARS \citep{mania2018} and deep neuroevolution
+\citep{such2017,conti2017,chrabaszcz2018} share its simple design. \citet{qiu2025} and
+EGGROLL \citep{eggroll2025} carry it to language models from opposite sides, exact noise
+regenerated from seeds and cheap low-rank noise. \citet{cho2026reward} show that reward
+design and normalization change how large a population must be, which is independent of
+where the sum is computed. Neither \citet{qiu2025} nor EGGROLL compares update
+placements, or both designs in one implementation on GPUs and TPUs.
+
+\paragraph{Zeroth-order optimization for language models.} MeZO \citep{malladi2023} also
+estimates gradients from forward passes, with the goal of training in inference-sized
+memory rather than evaluating a population in parallel. It is a close relative with a
+different bottleneck.
+
+\paragraph{Estimators.} Gaussian-smoothing and zeroth-order analyses make the dependence
+on dimension explicit \citep{nesterov2017,duchi2015,berahas2022}. Natural ES, CMA-ES and
+information-geometric optimization adapt richer search distributions
+\citep{wierstra2014,hansen2001,hansen2016,ollivier2017}; we hold the optimizer fixed and
+vary the perturbation. Structured orthogonal and coupled Monte Carlo samples promise gains
+from designing perturbations jointly \citep{choromanski2018structured,rowland2018coupled};
+on our synthetic block, orthogonal Hadamard and scrambled Sobol sampling gave none
+(Appendix~\ref{sec:alignment}), a result about this high-dimensional, small-population
+regime only.
+
+\paragraph{Distributed systems.} JAX and GSPMD provide the compiler and sharding we build
+on \citep{jax2018,gspmd2021}. evosax \citep{lange2022evosax} is the standard JAX ES
+library; its dense population matrix is the memory ceiling in Table~\ref{tab:tb1}.
+\citet{sheng2020tpu} run distributed ES on TPUs for meta-learning, without comparing
+placements or accelerators. ZeRO \citep{rajbhandari2020zero} shards optimizer state and
+gradients in data-parallel training, the same trade between replicated work and
+communicated bytes that separates our two placements.

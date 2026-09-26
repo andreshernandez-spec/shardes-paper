@@ -68,6 +68,25 @@ ARMS = {"seed_regenerated_A": (lambda: SeedRegenerated(), "A"),
         "mirrored_lr1_B": (lambda: Mirrored(LowRank(r=1)), "B")}
 
 
+def ladder_program(mesh, n_f32: int):
+    """(program, operand) for one ladder point: the psum contraction B issues.
+
+    Every device holds a full-size partial, as B's does, so the all-reduce moves 4 n_f32
+    bytes. Until 2026-09-25 the operand was (D, n/D + 1), which all-reduced 1/D of the
+    label and overstated beta by D; `costmodel.ladder_alpha_beta` corrects the records
+    made that way.
+    """
+    rep = NamedSharding(mesh, PartitionSpec())
+    member = NamedSharding(mesh, PartitionSpec(sharding.POP))
+    y = jax.device_put(jnp.ones((mesh.size, n_f32)), member)
+
+    @jax.jit
+    def psum_like(v):
+        return jax.lax.with_sharding_constraint(v.sum(axis=0), rep)
+
+    return psum_like, y
+
+
 def log(msg: str) -> None:
     if PID == 0:
         print(msg, flush=True)
@@ -93,26 +112,11 @@ def main() -> int:
 
     # -- 2. the psum ladder ----------------------------------------------
     mesh = sharding.make_mesh(len(devs))
-    rep = NamedSharding(mesh, PartitionSpec())
-    ladder = {}
+    ladder, moved = {}, {}
     for size_bytes in (8, 1024, 2**20, 100 * 2**20):
         n_f32 = max(size_bytes // 4, 2)
-        x = jax.device_put(jnp.ones(n_f32), rep)
-
-        @jax.jit
-        def allreduce(v):
-            return jax.lax.with_sharding_constraint(v * 1.0001, rep)
-
-        # A replicated multiply forces no collective; time the psum the
-        # library actually issues instead: contraction B's tree-psum via a
-        # sharded partial. Use jnp.sum over a member-sharded array.
-        member = NamedSharding(mesh, PartitionSpec(sharding.POP))
-        y = jax.device_put(jnp.ones((len(devs), n_f32 // len(devs) + 1)), member)
-
-        @jax.jit
-        def psum_like(v):
-            return jax.lax.with_sharding_constraint(v.sum(axis=0), rep)
-
+        psum_like, y = ladder_program(mesh, n_f32)
+        moved[str(size_bytes)] = 4 * n_f32
         for _ in range(3):
             _ = psum_like(y).block_until_ready()
         ts = []
@@ -123,9 +127,11 @@ def main() -> int:
         ladder[str(size_bytes)] = statistics.median(ts)
         log(f"all-reduce ~{size_bytes} B: {statistics.median(ts) * 1e6:.1f} us")
     report["allreduce_seconds_by_bytes"] = ladder
+    report["ladder_payload_bytes"] = moved
     big, small = ladder[str(100 * 2**20)], ladder["8"]
     report["alpha_seconds"] = small
-    report["beta_bytes_per_second"] = (100 * 2**20) / max(big - small, 1e-9)
+    report["beta_bytes_per_second"] = (
+        (moved[str(100 * 2**20)] - moved["8"]) / max(big - small, 1e-9))
     log(f"alpha ~{small * 1e6:.0f} us, beta ~"
         f"{report['beta_bytes_per_second'] / 2**30:.1f} GiB/s")
 

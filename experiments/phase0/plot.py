@@ -35,9 +35,9 @@ FIGURES = HERE / "figures"
 # Colour per scheme, fixed so the same scheme is the same colour in every figure and in
 # any talk that reuses them.
 SCHEME_STYLE = {
-    "iid": ("#888888", "o", "i.i.d."),
+    "iid": ("#888888", "o", "unpaired"),
     "mirrored": ("#1f77b4", "s", "mirrored"),
-    "mirrored+orthogonal_hd": ("#d62728", "^", "mirrored + orthogonal HD"),
+    "mirrored+orthogonal_hd": ("#d62728", "^", "mirrored + orthogonal (Hadamard)"),
     "mirrored+sobol": ("#2ca02c", "D", "mirrored + scrambled Sobol"),
 }
 
@@ -163,7 +163,6 @@ def main(argv=None) -> int:
             hi = [f(q) for _, _, q, _ in points]
             ax.fill_between(x, lo, hi, color=colour, alpha=0.15)
 
-        ax.axvline(1.0, color="k", ls=":", lw=1)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel(r"$N / d_{\mathrm{samp}}$")
@@ -174,13 +173,16 @@ def main(argv=None) -> int:
                        else r"$\cos(\hat{g}, \nabla f)$")
     axes[-1].legend(frameon=False, fontsize=9)
 
-    caption = f"E1  sigma={args.sigma}  shaping={args.shaping}"
+    # The slice (sigma, shaping) goes in the paper's caption, not in the image; only
+    # something the reader must not miss is stamped on it.
+    notes = []
     if args.shaping == "baseline":
         modes = sorted({wanted_shaping(r["config"]["scheme"], "baseline") for r in records})
-        caption += f" ({'/'.join(modes)} per scheme)"
+        notes.append(f"shaping: {'/'.join(modes)} per scheme")
     if truncated:
-        caption += f"  ({truncated} config(s) truncated by the wall-clock cap)"
-    fig.suptitle(caption, fontsize=10)
+        notes.append(f"{truncated} config(s) truncated by the wall-clock cap")
+    if notes:
+        fig.suptitle("; ".join(notes), fontsize=10)
 
     if synthetic:
         # A fake figure that looks real is worse than no figure. Make it impossible to

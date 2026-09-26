@@ -3,6 +3,8 @@
 *.out
 *.fls
 *.fdb_latexmk
+*.synctex.gz
 main.pdf
-main.bbl
-main.blg
+main-anon.pdf
+*.bbl
+*.blg

@@ -42,12 +42,17 @@ HERE = pathlib.Path(__file__).resolve().parent
 HUES = {"iid_gaussian": "#2a78d6", "seed_regenerated": "#eb6834", "mirrored_lr1": "#1baf7a",
         "lowrank_r1": "#eda100", "mirrored_seed": "#8a5fd0"}
 MARKERS = {"A": "o", "B": "s"}
+#: The names the paper uses. Figures print these, never the code identifiers.
+LABELS = {"iid_gaussian": "dense", "seed_regenerated": "seed", "mirrored_seed": "seed, mirrored",
+          "mirrored_lr1": "rank 1", "lowrank_r1": "rank 1, unpaired"}
+PLACEMENT = {"A": "replicated", "B": "all-reduce"}
 INK, MUTED = "#0b0b0b", "#52514e"
 
 #: Two hues plus a neutral grey midpoint. A rainbow here would imply an ordering the data
 #: does not have, and a hue at the midpoint would hide the crossover, which IS the result.
+#: Blue and red, not blue and orange: orange is `seed_regenerated`'s hue in every line plot.
 CROSSOVER = LinearSegmentedColormap.from_list(
-    "crossover", ["#2a78d6", "#d9d9d6", "#eb6834"]
+    "crossover", ["#2a78d6", "#f0efec", "#e34948"]
 )
 
 
@@ -140,7 +145,7 @@ def strong_scaling(rows, out: pathlib.Path) -> str | None:
             eff = [(t0 * d0) / (d * by_d[d]) for d in ds]
             top = max(top, max(eff) * 1.05)
             ax2.plot(ds, eff, marker=MARKERS[how], ms=7,
-                     lw=2, color=HUES[strategy], label=f"{strategy} / {how}")
+                     lw=2, color=HUES[strategy], label=f"{LABELS.get(strategy, strategy)} / {PLACEMENT[how]}")
 
         # No single ideal line on the time panel. With several series it can only be anchored
         # to one of them, and it then reads as a target the others are failing to hit. The
@@ -163,10 +168,6 @@ def strong_scaling(rows, out: pathlib.Path) -> str | None:
             _style(ax)
         ax1.set_title(f"d={d_model}, N={population}", color=INK, loc="left", fontsize=10)
 
-    axes[0][0].set_title(
-        f"M1  strong scaling: fixed total population\nd={cells[0][0]}, N={cells[0][1]}",
-        color=INK, loc="left", fontsize=10,
-    )
     # Built from every panel's handles, not from the last one's. A resumed or partial sweep
     # can leave the rightmost block holding a subset of the strategies, and a legend taken
     # from it silently documents four series while eight are drawn.
@@ -225,7 +226,7 @@ def weak_scaling(rows, out: pathlib.Path) -> str | None:
         for (strategy, how), by_d in sorted(series[cell].items()):
             ds = sorted(by_d)
             ax_t.plot(ds, [by_d[d][0] for d in ds], marker=MARKERS[how], ms=7, lw=2,
-                      color=HUES[strategy], label=f"{strategy} / {how}")
+                      color=HUES[strategy], label=f"{LABELS.get(strategy, strategy)} / {PLACEMENT[how]}")
             mem = [by_d[d][1] for d in ds]
             if any(mem):
                 ax_m.plot(ds, mem, marker=MARKERS[how], ms=7, lw=2, color=HUES[strategy])
@@ -253,9 +254,6 @@ def weak_scaling(rows, out: pathlib.Path) -> str | None:
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, fontsize=8, labelcolor=MUTED,
                loc="center left", bbox_to_anchor=(1.0, 0.5))
-    fig.suptitle("M2  weak scaling: fixed population per device      "
-                 "M6  peak memory per device (lower row)",
-                 color=INK, x=0.02, ha="left", y=1.0)
 
     if simulated(rows):
         watermark(fig)

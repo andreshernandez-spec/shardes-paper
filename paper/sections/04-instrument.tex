@@ -1,0 +1,38 @@
+% CLAIM: what the library guarantees so that A and B, and the perturbation arms, compute
+% the same thing. Evidence: the library's tests; experiments/countdown/results/c6d-*.
+\section{The library}
+\label{sec:instrument}
+
+shardes is built on JAX and its compiler-driven sharding \citep{jax2018,gspmd2021}. It
+exposes the usual ask, evaluate and tell loop: \emph{ask} for $N$ perturbed copies of
+the model, \emph{evaluate} their fitnesses, \emph{tell} the fitnesses back to get the
+update. The population is split across devices and everything else is replicated; for
+isotropic ES the distribution state is no larger than the weights, so there is nothing
+to gain from splitting it. Three properties make the comparisons in this paper fair.
+
+\paragraph{The device count does not change what is computed.} Member $i$'s seed depends
+on $i$ alone, so the population is the same on 1 and on 8 devices, and for fixed
+fitnesses the update formed on 1 device and on 8 agrees to floating-point tolerance.
+The library's tests check this on simulated devices. On eight A100s, with the fitnesses
+held fixed, the $D{=}1$ and $D{=}8$ updates of Qwen2.5-0.5B agree to
+$6.3\times10^{-6}$ relative error, and two 20-generation runs of the same $D{=}8$
+program agree byte for byte in every reward and in all 494M final parameters. What is not
+guaranteed is that two separately compiled programs follow the same training trajectory:
+compiler fusion can flip near-tied greedy tokens, after which the runs diverge.
+
+\paragraph{Low-rank noise is never materialized.} A rank-$r$ perturbation stays as its
+two factors through evaluation: a dense layer computes $x(W+\tfrac{\sigma}{\sqrt r}AB^\top)^\top$
+as $xW^\top + ((xB)A^\top)\tfrac{\sigma}{\sqrt r}$, so no $m\times n$ noise matrix exists
+and all members share the base multiply $xW^\top$. The price is at the API: a model must
+route its matrix multiplies and embedding lookups through the library's layers, so an
+existing model does not run unmodified.
+
+\paragraph{Fitness is float32 or wider.} In bfloat16, 256 real losses collapsed to 2
+distinct values, and ranks computed from ties are noise. The library refuses rather than
+casts; the model itself may run in bfloat16.
+
+\paragraph{One synchronization point.} Centered ranks need every fitness, so \emph{tell}
+gathers the $N$ scalars to every device and sorts them there. The gather costs
+microseconds (Table~\ref{tab:tb8}). The sort is local and repeated on every device: at
+$N{=}2^{18}$ it takes 12\,ms, the same on 1 and 8 devices, and at the populations used in
+this paper the whole step is 60\,$\mu$s or less (Appendix~\ref{sec:barrier}).

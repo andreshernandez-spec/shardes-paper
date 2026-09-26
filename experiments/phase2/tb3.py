@@ -2,6 +2,7 @@
 """TB3, the ablation table, assembled from committed results. No new measurement.
 
     python tb3.py            # markdown to stdout
+    python tb3.py --latex    # also writes ../../paper/generated/tb3.tex
 
 Every number a reviewer might ask "did you check X" about, computed from the
 directory that already answers it, so the table is reproducible from a clean
@@ -148,7 +149,13 @@ def main() -> int:
     if ap.parse_args().latex:
         # The markdown rows are the single source; convert rather than rebuild,
         # so the two outputs cannot drift.
+        names = {"iid_gaussian": "dense", "seed_regenerated": "seed",
+                 "mirrored_seed": "seed, mirrored", "mirrored_lr16": "rank 16",
+                 "mirrored_lr4": "rank 4", "mirrored_lr1": "rank 1"}
+
         def esc(s):
+            for code, name in names.items():
+                s = s.replace(code, name)
             return (s.replace("\\", "").replace("&", "\\&").replace("_", "\\_")
                     .replace("σ", "$\\sigma$").replace("->", "$\\to$")
                     .replace("`", "").replace("%", "\\%"))
@@ -172,16 +179,14 @@ def main() -> int:
             dest.write_text(tex)
             print(f"wrote {dest}")
 
+        # The validation rows stay in the markdown only: they point at files and
+        # tests, which is what a README is for, and the rewards are Figure 5's.
         emit(systems,
-             "Systems ablations, assembled from committed results; ratios "
-             "are geometric means over the grid cells where both sides were "
+             "Systems ablations, assembled from committed results. Each ratio is the "
+             "time of the first variant over the second (below one: the first is "
+             "faster), as a geometric mean over the grid cells where both were "
              "measured (n = cell count).",
              "tab:tb3", "tb3.tex")
-        emit(validation,
-             "Validation checklist, assembled from committed results: the "
-             "quality, guard, and invariance checks behind the systems "
-             "claims; held-out rewards are means over seeds with [min, max].",
-             "tab:tb3b", "tb3b.tex")
     return 0
 
 

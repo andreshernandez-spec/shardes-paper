@@ -1,255 +1,217 @@
-% Full per-platform figure sets and anything the page budget pushes out.
-\section{Full scaling grids}
+% Detail the main text summarizes. Reviewers need not read it.
+\section{Scaling grids}
 \label{sec:grids}
-The main text summarizes the scaling sweeps in prose
-(Section~\ref{sec:results}) and the $D{=}8$ placement map in
-Figure~\ref{fig:f2}; this appendix
-carries the complete per-cell grids both platforms produced, from the same
-committed results directories. Figure~\ref{fig:f2b} answers whether the
-$D{=}8$ placement pattern is an endpoint artifact.
-Figures~\ref{fig:m1-a100} and~\ref{fig:m1-tpu} are the full strong-scaling
-grids (the missing \texttt{iid\_gaussian}/B point at $D{=}1$ on the TPU is
-the recorded out-of-memory cell discussed in Section~\ref{sec:results});
-Figures~\ref{fig:m2-a100} and~\ref{fig:m2-tpu} the weak-scaling grids; and
-Figures~\ref{fig:m3-a100} and~\ref{fig:m3-tpu} the per-cell placement
-outcomes whose platform dependence Figure~\ref{fig:f2} summarizes.
-% F2b: the referee's is-it-a-D=8-artifact question, answered from the sweeps.
-\begin{figure*}[p]
-  \centering
-  \includegraphics[width=.85\textwidth]{f2b-crossover-vs-d.png}
-  \caption{The contraction ratio against device count, every strong-scaling
-    cell. B's advantage over the materializing and seed-regenerated arms grows
-    monotonically with $D$ on both platforms; the low-rank family stays far
-    closer to parity (B/A between 0.92 and 1.46 over every cell and device
-    count, against 0.18--0.83 for the dense and seed-regenerated arms at
-    $D{=}8$). The $D{=}8$ pattern of
-    Figure~\ref{fig:f2} is the endpoint of a monotone trend, not an artifact.}
-  \label{fig:f2b}
-\end{figure*}
 
-% M1/M2/M3 per platform -- the appendix carries what F1/F2 summarize.
-% Explicit paths: the A100 and TPU sets share filenames, so \graphicspath
-% would silently pick whichever directory is listed first.
+Figures~\ref{fig:m1-a100}--\ref{fig:m2-tpu} are the full strong- and weak-scaling grids,
+every arm under both placements. Weak scaling is shown as parallel efficiency, each series
+against its own smallest measured device count; the lower row of the weak-scaling figures
+is peak memory per device. At $d{=}2048$ and 32 members per device the rank-1 arms keep
+0.86--0.93 efficiency at eight devices on the A100 and 0.71--0.91 on the v5e. What
+degrades is a placement: under replication the dense and seed arms fall to 0.39 and 0.50
+on the A100 (0.18 and 0.54 on the v5e), because they have the most work to repeat, and
+under all-reduce the same arms hold 0.79--1.00. The v5e grid has efficiencies above one,
+all at $d{=}512$ (rank 1 at $N{=}1024$ reaches 1.22 at $D{=}2$): there the single chip is
+memory-bound, and splitting the population relieves it. The dense arm with all-reduce has
+no one-device point at $d{=}2048$, $N{=}256$ on the v5e (out of memory), so its efficiency
+is normalized at $D{=}2$.
+
+% M1/M2 per platform. Explicit paths: the A100 and TPU sets share filenames.
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures/m1-strong-scaling.png}
-  \caption{Strong scaling, all cells, 8$\times$A100.}
+  \caption{Strong scaling on 8$\times$A100: time per generation (top) and parallel
+    efficiency (bottom), every arm under both placements.}
   \label{fig:m1-a100}
 \end{figure*}
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures-tpu-v5e8/m1-strong-scaling.png}
-  \caption{Strong scaling, all cells, TPU v5e-8. The dense arm has no
-    $D{=}1$ point at $d{=}2048$, $N{=}256$ (out of memory on one 16\,GB
-    chip), so its efficiency there is normalized to its smallest measured
-    device count, $D{=}2$. The efficiencies above one at $d{=}512$ are real:
-    the single-chip point is memory-bound at those populations, and
-    Section~\ref{sec:results} reads them.}
+  \caption{Strong scaling on the TPU v5e-8.}
   \label{fig:m1-tpu}
 \end{figure*}
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures/m2-weak-scaling.png}
-  \caption{Weak scaling, all cells, 8$\times$A100.}
+  \caption{Weak scaling on 8$\times$A100: members per second (top) and peak memory per
+    device (bottom).}
   \label{fig:m2-a100}
 \end{figure*}
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures-tpu-v5e8/m2-weak-scaling.png}
-  \caption{Weak scaling, all cells, TPU v5e-8.}
+  \caption{Weak scaling on the TPU v5e-8.}
   \label{fig:m2-tpu}
 \end{figure*}
-\begin{figure*}[p]
-  \centering
-  \includegraphics[width=.9\textwidth]{../experiments/phase2/figures/m3-crossover.png}
-  \caption{Contraction-placement outcome per cell, 8$\times$A100: B wins
-    14 of the 20 cells drawn, 10 of the 16 that exclude the mirrored seed
-    arm, which the TPU sweep did not run.}
-  \label{fig:m3-a100}
-\end{figure*}
-\begin{figure*}[p]
-  \centering
-  \includegraphics[width=.9\textwidth]{../experiments/phase2/figures-tpu-v5e8/m3-crossover.png}
-  \caption{Contraction-placement outcome per cell, TPU v5e-8: B wins
-    everywhere for
-    the dense and seed-regenerated arms, while A leads for both low-rank
-    strategies at $d{=}2048$. The platform moves the low-rank sign flip,
-    which is why
-    it is reported as a measured surface rather than a rule.}
-  \label{fig:m3-tpu}
-\end{figure*}
 
-\section{Reference implementation boundaries}
-\label{sec:refimpl}
-Two implementation-level differences from the reference code, moved here
-because they are boundary conditions rather than results. The reference's
-rank-1 path does not compile on a 16\,GB TPU chip at $d{=}512$,
-$N{=}16384$: the compiler allocates 24.1\,GiB of temporaries,
-reproducible with no TPU via the compile-only probe released with the
-experiments,
-the same pathology this instrument diagnosed and works around. The workaround
-pads rank-1 factors with one zero column on TPU so the compiler retains a fused
-matrix multiply; its numerical footprint and regression check are archived, and
-the same cell runs here at 245\,ms. The pad is TPU-only: the GPU compiler keeps
-these dots monotonic in rank, and padding there only costs time. The reference also declines embedding tables
-outright, while the instrument carries that seam
-(Section~\ref{sec:design}). Both are properties of the released
-implementations, not of the algorithms.
+\section{The time model, cell by cell}
+\label{sec:timemodel}
 
-\section{Systems ablations}
-\label{sec:systems-ablations}
-\input{generated/tb3}
-The main text carries the two ablations that affect interpretation: compute
-datatype changes these cells by at most 12\%, whereas forcing full-precision
-matmuls costs the low-rank family $1.6$--$1.9\times$. The remaining rows are
-included here as implementation checks rather than promoted to results.
+Eq.~\ref{eq:crossover} with the isolated collective of Table~\ref{tab:tb8} and a
+contraction $C$ timed on its own (\texttt{contraction\_isolation.py}) leaves a residual in
+eight of the eleven cells where replication wins: B is slower than its local sum plus
+the isolated all-reduce account for. Two measured effects explain most of it, and both are
+largest where the sum is smallest. First, B's local sum does not shrink to $C/D$: measured
+as $C/(D\,C_{\mathrm{local}})$ it reaches 0.60--1.01 for dense and seed noise, where $C$
+is 3.6--61\,ms and the per-device fixed cost amortizes, and only 0.18--0.46 for rank 1,
+where $C$ is 0.15--1.3\,ms. Second, the same 96\,MiB all-reduce costs
+1.75--1.80$\times$ its isolated step time inside the low-rank programs and
+1.15--1.41$\times$ inside the dense ones, the lean program having less compute to hide
+it behind.
 
-\section{Stability exploration}
-\label{sec:stability}
-This experiment is a stress test, not a characterization: one task, one
-150-step horizon, one RL recipe, three seeds per point, and only the
-endpoints of each perturbation interval. It lives in the appendix
-because its question (comparative optimizer robustness) is separate from
-the paper's systems argument; its metrics and falsification criteria
-were nevertheless fixed in a committed protocol before the data.
+With both measured terms substituted, the four low-rank $d{=}2048$ residuals fall from
+0.98--1.17\,ms to 0.012--0.224\,ms, and across the A100 grid the median absolute
+residual falls from 1.13 to 0.63\,ms, with the sign right at 18 of 20 cells. Bootstrapping
+each cell's difference of medians, nine of the twenty residuals exceed twice their noise;
+that noise is measured within one process after one compilation, so nine is an upper
+bound on the cells genuinely unexplained. Two stand out, both dense at $d{=}512$, where
+replication is 1.5 and 5.4\,ms slower than the model says. Rerun on a second node of the
+same type, the $N{=}256$ residual reproduces (1.6\,ms) and the $N{=}1024$ one becomes
+$-0.6$\,ms, so the latter was the host. For the one that survives, the two obvious
+explanations were measured and rejected: holding a population-sized buffer (up to
+3\,GiB per device) during the isolated measurement moves it by under 0.31\%, and feeding
+the contraction from the evaluation instead of handing it the weights changes a
+one-device run by about 1\,ms where the effect would need 7. On the v5e the same
+decomposition finds both effects at the same sizes ($C/(D\,C_{\mathrm{local}})$ of
+0.95--1.00 for dense and seed noise against 0.16--0.62 for rank 1; in-program
+all-reduce at 1.18--1.60$\times$ its isolated time) and the sign right at 15 of 16 cells.
 
-The relevant stabilization mechanisms have distinct lineages. Target networks
-address value-learning divergence
-\citep{baird1995,tsitsiklis1997,mnih2015,vanhasselt2018,zhang2021target}; the
-recipe tested here instead carries a clipped policy objective and a
-reference-model KL penalty
-\citep{kakade2002,schulman2015trpo,schulman2017ppo,ouyang2022}. Empirical work
-questions which ingredients are load-bearing
-\citep{engstrom2020,andrychowicz2020,orz2025}. Reports of ES-induced forgetting
-also motivate reporting drift beside apparent robustness
-\citep{abdi2026forgetting,schweighofer2026awd}.
+\section{The real model's memory}
+\label{sec:memory}
 
-% F8 -- experiments/countdown/figures/f8-robustness.png (plot_e14.py);
-% verdicts: analyze_e14.py; design and pre-specified criteria: docs/08.
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.8\textwidth]{f8-robustness.png}
-  \caption{Stability under hyperparameter perturbation. Each
-    algorithm's own published settings are multiplied by the x-axis factor;
-    y is held-out reward at a 150-step horizon, three seeds per point, red
-    crosses mark collapse below the base model. GRPO at $8\times$ its
-    published learning rate collapses to zero reward on every seed; ES
-    shows no collapse at either tested endpoint of the same 64-fold
-    learning-rate interval, and its one failure mode (noise scale
-    $4\times$) is a freeze at the base model, not a loss of it. The
-    purple markers are single-stabilizer ablations that trained fine,
-    reported with the same prominence as the collapses.}
-  \label{fig:f8}
-\end{figure*}
-
-ES carries neither the clipped objective nor the KL anchor in the tested
-recipe, so we asked whether their absence is load-bearing. The answer has two
-halves (Figure~\ref{fig:f8}).
-
-First, the half we expected: multiplying the learning rate by 8 destroys
-GRPO on every
-seed (reward 0.000, below even format compliance, policy entropy zero)
-while the same multiplier leaves every ES seed at or above its
-published-settings reference; neither algorithm collapses at $1/8\times$,
-so the finding is about the aggressive endpoint of the tested 64-fold
-interval, whose interior was not explored, and it is not a stability
-margin. The comparison is per-family by construction: each knob is
-multiplied relative to its own published setting, and equal multipliers
-do not correspond to comparable parameter-update magnitudes across ES
-and GRPO. Descriptively, and not as a
-matched rate (the twelve perturbed runs per algorithm perturb different
-knobs per family): zero ES collapses against three GRPO collapses, and
-the one ES failure (noise scale $4\times$) is a freeze at the base-model
-floor.
-
-Second, the half our own falsification criteria caught: removing GRPO's KL
-anchor entirely, or widening its clip until it never binds, changed little
-at this horizon on this rule-based verifier. At this one setting the
-single stabilizers are not individually load-bearing; interactions
-between stabilizers, and other settings, were not tested. The only collapse
-observed was at the aggressive learning-rate endpoint, but the experiment does
-not identify learning rate as the unique source of fragility. It is consistent with
-prior reports that clipping is not
-what makes PPO work \citep{engstrom2020,andrychowicz2020} and that
-critic-based PPO trains without a KL penalty \citep{orz2025}.
-
-Stability is also not retention. The drift row of the same experiment shows the
-$8\times$-learning-rate ES runs ending roughly $50$ units of parameter
-$\ell_2$ from the pretrained weights, against $0.3$--$2$ for healthy GRPO
-runs. The experiment separates update robustness from parameter
-retention; it does not establish that drift causes the robustness. The same
-large-drift regime is where ES-induced forgetting has been reported
-\citep{abdi2026forgetting}, though later work finds that degradation to
-be largely recoverable drift rather than permanent forgetting, and not
-specific to ES \citep{schweighofer2026awd}; the stress test's numbers
-should be read beside both.
-
-\section{Validation checklist}
-\label{sec:validation}
-\input{generated/tb3b}
+In Figure~\ref{fig:f9} rank 1 does not fit a single 16\,GB chip even at $N{=}32$, while
+the full-rank arm runs everywhere, which suggests that carrying factors costs memory. It
+does not: ranks 1, 4 and 16 run out of memory at identical shapes, with the compiler's
+reported temporaries agreeing to 0.1\%, where stored factors would scale with $r$. The
+boundary is a function of members per device, and the term is activations. The full-rank
+arm scans its population one member at a time, while the low-rank arms evaluate each
+device's whole population in one batch, which is where their speed comes from (the base
+weight is shared under the batch, so members share one multiply). Giving the full-rank
+arm the same batching reproduces the low-rank memory curve. The placement ratios of
+Figure~\ref{fig:f9} are unaffected, since A and B are the same arm at the same shape.
+Table~\ref{tab:tb5} gives the absolute times.
 
 \input{generated/tb5}
-% F7c -- experiments/countdown/figures/f7c-e19-positive-control.png (plot_e19.py)
+
+\section{The ranking step, priced}
+\label{sec:barrier}
+
+Measured in isolation over 84 cells on the v5e, going from one device to eight adds
+9--10\,$\mu$s to the ranking step at populations up to a thousand, and 26\,$\mu$s at
+$N{=}2^{18}$, where the 1\,MiB gather is bandwidth-bound; the 16\,$\mu$s between the two
+is what Table~\ref{tab:tb8} gives for that gather on its own. The sort grows faster: 12.1\,ms
+at $N{=}2^{18}$, the same within 0.3\% on one device and eight, about 46\,ns per member,
+because every chip sorts the same replicated array. At populations up to a thousand the
+whole step is 60\,$\mu$s or less against generations of milliseconds; at four thousand it
+is 0.2\,ms, and at the tens of thousands EGGROLL targets it approaches a millisecond. In
+full generations with shaping on and off at the largest cells measured, the difference is
+41\,$\mu$s ($d{=}512$, $N{=}1024$) and 149\,$\mu$s ($d{=}2048$, $N{=}256$), inside the
+repeat spread.
+
+\section{Synthetic alignment}
+\label{sec:alignment}
+
+% F5 -- experiments/phase0/figures/f5-estimator-quality.png
+% (experiments/phase0/plot.py --sigma 0.001 --shaping centered_ranks)
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{f5-estimator-quality.png}
+  \caption{Alignment on the synthetic block ($\sigma{=}10^{-3}$, centered ranks): cosine
+    between the ES update and the exact squared-error gradient against
+    $N/d_{\mathrm{samp}}$, one panel per rank, median and interquartile band over 30
+    replicates. Fitted log-log slopes are 0.494--0.508. Orthogonal (Hadamard) and
+    scrambled Sobol sampling show no gain over plain mirroring. Unpaired sampling lies
+    1.34--1.41$\times$ above mirrored, about $\sqrt2$.}
+  \label{fig:f5}
+\end{figure*}
+
+Figure~\ref{fig:f5} is the synthetic study behind Section~\ref{sec:quality}. Its x-axis
+is the one the frozen predictions used: $d_{\mathrm{samp}}$ is the number of independent
+random numbers in one perturbation, the parameter count for full-rank noise and $r(m+n)$
+per $m\times n$ matrix at rank $r$ (other parameters count fully). The low-rank curves sit
+lower against this axis, and their smaller $d_{\mathrm{samp}}$ moves an equal-$N$
+comparison to the right, which is why at equal population the arms nearly coincide. The
+null result for orthogonal and quasi-random sampling holds for this high-dimensional,
+small-population regime; it is not a claim about coupled sampling in general.
+
+\section{Countdown details}
+\label{sec:countdown}
+
+\begin{table*}[t]
+\centering
+\small
+\caption{The Countdown campaign. A sample evaluation is one scored \emph{training}
+  completion (held-out scoring is not counted); every ES arm uses 240 per update (30
+  members $\times$ 8 puzzles), so 120,000 is 500 updates.}
+\label{tab:e2e}
+\begin{tabular}{lp{0.78\linewidth}}
+\toprule
+task, reward & Countdown; 1.0 solved, 0.1 well formed but wrong, 0.0 otherwise \\
+data & training pool of 256 puzzles, 8 per update; 2000 disjoint held-out puzzles \\
+prompts, decoding & chat template, prompts padded to 128 tokens, 96 new tokens; greedy \\
+ES arms & $N{=}30$, $\sigma{=}10^{-3}$, $\alpha{=}5\times10^{-4}$ (the published values;
+  implemented as $\mathrm{lr}{=}\alpha\sigma{=}5\times10^{-7}$ because the library's update
+  divides by $\sigma$), centered ranks; seed, mirrored and ranks 1, 4, 16, plus rank 1 with
+  the embedding (27\% of the parameters) frozen \\
+budget, seeds & 120,000 sample evaluations per run; seeds 0--2 per arm \\
+evaluation & 2000 held-out puzzles every 50 updates, before the first and after the last \\
+hardware & one A100-SXM4-80GB; about 13\,h for the campaign \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% F7c -- experiments/countdown/figures/f7c-e19-n16.png (plot_e19.py)
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{f7c-e19-positive-control.png}
-  \caption{The positive control for the task null. Held-out reward against
-    training samples for full rank and rank 1 at population 30 (the
-    Section~\ref{sec:endtoend} arms) and at population 16 on the same
-    120{,}000-sample budget, three seeds each, mean with min--max band. The
-    square-root law predicts 27\% lower alignment per update at 16; the
-    curves do not separate, so the task's plateau, not the perturbation
-    family, sets what the null can resolve.}
+  \includegraphics[width=\linewidth]{f7c-e19-n16.png}
+  \caption{Full rank and rank 1 at population 30 (solid) and 16 (dashed) on the same
+    120,000-sample budget, three seeds each. At equal samples population 16 takes 937
+    updates to population 30's 500 and reaches the plateau sooner.}
   \label{fig:f7c}
 \end{figure}
-Table~\ref{tab:tb3b} collects the checks behind the systems claims that
-are not themselves timing results: held-out task quality by rank, the
-update--gradient-alignment study's coverage, the sub-float32 fitness guard, and
-device-count invariance. Each row names the committed artifact that
-carries it.
+
+Table~\ref{tab:e2e} gives the setup. Figure~\ref{fig:f7c} is the population-16 run
+discussed in Section~\ref{sec:quality}: it reaches a mean held-out reward of 0.15 at
+24k samples against 36k at population 30, and ends at the same accuracy. Timing
+excludes updates 0 and 1, which compile (322--635\,s each), and held-out decoding.
+A GRPO reference with the settings \citet{qiu2025} used (TRL, group 30, learning rate
+$10^{-5}$) ran in the first campaign; its three seeds ended between no solved puzzles and a
+4.9\% plateau, it runs another framework with another decoder (its base model scores 0.037
+against 0.054 on the same weights), and we do not compare it.
+
+\section{Systems ablations and reference boundaries}
+\label{sec:systems-ablations}
+\label{sec:refimpl}
+
+\input{generated/tb3}
+
+Table~\ref{tab:tb3} collects the timing ablations; the main text uses the rank and
+precision rows. Two differences from the reference code are properties of the released
+implementations, not of the algorithms. The reference rank-1 path does not compile on a
+16\,GB TPU chip at $d{=}512$, $N{=}16384$: the compiler allocates 24.1\,GiB of temporaries,
+reproducible without a TPU by the compile-only probe released with the experiments. The
+library works around the same pathology by padding rank-1 factors with one zero column on
+the TPU so the compiler keeps a fused multiply, and runs that cell in 245\,ms; the GPU
+compiler does not need the pad and it is off there. The reference also declines embedding
+tables, which the library perturbs through the same layer seam as matrices.
 
 \section{Reproduction}
-Every figure and generated table regenerates from a committed script against
-a committed results directory, and every reported result traces to a script,
-configuration, and record. Each results directory's README documents the
-session that produced it (platform, commit, environment, cost, and any
-incident). The figure and table map: F2 and F2b from
-\texttt{plot\_paper.py}; F4 from \texttt{plot\_cost.py}; F5 from
-\texttt{experiments/phase0/plot.py}; F7 and F7b from \texttt{plot\_e13.py}; F8 from
-\texttt{plot\_e14.py}; F9 from \texttt{plot\_e17.py}; the appendix grids
-(M1--M3, both platforms) from
-\texttt{plot.py} against each platform's results directory;
-Tables~\ref{tab:tb1} and~\ref{tab:tb1b} from \texttt{tb1.py};
-Table~\ref{tab:tb8} from \texttt{tb8.py}; Table~\ref{tab:tb7} from
-\texttt{multihost/tb7\_e18.py}; Tables~\ref{tab:tb3}
-and~\ref{tab:tb3b} from \texttt{tb3.py};
-Table~\ref{tab:tb4} from
-\texttt{analysis\_e15.py}; Table~\ref{tab:tb5} from
-\texttt{tb5\_e17.py}; and Table~\ref{tab:tb6} from
-\texttt{tb6\_e16.py}. Each table
-script accepts \texttt{--latex} and writes the exact file this document
-inputs. The per-collective byte counts quoted in
-Section~\ref{sec:contraction} come from \texttt{comms.py}, which reads the
-compiled HLO, and \texttt{tb2.py} prints them for every cell; they are two
-numbers per placement across the whole grid, so the paper states them rather
-than tabling them. Table~\ref{tab:tb6}'s predicted columns are the committed E1 fit
-and the 0.53 correction, both frozen (rounded) in \texttt{e16-gate.yaml}
-and \texttt{e16-stage2.yaml} before the runs; nothing in them is fit to
-E16's measurements. The instrument's test
-suite runs on CPU with no network; the multi-device logic is exercised on
-eight simulated devices, so correctness properties (including the
-device-count invariance test) are checkable without any accelerator, and the
-two TPU compile probes
-(\texttt{tools/probe\_lr1.py} with the instrument,
-\texttt{probe\_eggroll\_tpu.py} with the experiments) reproduce
-the compiler-level claims from any Linux machine. The instrument and its test
-suite are at \url{https://github.com/andreshernandez-spec/shardes}; the
-scripts named above, their configurations, the result records and this
-manuscript are at \url{https://github.com/andreshernandez-spec/shardes-paper},
-which installs the instrument at the commit pinned in its
-\texttt{requirements.txt}. There, after
-\texttt{pip install -r requirements.txt}, \texttt{make -C paper} regenerates
-all generated tables and builds the PDF, and continuous integration fails if a
-regenerated table differs from the committed one by a byte or if any commit a
-result record cites can no longer be fetched; the provenance paragraph in Section~\ref{sec:setup} names the
-frozen submission tag once assigned.
+\label{sec:repro}
+
+Every figure and table regenerates from a committed script against a committed results
+directory, and each results directory's README records the session that produced it
+(platform, commit, environment, cost, incidents). Figure~\ref{fig:f2} comes from
+\texttt{plot\_paper.py}; Figures~\ref{fig:f4}, \ref{fig:f5}, \ref{fig:f7}, \ref{fig:f7c}
+and~\ref{fig:f9} from \texttt{plot\_cost.py}, \texttt{phase0/plot.py},
+\texttt{plot\_e13.py}, \texttt{plot\_e19.py} and \texttt{plot\_e17.py}; the scaling grids
+from \texttt{plot.py}. Table~\ref{tab:tb1} comes from \texttt{tb1.py},
+Table~\ref{tab:tb8} from \texttt{tb8.py}, Table~\ref{tab:tb7} from
+\texttt{multihost/tb7\_e18.py}, Table~\ref{tab:tb3} from \texttt{tb3.py},
+Table~\ref{tab:tb6} from \texttt{tb6\_e16.py} and Table~\ref{tab:tb5} from
+\texttt{tb5\_e17.py}; each accepts \texttt{--latex} and writes the file this document
+inputs. The overlap bound of Section~\ref{sec:placement} is \texttt{overlap\_bound.py},
+and the byte counts come from the compiled programs (\texttt{comms.py},
+\texttt{tb2.py}). The library's tests run on CPU with eight simulated devices, so the
+device-count invariance test needs no accelerator. The library is at \libraryurl{}; the
+experiments and this manuscript are at \paperurl{}, where \texttt{make -C paper} rebuilds
+every table and the PDF, and continuous integration fails if a regenerated table changes
+by a byte or a commit a record cites can no longer be fetched.
