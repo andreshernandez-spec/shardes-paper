@@ -1,7 +1,7 @@
 \begin{abstract}
 Evolution strategies (ES) lend themselves well to distributed workloads because most of
-the work is independent. However, the gradient estimation requires the bringing together
-of information, and there are two main strategies to do this: exchange only scalar
+the work is independent. However, the gradient estimation requires combining
+information from all devices, and there are two main strategies to do this: exchange only scalar
 fitness scores, but each device then reconstructs the same parameter update, or have
 each device calculate partial updates and exchange those. The faster choice depends on
 whether the computation saved outweighs the communication added. Using one JAX implementation,
