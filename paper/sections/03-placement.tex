@@ -17,7 +17,7 @@ Eq.~\ref{eq:update} has to be formed somewhere. We compare two places
       wide/.style={comp, text width=7.3cm},
       arr/.style={->, >=latex, thin}]
     \node[wide] (eval) at (0, 0) {each of $D$ devices evaluates its $N/D$ members};
-    \node[comm] (a1) at (-1.95, -1.1) {all-gather the $N$ fitnesses\\$4N$ bytes, twice};
+    \node[comm] (a1) at (-1.95, -1.1) {all-gather fitnesses, then\\shaped weights: $4N$ bytes each};
     \node[comp] (a2) at (-1.95, -1.9) {every device sums\\all $N$ members: $C_A$};
     \node[comm] (b1) at (1.95, -1.1) {all-gather the $N$ fitnesses\\$4N$ bytes};
     \node[comp] (b2) at (1.95, -1.9) {each device sums\\its own $N/D$: $C_B$};
@@ -79,10 +79,12 @@ matrix multiply over factors already in memory,
 \[
   \textstyle\sum_i w_i A_i B_i^\top = [w_1A_1,\dots,w_NA_N]\,[B_1,\dots,B_N]^\top ,
 \]
-and no perturbation matrix is formed. Each
-perturbation has rank $r$, but their sum, the update, generally does not. So $C_A$ is
-large for full-rank noise and small for low-rank noise, and the faster placement should
-differ by perturbation, model size, device count and fabric.
+which avoids generating or reading a full perturbation matrix for every member and turns
+the weighted sum into one large matrix multiplication. Each perturbation has rank $r$;
+the update has rank at most $\min(m, n, Nr/2)$ with mirrored pairs, and B forms and
+all-reduces it as a dense matrix. So $C_A$ is large for full-rank noise and small for
+low-rank noise, and the faster placement should differ by perturbation, model size,
+device count and fabric.
 
 \paragraph{What was fixed before measuring.} The byte counts and the direction were
 committed before the single-node runs: B should win for dense and seed noise, A for

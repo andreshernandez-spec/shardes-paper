@@ -3,9 +3,10 @@
 \centering
 \small
 \setlength{\tabcolsep}{3.2pt}
-\caption{Cosine between one ES update and the exact gradient of the
-  next-token loss ($\times 10^{-4}$, median over 5 perturbation seeds), at equal
-  population; \emph{1 unp.} is rank 1 without mirrored pairs.
+\caption{Alignment $\cos(\Delta\theta, -\nabla L)$ of one ES update with the
+  gradient-descent direction of the next-token loss ($\times 10^{-4}$, median over
+  5 perturbation seeds), at equal population; \emph{1 unp.} is rank 1 without
+  mirrored pairs.
   \emph{ref.}: the mirrored full-rank fit from the synthetic block
   (Figure~\ref{fig:f5}) at the same $N/P$, a post hoc reference; unpaired
   sampling should sit about $\sqrt2$ above it. Batch 2 repeats two

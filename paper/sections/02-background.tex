@@ -3,21 +3,24 @@
 \label{sec:background}
 
 \paragraph{The update.} With weights $\theta$, noise scale $\sigma$ and a population of
-$N$ random perturbations $\epsilon_i$, ES scores every $f(\theta+\sigma\epsilon_i)$ and
-moves $\theta$ by
+$N$ random perturbations $\epsilon_i$, ES scores every perturbed copy,
+$f_i = f(\theta+\sigma\epsilon_i)$, and moves $\theta$ by
 \begin{equation}
-  \Delta\theta = \frac{\eta}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
+  \Delta\theta = -\frac{\eta}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
   \label{eq:update}
 \end{equation}
 where $\eta$ is the learning rate and the weights $w_i$ come from the fitnesses
-\citep{wierstra2014,nesterov2017}. We use centered ranks \citep{salimans2017}: each
-fitness is replaced by its rank, scaled to $[-\tfrac12,\tfrac12]$, which makes the
-update ignore any monotone rescaling of the reward. Where the weighted sum in
+\citep{wierstra2014,nesterov2017}. The fitness is a loss to be minimized (a reward
+enters negated), and $w_i$ is its centered rank \citep{salimans2017}: the rank of $f_i$,
+scaled to $[-\tfrac12,\tfrac12]$, so $\theta$ moves toward the perturbations that scored
+low and away from those that scored high. Ranks make the update ignore any strictly
+increasing transformation of the fitness. Where the weighted sum in
 Eq.~\ref{eq:update} is computed is the subject of this paper.
 \emph{Mirrored} (antithetic) sampling evaluates each $\epsilon$ together with $-\epsilon$,
 so $N$ members are $N/2$ independent directions. No gradient flows through the model;
-the exact gradient appears only as a reference in Section~\ref{sec:quality}, where we
-report the cosine between Eq.~\ref{eq:update} and it as \emph{alignment}.
+the gradient appears only as a reference in Section~\ref{sec:quality}, where we report
+$\cos(\Delta\theta, -\nabla L)$, the cosine between the update and the
+gradient-descent direction of a loss $L$, as \emph{alignment}.
 
 \paragraph{Two designs.} \citet{qiu2025} keep full-rank Gaussian noise and store none of
 it: each member's noise is regenerated from its seed when it is needed, once to evaluate

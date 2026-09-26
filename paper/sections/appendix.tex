@@ -47,6 +47,8 @@ is normalized at $D{=}2$.
 \section{The time model, configuration by configuration}
 \label{sec:timemodel}
 
+\input{generated/tb5}
+
 Eq.~\ref{eq:crossover} with ideal splitting ($C_B = C_A/D$), the isolated collective of
 Table~\ref{tab:tb8} and $C_A$ timed on its own (\texttt{contraction\_isolation.py})
 leaves a residual in eight of the eleven configurations where replication wins: B is
@@ -93,10 +95,10 @@ arm the same batching reproduces the low-rank memory curve. The placement ratios
 Figure~\ref{fig:f9} are unaffected, since A and B are the same arm at the same shape.
 Table~\ref{tab:tb5} gives the absolute times.
 
-\input{generated/tb5}
-
 \section{The ranking step, priced}
 \label{sec:barrier}
+
+\input{generated/tb6a}
 
 Measured in isolation over 84 configurations on the v5e, going from one device to eight adds
 9--10\,$\mu$s to the ranking step at populations up to a thousand, and 26\,$\mu$s at
@@ -113,43 +115,7 @@ repeat spread.
 \section{Synthetic alignment}
 \label{sec:alignment}
 
-% F5 -- experiments/phase0/figures/f5-estimator-quality.png (experiments/phase0/plot.py)
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{f5-estimator-quality.png}
-  \caption{Alignment on the synthetic block ($\sigma{=}10^{-3}$, centered ranks): cosine
-    between the ES update and the exact squared-error gradient against $N/P$, median and
-    interquartile band over 30 replicates. The three ranks lie on top of each other.
-    Dotted: the heuristic constant of Section~\ref{sec:quality}, unpaired and
-    mirrored.}
-  \label{fig:f5}
-\end{figure}
-
-\input{generated/tb6a}
-
-Figure~\ref{fig:f5} is the synthetic study behind Section~\ref{sec:quality}, one slice
-of 456 configurations of 30 replicates each. Against $N/P$ the mirrored arms of every
-rank coincide, the largest over the smallest at equal $N$ being 1.01--1.04, and every
-arm is within 0.91--1.02 of the heuristic constant; its log-log slopes are
-0.494--0.508. Unpaired sampling lies 1.34--1.53$\times$ above mirrored, about $\sqrt2$.
-Orthogonal (Hadamard) and scrambled Sobol sampling, not drawn, are within 0.97--1.04 of
-plain mirroring. That null result holds for this high-dimensional, small-population
-regime; it is not a claim about coupled sampling in general.
-
-The predictions frozen before the real-model runs used $N/d_{\mathrm{samp}}$ instead,
-where $d_{\mathrm{samp}}$ is the number of independent random numbers in one
-perturbation: the parameter count for full-rank noise and $r(m+n)$ per $m\times n$
-matrix at rank $r$ (other parameters count fully). Each arm's own fit against that axis
-was the prediction, and Table~\ref{tab:tb6-audit} keeps it next to the synthetic
-reference. On the block, where every matrix is $512\times512$, $P/d_{\mathrm{samp}}$ is
-256 at rank 1 and 64 at rank 4. On Qwen2.5 the matrices are larger and not square, and it
-is 638 and 171 at 0.5B and 1063 and 287 at 1.5B, so the same $N$ sits further right on
-the $N/d_{\mathrm{samp}}$ axis than on the block and the fit reads a higher cosine. At a
-slope of one half that overstates rank 1 by $\sqrt{638/256}\approx1.6$ and rank 4 by
-$\sqrt{171/64}\approx1.6$ at 0.5B, against measured shortfalls of 1.9--2.0 and 1.5--1.8.
-
-\section{Countdown details}
-\label{sec:countdown}
+\input{generated/tb3}
 
 \begin{table*}[t]
 \centering
@@ -168,15 +134,73 @@ ES arms & $N{=}30$, $\sigma{=}10^{-3}$, $\eta{=}5\times10^{-7}$ in Eq.~\ref{eq:u
   of the parameters) frozen \\
 published & \citet{qiu2025} step by $\Delta\theta = \frac{\alpha}{N}\sum_i z_i\epsilon_i$
   with $\alpha{=}5\times10^{-4}$ and $z_i$ standardized rewards; $\eta = \alpha\sigma$
-  gives the same step in Eq.~\ref{eq:update}. Two differences: centered ranks in place of standardized rewards
-  (standard deviation 0.29 against 1, so our steps are about 3.5$\times$ smaller), and 8
-  puzzles per update in place of 200 samples \\
+  gives the same step in Eq.~\ref{eq:update}. Two differences: centered ranks in place of
+  standardized rewards (weights with standard deviation 0.29 against 1; update
+  magnitudes not matched), and 8 puzzles per update in place of 200 samples \\
 budget, seeds & 120,000 sample evaluations per run; seeds 0--2 per arm \\
 evaluation & 2000 held-out puzzles every 50 updates, before the first and after the last \\
 hardware & one A100-SXM4-80GB; about 13\,h for the campaign \\
 \bottomrule
 \end{tabular}
 \end{table*}
+
+% F5 -- experiments/phase0/figures/f5-estimator-quality.png (experiments/phase0/plot.py)
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{f5-estimator-quality.png}
+  \caption{Alignment on the synthetic block ($\sigma{=}10^{-3}$, centered ranks):
+    $\cos(\Delta\theta, -\nabla L)$ for the squared-error loss, against $N/P$, median and
+    interquartile band over 30 replicates. The three ranks lie on top of each other.
+    Dotted: the Gaussian-projection approximation, unpaired and mirrored.}
+  \label{fig:f5}
+\end{figure}
+
+\paragraph{The Gaussian-projection approximation.} Let $z_i$ be member $i$'s
+perturbation projected onto the unit descent direction, $\langle\epsilon_i, -\nabla
+L\rangle/\lVert\nabla L\rVert$. It has unit variance for full-rank and for low-rank
+noise, since $AB^\top/\sqrt r$ has identity covariance. If the loss is locally linear,
+ranking the members by loss ranks them by $z_i$, and if $z_i$ is Gaussian each
+$\epsilon_i$ enters Eq.~\ref{eq:update} with a coefficient close to $\Phi(z_i)-\tfrac12$
+for large $N$. The update's component along the
+descent direction is then about $N\,\mathbb{E}[(\Phi(z)-\tfrac12)\,z] = N/(2\sqrt\pi)$
+and, for $N\ll P$, its norm is about $\sqrt{NP\,\mathbb{E}[(\Phi(z)-\tfrac12)^2]} =
+\sqrt{NP/12}$, so the cosine is $\sqrt{3/\pi}\,\sqrt{N/P}$. A mirrored pair contributes
+one direction with twice the weight, and $N/2$ of them give $1/\sqrt2$ of that.
+
+\paragraph{When the projection is Gaussian.} For full-rank Gaussian noise $z_i$ is
+exactly Gaussian. For rank-$r$ noise on a matrix with gradient $G$, the projection is a
+sum over the $r$ factor pairs of $a^\top G b$, summed again over matrices. If $G$ has
+rank one, $G = uv^\top$, each term is $(a^\top u)(v^\top b)$, a product of two Gaussians,
+however many entries of $G$ are nonzero. The projection approaches a Gaussian as the
+gradient spreads over many singular directions and many matrices, and as $r$ grows. We
+did not measure the gradient's spectrum on Qwen, so for the real model the approximation
+is a scale estimate, not a derivation.
+
+Figure~\ref{fig:f5} is the synthetic study behind Section~\ref{sec:quality}, one slice
+of 456 configurations of 30 replicates each. Against $N/P$ the mirrored arms of every
+rank coincide, the largest over the smallest at equal $N$ being 1.01--1.04, and every
+arm is within 0.91--1.02 of the approximation; its log-log slopes are 0.494--0.508. Unpaired sampling lies 1.34--1.53$\times$ above mirrored, about $\sqrt2$.
+Orthogonal (Hadamard) and scrambled Sobol sampling, not drawn, are within 0.97--1.04 of
+plain mirroring. That null result holds for this high-dimensional, small-population
+regime; it is not a claim about coupled sampling in general.
+
+The predictions frozen before the real-model runs used $N/d_{\mathrm{samp}}$ instead,
+where $d_{\mathrm{samp}}$ is the number of independent random numbers in one
+perturbation: the parameter count for full-rank noise and $r(m+n)$ per $m\times n$
+matrix at rank $r$ (other parameters count fully). Each arm's own fit against that axis
+was the prediction, and Table~\ref{tab:tb6-audit} keeps it next to the synthetic
+reference. On the block, where every matrix is $512\times512$, $P/d_{\mathrm{samp}}$ is
+256 at rank 1 and 64 at rank 4. On Qwen2.5 the matrices are larger and not square, and it
+is 638 and 171 at 0.5B and 1063 and 287 at 1.5B, so the same $N$ sits further right on
+the $N/d_{\mathrm{samp}}$ axis than on the block and the fit reads a higher cosine. At a
+slope of one half that overstates rank 1 by $\sqrt{638/256}\approx1.6$ and rank 4 by
+$\sqrt{171/64}\approx1.6$ at 0.5B, against measured shortfalls of 1.9--2.0 and 1.5--1.8.
+The same fits predicted full rank within 9\%, since $P/d_{\mathrm{samp}}$ is 1 for it on
+every model. For rank 1 at 1.5B the prediction was multiplied by a correction of 0.53
+measured at 0.5B and fixed in advance; the observations were still 23--26\% below it.
+
+\section{Countdown details}
+\label{sec:countdown}
 
 % F7c -- experiments/countdown/figures/f7c-e19-n16.png (plot_e19.py)
 \begin{figure}[t]
@@ -202,8 +226,6 @@ against 0.054 on the same weights), and we do not compare it.
 \section{Systems ablations and reference boundaries}
 \label{sec:systems-ablations}
 \label{sec:refimpl}
-
-\input{generated/tb3}
 
 Table~\ref{tab:tb3} collects the timing ablations; the main text uses the rank and
 precision rows. Two differences from the reference code are properties of the released
@@ -233,7 +255,7 @@ the file this document inputs. The time model's ranges in Section~\ref{sec:resul
 Appendix~\ref{sec:timemodel} are printed by \texttt{timemodel.py}, the overlap bound of
 Section~\ref{sec:placement} by \texttt{overlap\_bound.py}, and the byte counts come
 from the compiled programs (\texttt{comms.py}, \texttt{tb2.py}). The library's tests run on CPU with eight simulated devices, so the
-device-count invariance test needs no accelerator. The library is at \libraryurl{}; the
-experiments and this manuscript are at \paperurl{}, where \texttt{make -C paper} rebuilds
+device-count invariance test needs no accelerator. The library is on GitHub
+\citep{shardes}; the experiments and this manuscript are at \paperurl{}, where \texttt{make -C paper} rebuilds
 every table and the PDF, and continuous integration fails if a regenerated table changes
 by a byte or a commit a record cites can no longer be fetched.

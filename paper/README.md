@@ -10,6 +10,6 @@ straight from `experiments/*/figures`, so regenerating a figure updates the pape
 next build.
 
     make          # tables, then main.pdf
-    make anon     # tables, then main-anon.pdf: no author, acknowledgements or repository URLs
+    make anon     # tables, then main-anon.pdf: no author, acknowledgements or experiments URL
 
 Swap the document class for the official MLSys one when the style is in.

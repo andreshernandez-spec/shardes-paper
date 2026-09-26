@@ -5,6 +5,7 @@
 \label{sec:results}
 
 \subsection{Placement on the block}
+\label{subsec:block}
 
 % F2b -- experiments/phase2/figures/f2b-crossover-vs-d.png (plot_paper.py)
 \begin{figure*}[t]
@@ -14,11 +15,11 @@
     generation with the all-reduce placement over the time with the replicated one, for
     every configuration of the strong-scaling sweep (solid $d{=}2048$, dashed $d{=}512$;
     open markers the smaller population of each width, filled the larger). Below 1 the
-    all-reduce is faster. At $D{=}1$ the two placements do the same work, and the grey
-    band spans their measured ratio there (0.95--1.01 on the A100, 0.98--1.08 on the
-    v5e): a ratio inside it is a tie. Full-rank arms (dense, seed) fall further below 1
-    with every device added; at eight devices rank 1 sits above 1 at $d{=}2048$ and near
-    1 at $d{=}512$.}
+    all-reduce is faster. Grey band: the range observed at one device, where both
+    placements do the same work (0.95--1.01 on the A100, 0.98--1.08 on the v5e), pooled
+    over configurations; a reference, not an uncertainty for any one configuration.
+    Full-rank arms (dense, seed) fall further below 1 with every device added; at eight
+    devices rank 1 sits above 1 at $d{=}2048$ and near 1 at $d{=}512$.}
   \label{fig:f2}
 \end{figure*}
 
@@ -28,8 +29,12 @@ noise and 0.52--0.69 for seed noise on the A100 (0.70--0.83 for mirrored seed no
 on the A100 only), and 0.18--0.20 and 0.50--0.55 on the v5e, and the advantage grows
 with every device added. Rank-1 noise goes the other way at width 2048: the all-reduce
 placement takes 4--15\% longer on the A100 and 17--46\% longer on the v5e, paired or
-unpaired. At width 512 rank 1 is near a tie ($t_B/t_A$ 0.92 to 1.10), close to the
-spread the two placements show at one device.
+unpaired. At width 512 rank 1 is within 10\% of parity ($t_B/t_A$ 0.92 to 1.10), and
+such small differences need caution. Each configuration's own repeats give a criterion:
+the ratio's range over the five repeats of each placement, from the fastest B repeat
+over the slowest A repeat to the slowest B over the fastest A. At eight devices that range contains 1 for six of the eight
+rank-1 configurations at width 512, which we treat as unresolved, and lies on one side of
+1 for every full-rank configuration and every rank-1 configuration at width 2048.
 
 \input{generated/tb8}
 
@@ -73,9 +78,9 @@ account of the measurements, not an exact decision rule.
 On Qwen2.5-0.5B the signs carry over (Figure~\ref{fig:f9}). Three directional predictions
 were fixed before the run, and all three hold. The full-rank arm favours the all-reduce
 more with every device, down to $t_B/t_A = 0.69$--$0.73$ at $D{=}8$. The low-rank arms
-favour replicating at 17 of the 18 shapes that fit, by 1.10--1.68$\times$, more than on
-the block: the model is 494M parameters, so the all-reduce is large next to a small sum.
-The eighteenth, rank 16 at $N{=}128$ and $D{=}8$, is a tie (1.01). The replicated
+favour replicating at all 18 shapes that fit, by 1.01--1.68$\times$, more than on the
+block: the model is 494M parameters, so the all-reduce is large next to a small sum. By
+the repeat criterion of Section~\ref{subsec:block}, every one of the 18 lies above 1, though the smallest margin, rank 16 at $N{=}128$ and $D{=}8$, is only 1\%. The replicated
 placement's lead shrinks as the rank rises, because the sum grows with $r$ while the
 all-reduce does not: rank 16 is below rank 1 at every population they share (1.50
 against 1.68 at $N{=}32$, 1.01 against 1.16 at $N{=}128$). It shrinks with $N$ for the

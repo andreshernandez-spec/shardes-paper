@@ -176,8 +176,12 @@ def main(argv=None) -> int:
             ax.set_ylabel("model dimension d", color=INK)
 
     sm = plt.cm.ScalarMappable(cmap=CMAP, norm=norm)
-    fig.colorbar(sm, ax=axes.ravel().tolist(), fraction=0.02, pad=0.01,
-                 label="$\\log_{10}(t / t_\\mathrm{dense})$")
+    bar = fig.colorbar(sm, ax=axes.ravel().tolist(), fraction=0.02, pad=0.01,
+                       label="time relative to dense")
+    # Log-scaled colour, labelled in ratios, so nobody has to exponentiate.
+    ticks = [t for t in (0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20) if abs(np.log10(t)) <= lim]
+    bar.set_ticks([np.log10(t) for t in ticks])
+    bar.set_ticklabels([f"{t:g}x" for t in ticks])
     out = args.out / f"f4-cost-{args.dtype}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print(out)
