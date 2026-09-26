@@ -46,27 +46,7 @@
 \maketitle
 
 \begin{abstract}
-Evolution strategies (ES) are often called cheap to distribute because workers exchange
-scalar fitnesses rather than gradients. That holds for one way of computing the update:
-gather the fitnesses and let every device recompute the weighted sum of all
-perturbations. The other way splits the sum across devices and all-reduces a
-model-sized partial update. We measure both in one JAX library that runs full-rank
-perturbations regenerated from seeds and low-rank perturbations kept as two thin
-factors per weight matrix, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
-Qwen2.5-0.5B. A simple timing model accounts for the winner: splitting the sum helps
-when the computation it saves takes longer than the all-reduce it adds. On a single host
-at eight devices the all-reduce wins every full-rank configuration measured, by 1.2 to
-5.6$\times$, and for low-rank perturbations at large width it takes 4 to 46\% longer
-than repeating the sum. Across two A100 nodes joined by TCP sockets, full-rank noise at
-large width is faster replicated too. With a calibration error corrected after the runs,
-the model matches the two-node measurements on eight devices within 6\,ms and picks the
-faster placement in all six sixteen-device configurations, though its timing errors
-there reach 63\,ms. Low-rank perturbations cost 0.05--0.16$\times$ the dense baseline on
-the TPU against 0.13--0.42$\times$ on the A100. At equal population their updates align
-with the true gradient about as well as full-rank ones at 0.5B and 1.5B parameters. On
-Countdown every rank ends at similar held-out accuracy; full rank is ahead at the first
-checkpoint, and rank 1 updates 1.44$\times$ faster with the evaluation batched alike.
-Code, configurations and results are released.
+Evolution strategies (ES) are often described as cheap to distribute because devices exchange only scalar fitness scores. This approach still requires every device to reconstruct the full parameter update. We compare it with splitting that computation across devices and combining partial updates with an all-reduce. Using shardes, a common JAX implementation, we study full-rank and low-rank perturbations on A100 GPUs and TPU v5e chips, with a transformer-block benchmark and Qwen2.5-0.5B. The faster placement depends on whether the computation saved outweighs the communication added. On the block benchmark with eight devices in one host, all-reduce gives 1.2–5.6× speedups for full-rank perturbations. For low-rank perturbations at the larger matrix width, it takes 4–46\% longer than replication. Qwen2.5-0.5B shows the same placement tradeoff, while a slow connection between two A100 hosts makes replication faster for large full-rank updates. At equal population, rank-1 updates align with the loss-reducing gradient direction about as well as full-rank updates at 0.5B and 1.5B parameters. On Countdown, the tested ranks reach similar final accuracy: full rank learns faster per sample early on, while rank-1 updates run 1.44× faster with matched evaluation batching. Code, configurations, and results are released.
 \end{abstract}
 
 \input{sections/01-introduction}
