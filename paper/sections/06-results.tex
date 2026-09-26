@@ -1,5 +1,5 @@
-% CLAIM: the placement follows Eq. (crossover) on both accelerators, on a real model and
-% across a host boundary; low-rank noise saves more on the TPU; the library matches the
+% CLAIM: Eq. (crossover) accounts for the placement on both accelerators, on a real model
+% and across a host boundary; low-rank noise saves more on the TPU; the library matches the
 % reference code. Sources in the comment above each float.
 \section{Results}
 \label{sec:results}
@@ -9,67 +9,77 @@
 % F2b -- experiments/phase2/figures/f2b-crossover-vs-d.png (plot_paper.py)
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.92\textwidth]{f2b-crossover-vs-d.png}
+  \includegraphics[width=0.86\textwidth]{f2b-crossover-vs-d.png}
   \caption{Where to compute the sum, on the block benchmark: $t_B/t_A$, the time of a
-    generation with the all-reduce placement over the time with the replicated one, at
-    every cell of the strong-scaling sweep (solid $d{=}2048$, dashed $d{=}512$; two
-    populations per width). Below 1 the all-reduce is faster. At $D{=}1$ the two
-    placements are the same program. Full-rank arms (dense, seed) fall further below 1
-    with every device added; at eight devices rank 1 sits above 1 at $d{=}2048$ and
-    within a few percent of 1 at $d{=}512$.}
+    generation with the all-reduce placement over the time with the replicated one, for
+    every configuration of the strong-scaling sweep (solid $d{=}2048$, dashed $d{=}512$;
+    open markers the smaller population of each width, filled the larger). Below 1 the
+    all-reduce is faster. At $D{=}1$ the two placements do the same work, and the grey
+    band spans their measured ratio there (0.95--1.01 on the A100, 0.98--1.08 on the
+    v5e): a ratio inside it is a tie. Full-rank arms (dense, seed) fall further below 1
+    with every device added; at eight devices rank 1 sits above 1 at $d{=}2048$ and near
+    1 at $d{=}512$.}
   \label{fig:f2}
 \end{figure*}
 
 Figure~\ref{fig:f2} gives the answer on the block. At eight devices the all-reduce
-placement is faster in every full-rank cell: $t_B/t_A$ is 0.42--0.55 for dense noise and
-0.52--0.69 for seed noise on the A100, and 0.18--0.20 and 0.50--0.55 on the v5e, and the
-advantage grows with every device added. Rank-1 noise goes the other way at width 2048:
-replicating the sum is faster by 4--15\% on the A100 and 17--46\% on the v5e. At width
-512 the two placements are within a few percent for rank 1 ($t_B/t_A$ 0.92 to 1.10).
-At width 2048 pairing does not change the sign: paired and unpaired rank 1 both favour
-replicating.
+placement is faster in every full-rank configuration: $t_B/t_A$ is 0.42--0.55 for dense
+noise and 0.52--0.69 for seed noise on the A100 (0.70--0.83 for mirrored seed noise, run
+on the A100 only), and 0.18--0.20 and 0.50--0.55 on the v5e, and the advantage grows
+with every device added. Rank-1 noise goes the other way at width 2048: the all-reduce
+placement takes 4--15\% longer on the A100 and 17--46\% longer on the v5e, paired or
+unpaired. At width 512 rank 1 is near a tie ($t_B/t_A$ 0.92 to 1.10), close to the
+spread the two placements show at one device.
 
 \input{generated/tb8}
-
-Eq.~\ref{eq:crossover} explains the pattern with the two terms measured separately.
-Table~\ref{tab:tb8} gives the collectives. At $d{=}2048$ B's all-reduce costs 0.93\,ms
-on the A100 and 2.01\,ms on the v5e; at $d{=}512$, 0.12\,ms on both; the fitness gather
-stays under 21\,$\mu$s even at $N{=}2^{18}$. In every cell where B wins, its all-reduce
-is 0.7--3.6\% of the time B saves, so what decides the full-rank side is the sum, not the
-bytes. In every cell where A wins, the all-reduce is 57--155\% of B's deficit, so the
-low-rank side is the collective and little else. The platforms differ through the same
-term: the 96\,MiB all-reduce costs 2.17$\times$ more on the v5e, and A's margin at width
-2048 grows from 4--15\% to 17--46\%. The bytes are identical on both.
-
-The simple form of the equation misses two things, both measured: B's local share of a
-small sum does not shrink to $C/D$ (for rank 1 it reaches 0.18--0.46 of the ideal saving on
-the A100, against 0.60--1.01 for full-rank noise), and the same all-reduce runs
-1.75--1.80$\times$ slower inside the lean low-rank program than in isolation. With both
-included, the equation gets the sign of 18 of 20 A100 cells and 15 of 16 v5e cells;
-Appendix~\ref{sec:timemodel} goes through them.
-
-\subsection{Placement on a real model}
 
 % F9 -- experiments/countdown/figures/f9-e17-crossover.png (plot_e17.py)
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\textwidth]{f9-e17-crossover.png}
+  \includegraphics[width=0.9\textwidth]{f9-e17-crossover.png}
   \caption{The same question on Qwen2.5-0.5B: $t_B/t_A$ for one full update (ask,
-    teacher-forced NLL, tell) on the TPU v5e-8, over four arms, four populations and
+    next-token loss, tell) on the TPU v5e-8, over four arms, four populations and
     $D\in\{1,2,4,8\}$. Below 1 the all-reduce is faster. Missing points did not fit the
     16\,GB chips under either placement; the absolute times are in
     Table~\ref{tab:tb5}.}
   \label{fig:f9}
 \end{figure*}
 
+Eq.~\ref{eq:crossover} accounts for the pattern with its terms measured separately.
+Table~\ref{tab:tb8} gives the collectives. At $d{=}2048$ B's all-reduce costs 0.93\,ms
+on the A100 and 2.01\,ms on the v5e; at $d{=}512$, 0.12\,ms on both; the fitness gather
+stays under 21\,$\mu$s even at $N{=}2^{18}$. In every full-rank configuration B's
+all-reduce is 0.2--6.8\% of the time B saves, so what decides the full-rank side is the
+sum, not the bytes. In the eleven configurations where A wins, all low-rank, the
+all-reduce is 57--155\% of B's deficit, so the low-rank side is the collective and little
+else. The platforms differ through the same term: the 96\,MiB all-reduce costs
+2.17$\times$ more on the v5e, and B's deficit for rank 1 at width 2048 grows from 4--15\%
+to 17--46\%. The bytes are identical on both.
+
+With ideal splitting ($C_B = C_A/D$) and the collective timed in isolation, the model
+misses two things, both measured. B's local share of a small sum takes much longer than
+$C_A/D$: for rank 1 on the A100, $C_A/(D\,C_B)$ is 0.18--0.46, against 0.60--1.01 for
+full-rank noise. And at width 2048 the same all-reduce runs 1.75--1.80$\times$ slower
+inside the lean low-rank program than in isolation. With the measured $C_B$ and the
+in-program all-reduce, the model gets the sign of 18 of 20 A100 configurations and 15 of
+16 v5e configurations, and the three misses are near-ties at width 512 (within
+0.02--0.09\,ms); Appendix~\ref{sec:timemodel} goes through them. That makes it a useful
+account of the measurements, not an exact decision rule.
+
+\subsection{Placement on a real model}
+
+\input{generated/tb7}
+
 On Qwen2.5-0.5B the signs carry over (Figure~\ref{fig:f9}). Three directional predictions
 were fixed before the run, and all three hold. The full-rank arm favours the all-reduce
 more with every device, down to $t_B/t_A = 0.69$--$0.73$ at $D{=}8$. The low-rank arms
-favour replicating at all 18 shapes that fit, by up to 1.68$\times$, more than on the
-block: the model is 494M parameters, so the all-reduce is large next to a small sum. And
-A's margin shrinks as the rank rises, because the sum grows with $r$ while the all-reduce
-does not: rank 16 is below rank 1 at every population they share (1.50 against 1.68 at
-$N{=}32$, 1.01 against 1.16 at $N{=}128$). It shrinks with $N$ for the same reason.
+favour replicating at 17 of the 18 shapes that fit, by 1.10--1.68$\times$, more than on
+the block: the model is 494M parameters, so the all-reduce is large next to a small sum.
+The eighteenth, rank 16 at $N{=}128$ and $D{=}8$, is a tie (1.01). The replicated
+placement's lead shrinks as the rank rises, because the sum grows with $r$ while the
+all-reduce does not: rank 16 is below rank 1 at every population they share (1.50
+against 1.68 at $N{=}32$, 1.01 against 1.16 at $N{=}128$). It shrinks with $N$ for the
+same reason.
 
 In absolute terms the full-rank update falls from 4.9\,s to 673\,ms between one and
 eight devices at $N{=}32$, and the low-rank arms take 71--272\,ms wherever they fit. They
@@ -82,45 +92,49 @@ two kinds of noise.
 \subsection{Across a host boundary}
 \label{subsec:boundary}
 
-\input{generated/tb7}
+% F4 -- experiments/phase2/figures/f4-cost-bfloat16.png (plot_cost.py)
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{f4-cost-bfloat16.png}
+  \caption{Time per generation against the dense baseline at the same shape, one device,
+    bfloat16. Blue: faster than dense; red: slower. Hatched: the dense baseline does not
+    fit the device (``dense OOM''); blank: neither arm fits (``both OOM''). Ranks 4 and
+    16 behave like rank 1 (Table~\ref{tab:tb3}).}
+  \label{fig:f4}
+\end{figure*}
 
-A single host is where an all-reduce is cheapest. We repeated six cells on two
+A single host is where an all-reduce is cheapest. We repeated six configurations on two
 8$\times$A100 nodes with both placement predictions fixed before the run. InfiniBand
 carried no NCCL traffic on any of five clusters we drew, so the nodes talk over TCP
 sockets; measured at the payload it moves, the all-reduce runs at 64\,GiB/s within a
-node and 0.6--0.8\,GiB/s across the two (Table~\ref{tab:tb7}). The in-node figure is
-timed per call on the cluster's first node; Table~\ref{tab:tb8}'s 98\,GiB/s is the slope
-inside a running program on another A100 node, and each is used where it was measured.
+node and 0.6--0.8\,GiB/s across the two (Table~\ref{tab:tb7}; Table~\ref{tab:tb8}'s
+98\,GiB/s was measured inside a running program on another node).
 
 Splitting the same eight devices across the boundary (\texttt{1x8} to \texttt{2x4})
 adds 107--110\,ms to B's generation at width 2048, which is more than the 21--51\,ms B
 was saving there. So the seed arm, which wins with the all-reduce on one node, loses with
 it across two, at both populations and at sixteen devices. At width 512 the all-reduce is
 6\,MiB and the seed arm keeps it. Rank 1 favoured replicating already and does so by more.
-The dependence on the fabric is the $T_{\mathrm{ar}}$ term of Eq.~\ref{eq:crossover} and
-nothing new: with the measured terms the equation predicts every \texttt{2x4} cell
-within 6\,ms and gets all six \texttt{2x8} signs.
+The dependence on the fabric is the $T_{\mathrm{ar}}$ term of Eq.~\ref{eq:crossover}.
 
-The prediction we fixed before the \texttt{2x8} run did worse, 4 of 6 signs and a penalty
-of about 10\,ms instead of 110, because the calibration that fed it all-reduced $1/D$ of
-the payload it was labelled with and so reported a bandwidth $D$ times too high
-(515 and 9.2\,GiB/s instead of 64 and 0.58). Table~\ref{tab:tb7} shows both. The fabric we
-measured is far slower than a production InfiniBand cluster at 12--50\,GiB/s, where a
-96\,MiB all-reduce takes 2--8\,ms; by Eq.~\ref{eq:crossover} the seed arm would keep the
-all-reduce there. That is a prediction, not a measurement.
+The prediction we fixed before the \texttt{2x8} run got 4 of 6 signs and a penalty of
+about 10\,ms instead of 110, because the calibration that fed it all-reduced $1/D$ of the
+payload it was labelled with and so reported a bandwidth $D$ times too high (515 and
+9.2\,GiB/s instead of 64 and 0.58). We found the error after the runs. Recomputed with
+the bandwidth at the payload actually moved, the model matches every \texttt{2x4}
+configuration within 6\,ms and gets all six \texttt{2x8} signs, but at \texttt{2x8} it
+overestimates B's deficit by 46--63\,ms for the seed arm at width 2048.
+Table~\ref{tab:tb7} shows the preregistered and the corrected numbers side by side; only
+the first is a prediction made before measuring.
+
+The fabric we measured is slow. If a cluster sustained an effective all-reduce bandwidth
+of 12--50\,GiB/s on this payload, a 96\,MiB all-reduce would take 2--8\,ms, and by
+Eq.~\ref{eq:crossover} the seed arm would keep the all-reduce there. Those bandwidths
+are an assumption, not a measurement of any cluster.
 
 \subsection{What low-rank noise saves}
 
-% F4 -- experiments/phase2/figures/f4-cost-bfloat16.png (plot_cost.py)
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.82\textwidth]{f4-cost-bfloat16.png}
-  \caption{Time per generation against the dense baseline at the same shape, one device,
-    bfloat16. Blue: faster than dense; red: slower. Hatched: the baseline (``dense
-    OOM'') or both arms do not fit the device. Ranks 4 and 16 behave like rank 1
-    (Table~\ref{tab:tb3}).}
-  \label{fig:f4}
-\end{figure*}
+\input{generated/tb1}
 
 EGGROLL motivates low-rank noise by what dense perturbations cost on GPUs, so the TPU,
 whose matrix unit makes dense multiplies cheap, might narrow the gap. It widens it
@@ -132,14 +146,11 @@ the only arm that never runs out of memory. Whether that cost is random-number t
 or the loss of the shared base multiply, we did not isolate.
 
 Forcing full-precision multiplies costs the low-rank arms 1.6--1.9$\times$ and the others
-at most 8\% (Table~\ref{tab:tb3}): the low-rank correction multiplies are what gets
-upgraded. Computing in bfloat16 rather than float32 changes little, within 7\% on the
-v5e, and on the A100 bfloat16 is 8--12\% \emph{slower} for dense and seed noise and
-level for rank 1; the datatype is a memory choice more than a speed one.
+at most 8\% (Table~\ref{tab:tb3}). Computing in bfloat16 rather than float32 is within
+7\% on the v5e and on the A100 is 8--12\% \emph{slower} for dense and seed noise: the
+datatype is a memory choice more than a speed one.
 
 \subsection{Against the reference code}
-
-\input{generated/tb1}
 
 On one device the rank-1 arm runs at 0.97--1.02$\times$ the throughput of EGGROLL's
 released code on the A100 and 0.68--0.85$\times$ on the v5e (Table~\ref{tab:tb1}), a

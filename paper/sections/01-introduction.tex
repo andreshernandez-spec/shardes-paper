@@ -1,5 +1,5 @@
 % CLAIM: "ES only communicates scalars" is true for one placement of the update and
-% incomplete as a systems model; one inequality decides the placement, and we measure it.
+% incomplete as a systems model; a timing model accounts for the placement, and we measure it.
 \section{Introduction}
 
 Evolution strategies train a network without gradients: perturb the weights with
@@ -18,8 +18,7 @@ gathers all $N$ fitnesses and recomputes the whole sum, only scalars move. The o
 way is for each device to sum its own share of the population and all-reduce the
 partial sums, a buffer the size of the model. The second moves far more bytes, but
 does $1/D$ of the work on $D$ devices. Which is faster depends on how long the sum
-takes against how long the all-reduce takes (Section~\ref{sec:placement},
-Eq.~\ref{eq:crossover}). The two published designs sit at opposite ends of that
+takes against how long the all-reduce takes (Section~\ref{sec:placement}). The two published designs sit at opposite ends of that
 trade: regenerating full-rank noise makes the sum expensive, and low-rank noise makes
 it cheap. GPUs and TPUs sit at different points on the other side, the cost of the
 all-reduce. As far as we know, neither side has been measured.
@@ -38,21 +37,23 @@ whether they train as well on a task.
 
 \paragraph{Contributions, most important first.}
 \begin{itemize}
-  \item \textbf{Where to compute the update.} All-reduce wins every full-rank configuration on
-    one A100 node and one v5e host, and replicating wins for rank 1 at width 2048; the
-    signs hold on Qwen2.5-0.5B, and across two TCP-connected nodes the full-rank arm
-    flips as well. Eq.~\ref{eq:crossover}, with its terms timed separately, accounts
-    for all of it and predicts the host boundary within 6\,ms per cell.
+  \item \textbf{Where to compute the update.} At eight devices on one A100 node and one
+    v5e host, the all-reduce wins every full-rank configuration and replicating wins for
+    rank 1 at width 2048; the signs hold on Qwen2.5-0.5B, and across two TCP-connected
+    nodes full-rank noise at width 2048 is faster replicated too. A timing model from
+    separately measured terms (Eq.~\ref{eq:crossover}) gets the sign of 33 of 36
+    single-host configurations, missing only near-ties, and, with a calibration error
+    corrected, the sign of every host-boundary configuration.
   \item \textbf{What low-rank noise saves, per accelerator.} The low-rank advantage
     over dense noise is larger on the TPU than on the GPU, not smaller.
   \item \textbf{One library for both designs.} The rank-1 path runs within 3\% of
     EGGROLL's released code on one A100 (0.68--0.85$\times$ on one v5e chip), and
     scales across devices, which none of the reference implementations does.
-  \item \textbf{The cheap perturbation is not a worse one.} At equal population,
-    low-rank updates align with the exact gradient 0.92 to 1.31 times as well as
-    full-rank ones at 0.5B and 1.5B parameters. On Countdown every rank reaches the same
-    held-out accuracy; full rank gets there in fewer samples, and rank 1 updates
-    1.44$\times$ faster.
+  \item \textbf{Cheaper noise, similar alignment and final accuracy.} At equal
+    population, low-rank updates align with the exact gradient 0.92 to 1.31 times as well
+    as full-rank ones at 0.5B and 1.5B parameters. On Countdown every rank ends at
+    similar held-out accuracy; full rank is ahead at the first checkpoint, and rank 1
+    updates 1.44$\times$ faster with the evaluation batched alike.
 \end{itemize}
 Every figure and table regenerates from a committed script and committed result
 records.
