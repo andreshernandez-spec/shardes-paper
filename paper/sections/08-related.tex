@@ -29,4 +29,8 @@ library. \citet{sheng2020tpu} run distributed ES on TPUs for meta-learning, with
 comparing placements. ZeRO \citep{rajbhandari2020zero} removes repeated optimizer
 work and memory in data-parallel training by splitting the optimizer step across
 devices; its reduce-scatter and all-gather carry the same bytes as the all-reduce they
-replace.
+replace. BOOST \citep{wang2026boost} places the tensor-parallel collective of low-rank
+layers at the rank-$r$ bottleneck, so it carries activations of width $r$ rather than
+the hidden size. Low rank cannot shrink B's all-reduce the same way: the ES update is a
+sum of $N$ low-rank terms and is not itself low rank, so what low rank saves here is the
+sum.
