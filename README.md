@@ -1,7 +1,12 @@
 # shardes-paper
 
-The paper *Update-contraction placement in sharded evolution strategies on GPUs and
-TPUs*, every experiment behind it, and their results.
+The papers built on [shardes](https://github.com/andreshernandez-spec/shardes), every
+experiment behind them, and their results:
+
+- *Update-contraction placement in sharded evolution strategies on GPUs and TPUs*,
+  in `paper/`;
+- an end-to-end comparison of ES fine-tuning against released RL checkpoints, in
+  `papers/end_to_end/` (in progress, no manuscript yet).
 
 The library it measures is [shardes](https://github.com/andreshernandez-spec/shardes),
 installed here as a pinned dependency. This repository was split out of that one, with
@@ -59,15 +64,32 @@ SHA. `docs/06-benchmark-runbook.md` has the mechanics for Kaggle and rented pods
 `requirements-models.txt` adds what the real-model experiments need, and
 `requirements-grpo.txt` the GRPO reference arm.
 
+## One directory per paper
+
+Each paper gets its own directory: the manuscript in `papers/<name>/`, its experiments
+and results in `experiments/<name>/`, and, where they belong to that paper alone, its
+tests in `tests/<name>/` and its plans in `docs/<name>/`. Anything shared stays at the
+top level: the provenance harness and audit, their tests, the benchmark runbook, the
+cost model.
+
+The first paper predates this rule. Its manuscript is `paper/` and its experiments are
+the top-level `experiments/phase0` to `experiments/countdown`, and they stay there,
+because its build, its CI checks and the results READMEs refer to those paths.
+
 ## Layout
 
 ```
-paper/         the manuscript; generated/ is written by scripts, never by hand
-experiments/   phase0 (alignment law), phase1, phase2 (systems), countdown (real model),
-               harness.py (provenance), provenance_audit.py
-tests/         tests of the experiment drivers. CPU, no network, seconds
-docs/          campaign plans, preregistrations, the benchmark runbook
-PLAN.md        the research program's phases and gates
+paper/                the placement paper; generated/ is written by scripts, never by hand
+papers/end_to_end/    the ES-vs-RL paper
+experiments/          phase0 (alignment law), phase1, phase2 (systems), countdown (real
+                      model): the placement paper. harness.py (provenance) and
+                      provenance_audit.py are shared
+experiments/end_to_end/  the ES-vs-RL paper's experiments and results
+tests/                tests of the experiment drivers. CPU, no network, seconds
+tests/end_to_end/     the ES-vs-RL paper's driver tests
+docs/                 campaign plans, preregistrations, the benchmark runbook
+docs/end_to_end/      the ES-vs-RL paper's plan
+PLAN.md               the placement paper's research program, phases and gates
 ```
 
 ## Tests
