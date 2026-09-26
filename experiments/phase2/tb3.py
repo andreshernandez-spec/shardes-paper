@@ -184,8 +184,8 @@ def main() -> int:
         emit(systems,
              "Systems ablations, assembled from committed results. Each ratio is the "
              "time of the first variant over the second (below one: the first is "
-             "faster), as a geometric mean over the grid cells where both were "
-             "measured (n = cell count).",
+             "faster), as a geometric mean over the configurations where both were "
+             "measured (n: how many).",
              "tab:tb3", "tb3.tex")
     return 0
 
