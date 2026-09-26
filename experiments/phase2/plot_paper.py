@@ -54,10 +54,13 @@ STRATEGIES = ["iid_gaussian", "seed_regenerated", "mirrored_lr1", "lowrank_r1"]
 def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
     """The placement result on the block: t_B / t_A against device count, per platform.
 
-    One line per (strategy, d, N) cell of the strong-scaling sweep, solid at d=2048 and
-    dashed at d=512, from D=2 (at D=1 the two placements are the same program). Plotted
-    as the ratio on a log axis, so 0.5 and 2 are the same distance from a tie. Prints every
-    plotted value, which is where the text's ranges come from.
+    One line per (strategy, d, N) configuration of the strong-scaling sweep, solid at
+    d=2048 and dashed at d=512, open markers for the smaller population of each width and
+    filled for the larger, from D=2. Plotted as the ratio on a log axis, so 0.5 and 2 are
+    the same distance from a tie. At D=1 the two placements do the same work, so the
+    spread of their ratio there is drawn as a grey band: a difference inside it is not
+    one the sweep can tell from a tie. Prints every plotted value and the band, which is
+    where the text's ranges come from.
     """
     fig, axes = plt.subplots(1, len(platform_rows), figsize=(4.4 * len(platform_rows), 3.5),
                              sharey=True, squeeze=False)
@@ -70,14 +73,22 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
                 continue
             cells[(c["strategy"], c["d_model"], c["population"])][
                 (c["devices"], c["how"])] = r["seconds_median"]
+        larger = {d: max(n for _, dd, n in cells if dd == d) for _, d, _ in cells}
+        at_one = [by[(1, "B")] / by[(1, "A")] for by in cells.values()
+                  if (1, "A") in by and (1, "B") in by]
+        band = (min(at_one), max(at_one))
+        ax.axhspan(*band, color="#d6d5d0", lw=0, zorder=0)
+        print(f"  {name:10s} D=1 band {band[0]:.3f}-{band[1]:.3f} over {len(at_one)}")
         for (s, d, n), by in sorted(cells.items()):
             pts = [(dev, by[(dev, "B")] / by[(dev, "A")])
                    for dev in sorted({dev for dev, _ in by})
                    if dev > 1 and (dev, "A") in by and (dev, "B") in by]
             if len(pts) < 2:
                 continue
-            ax.plot([p[0] for p in pts], [p[1] for p in pts], marker="o", ms=3.5, lw=1.4,
-                    ls="-" if d == 2048 else "--", color=HUES[s], alpha=0.9)
+            filled = n == larger[d]
+            ax.plot([p[0] for p in pts], [p[1] for p in pts], marker="o", ms=4.5, lw=1.4,
+                    ls="-" if d == 2048 else "--", color=HUES[s], alpha=0.9,
+                    mfc=HUES[s] if filled else "white", mew=1.2)
             print(f"  {name:10s} {LABELS[s]:17s} d={d:<5d} N={n:<5d} "
                   + " ".join(f"D={dev}:{v:.3f}" for dev, v in pts))
         ax.axhline(1.0, color=MUTED, lw=1.0)
@@ -94,13 +105,20 @@ def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
         ax.set_title(name, color=INK, fontsize=10, loc="left")
         if j == 0:
             ax.set_ylabel("$t_B / t_A$")
-    handles = [plt.Line2D([], [], color=HUES[s], marker="o", ms=3.5, lw=1.4)
-               for s in STRATEGIES]
-    handles += [plt.Line2D([], [], color=MUTED, lw=1.4, ls=ls) for ls in ("-", "--")]
-    fig.legend(handles, [LABELS[s] for s in STRATEGIES] + ["d = 2048", "d = 512"],
-               frameon=False, fontsize=8, labelcolor=INK, ncol=6, loc="lower center",
-               bbox_to_anchor=(0.5, -0.06))
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    # Two rows: what a line is (arm, width), then what a marker and the band are.
+    lines = [plt.Line2D([], [], color=HUES[s], lw=1.4) for s in STRATEGIES]
+    lines += [plt.Line2D([], [], color=MUTED, lw=1.4, ls=ls) for ls in ("-", "--")]
+    fig.legend(lines, [LABELS[s] for s in STRATEGIES] + ["d = 2048", "d = 512"],
+               frameon=False, fontsize=8, labelcolor=INK, ncol=6, loc="upper center",
+               bbox_to_anchor=(0.5, 0.03))
+    marks = [plt.Line2D([], [], color=MUTED, lw=0, marker="o", ms=4.5, mew=1.2, mfc=mfc)
+             for mfc in ("white", MUTED)]
+    marks += [plt.Rectangle((0, 0), 1, 1, color="#d6d5d0", lw=0)]
+    fig.legend(marks, ["smaller N (256 at d = 512, 128 at d = 2048)",
+                       "larger N (1024, 256)", "spread at D = 1"],
+               frameon=False, fontsize=8, labelcolor=INK, ncol=3, loc="upper center",
+               bbox_to_anchor=(0.5, -0.03))
+    fig.tight_layout()
     fig.savefig(out / "f2b-crossover-vs-d.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(out / "f2b-crossover-vs-d.png")

@@ -1,16 +1,24 @@
 #!/usr/bin/env python
-"""Regenerate F7 and F7b from results/e13-a100-2026-08-22-clean. No hand-edited numbers.
+"""Regenerate F7 from results/e13-a100-2026-08-22-clean. No hand-edited numbers.
 
-    python plot_e13.py        # figures/f7-e13-heldout.png, f7b-e13-wallclock.png
+    python plot_e13.py        # figures/f7-e13-heldout.png
 
-F7: what the held-out evaluations measure, split into its two parts, against
-sample evaluations: the share of the 2000 held-out puzzles solved, and the share
-of answers that are well formed. The reward is 0.9 x solved + 0.1 x formatted, so
-the two panels carry all of it, and they show what the reward hides: every arm
-learns the format within the first 50 updates, and the plateau is ~6% solved.
-One curve per ES arm, mean over seeds 0-2 with a min-max band, a marker at every
-evaluation, the base model as a dashed floor. One ES update scores
-N * puzzles_per_gen = 240 completions.
+F7: the share of the 2000 held-out puzzles solved, against scored training
+completions (left) and against cumulative update time (right). One curve per ES
+arm, mean over seeds 0-2 with a min-max band, a marker at every evaluation, the
+base model as a dashed floor. One ES update scores N * puzzles_per_gen = 240
+completions.
+
+The reward is 0.9 x solved + 0.1 x well formed. The formatting half is not drawn:
+every arm formats 99% or more of its answers by the first evaluation, which this
+prints, so the solve rate carries everything that differs between arms.
+
+The time axis is each run's own per-update seconds, as each arm was configured
+(the full-rank arm scores its members in chunks of five, the low-rank arms in one
+batch). Updates 0 and 1 are left out of it: both compile, 322-635 s each against a
+steady 2.6-4.4 s. Held-out decoding is left out too. The evaluation at generation g
+runs before update g (run_es.py evaluates at the top of the loop), so its x is the
+time of the updates before g; x per evaluation is the mean over the three seeds.
 
 GRPO is not drawn. It runs in another framework with another decoder (its base
 model scores 0.037 against the ES decoder's 0.054 on the same weights), and the
@@ -65,39 +73,63 @@ def curves(stem: str, xkey: str, field: str = "eval_reward"):
     return sorted(by_x.items())
 
 
+def seconds_before(stem: str) -> dict:
+    """generation -> [cumulative update seconds before it, per seed]; see docstring."""
+    out: dict = {}
+    for s in (0, 1, 2):
+        cum, c = {}, 0.0
+        for r in map(json.loads, (where(stem) / f"{stem}-s{s}-log.jsonl").open()):
+            cum[r["generation"]] = c
+            if r["generation"] > 1:  # updates 0 and 1 compile
+                c += r["seconds"]
+        for e in map(json.loads, (where(stem) / f"{stem}-s{s}-eval.jsonl").open()):
+            # the last evaluation runs after the last update, at the total
+            out.setdefault(e["generation"], []).append(cum.get(e["generation"], c))
+    return out
+
+
 def main() -> None:
     FIGURES.mkdir(exist_ok=True)
-    fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.4))
-    panels = (("eval_solved", "held-out puzzles solved (%)"),
-              ("eval_format", "answers well formed (%)"))
-    for ax, (field, ylabel) in zip(axes, panels):
-        floor = statistics.mean(curves("es-mirrored-seed", "generation", field)[0][1])
+    fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.4), sharey=True)
+    floor = statistics.mean(curves("es-mirrored-seed", "generation", "eval_solved")[0][1])
+    fmt0 = curves("es-mirrored-seed", "generation", "eval_format")[0][1]
+    print(f"  base model: solved {100 * floor:.2f}%, well formed "
+          f"{100 * statistics.mean(fmt0):.1f}%")
+    for stem, (color, label) in ARM_STYLE.items():
+        pts = curves(stem, "generation", "eval_solved")
+        mean = [100 * statistics.mean(v) for _, v in pts]
+        lo = [100 * min(v) for _, v in pts]
+        hi = [100 * max(v) for _, v in pts]
+        secs = seconds_before(stem)
+        t = [statistics.mean(secs[x // EVALS_PER_UNIT]) for x, _ in pts]
+        for ax, xs in ((axes[0], [x for x, _ in pts]), (axes[1], t)):
+            ax.plot(xs, mean, color=color, lw=1.5, marker="o", ms=3, label=label, zorder=3)
+            ax.fill_between(xs, lo, hi, color=color, alpha=0.15, lw=0, zorder=2)
+        print(f"  {label:28s} " + " ".join(
+            f"{x // 1000}k/{s:.0f}s:{m:.2f}" for (x, _), s, m in zip(pts, t, mean)))
+        print(f"    at {pts[1][0] // 1000}k: solved {lo[1]:.2f}-{hi[1]:.2f}%, final "
+              f"{mean[-1]:.2f}% [{lo[-1]:.2f}, {hi[-1]:.2f}]")
+        fmt = curves(stem, "generation", "eval_format")[1][1]
+        print(f"    well formed at the first evaluation: {100 * min(fmt):.1f}% or more")
+        steady = [r["seconds"] for s in (0, 1, 2)
+                  for r in map(json.loads, (where(stem) / f"{stem}-s{s}-log.jsonl").open())
+                  if r["generation"] > 1]
+        print(f"    steady-state s/update (updates 2 on, all seeds): "
+              f"{statistics.mean(steady):.2f}")
+    for ax in axes:
         ax.axhline(100 * floor, color="#888888", lw=1.0, ls="--", zorder=1)
         ax.annotate("base model", (0.62, 100 * floor), xycoords=("axes fraction", "data"),
                     ha="left", va="bottom", fontsize=8, color="#52514e")
-        for stem, (color, label) in ARM_STYLE.items():
-            pts = curves(stem, "generation", field)
-            xs = [x for x, _ in pts]
-            mean = [100 * statistics.mean(v) for _, v in pts]
-            ax.plot(xs, mean, color=color, lw=1.5, marker="o", ms=3, label=label, zorder=3)
-            ax.fill_between(xs, [100 * min(v) for _, v in pts], [100 * max(v) for _, v in pts],
-                            color=color, alpha=0.15, lw=0, zorder=2)
-            print(f"  {field:12s} {label:28s} " + " ".join(
-                f"{x // 1000}k:{m:.2f}" for x, m in zip(xs, mean)))
-            if field == "eval_solved":
-                rew = curves(stem, "generation")[1]
-                print(f"    at {rew[0] // 1000}k: reward {statistics.mean(rew[1]):.3f} "
-                      f"[{min(rew[1]):.3f}, {max(rew[1]):.3f}], solved "
-                      f"{100 * min(pts[1][1]):.2f}-{100 * max(pts[1][1]):.2f}%")
-        ax.set_xlabel("training sample evaluations")
-        ax.set_ylabel(ylabel)
-        ax.set_xlim(0, 500 * EVALS_PER_UNIT)
-        ax.set_xticks([0, 24000, 48000, 72000, 96000, 120000])
-        ax.set_xticklabels(["0", "24k", "48k", "72k", "96k", "120k"])
         ax.grid(True, color="#e6e6e3", lw=0.8)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-    axes[1].set_ylim(0, 105)
+    axes[0].set_xlabel("training sample evaluations")
+    axes[0].set_ylabel("held-out puzzles solved (%)")
+    axes[0].set_xlim(0, 500 * EVALS_PER_UNIT)
+    axes[0].set_xticks([0, 24000, 48000, 72000, 96000, 120000])
+    axes[0].set_xticklabels(["0", "24k", "48k", "72k", "96k", "120k"])
+    axes[1].set_xlabel("cumulative update time (s)")
+    axes[1].set_xlim(0, None)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, fontsize=8, ncol=5, loc="lower center",
                bbox_to_anchor=(0.5, -0.02))
@@ -107,62 +139,5 @@ def main() -> None:
     print(out)
 
 
-def wallclock() -> None:
-    """F7b: the same held-out curves against cumulative steady-state accelerator time.
-
-    ES arms only: GRPO runs in a different framework with a different decoder, so
-    its wall clock is not commensurate and is deliberately absent. Generations 0
-    AND 1 are both excluded from the cumulative time: both are compilation-scale
-    events in every arm and seed (335--671 s against steady-state 2.4--4.3 s
-    per generation).
-    Held-out evaluation decode is excluded on both axes as measurement overhead.
-    The eval at generation g runs BEFORE update g (run_es.py evaluates at the
-    top of the loop), so its x is the cumulative time of updates strictly
-    before g. x per eval point is the mean cumulative time over the three
-    seeds; the band is min--max of reward.
-    """
-    fig, ax = plt.subplots(figsize=(7.0, 4.4))
-    for stem, (color, label) in ARM_STYLE.items():
-        if stem == "grpo":
-            continue
-        xs_by_gen: dict = {}
-        rew_by_gen: dict = {}
-        for s in (0, 1, 2):
-            logs = [json.loads(l) for l in
-                    (where(stem) / f"{stem}-s{s}-log.jsonl").open()]
-            cum, c = {}, 0.0
-            for r in logs:
-                if r["generation"] <= 1:
-                    continue  # compilation lives in g0 and g1; see docstring
-                # eval at g precedes update g: charge it the time BEFORE g.
-                cum[r["generation"]] = c
-                c += r["seconds"]
-            for e in map(json.loads, (where(stem) / f"{stem}-s{s}-eval.jsonl").open()):
-                g = e["generation"]
-                if g <= 1:
-                    continue
-                # the final eval runs after the last update, at a generation
-                # one past the last logged one; it lands at the total time
-                xs_by_gen.setdefault(g, []).append(cum.get(g, c))
-                rew_by_gen.setdefault(g, []).append(e["eval_reward"])
-        gens = sorted(xs_by_gen)
-        xs = [statistics.mean(xs_by_gen[g]) for g in gens]
-        ax.plot(xs, [statistics.mean(rew_by_gen[g]) for g in gens],
-                color=color, lw=1.6, label=label, zorder=3)
-        ax.fill_between(xs, [min(rew_by_gen[g]) for g in gens],
-                        [max(rew_by_gen[g]) for g in gens],
-                        color=color, alpha=0.18, lw=0, zorder=2)
-    ax.set_xlabel("cumulative accelerator seconds (steady state)")
-    ax.set_ylabel("held-out reward (2000 puzzles, greedy)")
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(FIGURES / "f7b-e13-wallclock.png", dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    print(FIGURES / "f7b-e13-wallclock.png")
-
-
 if __name__ == "__main__":
     main()
-    wallclock()

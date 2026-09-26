@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """F4: where the low-rank rewrite pays, per platform.
 
-    python plot_cost.py                                 # GPU panel row from results-cost
-    python plot_cost.py --results results-cost results-cost-tpu-v5e8   # both rows
+    python plot_cost.py                                 # GPU panels from results-cost
+    python plot_cost.py --results results-cost results-cost-tpu-v5e8   # both platforms
 
-One row of panels per platform, one panel per strategy (seed and rank 1; ranks 4
+One row of panels: per platform, one panel per strategy (seed and rank 1; ranks 4
 and 16 are the ablation table's geometric means), each a heatmap over (N, d) of
 log10(t_strategy / t_iid_gaussian) at the same shape and dtype. Blue where the
 strategy beats the dense baseline, red where the baseline wins, grey at parity.
@@ -162,22 +162,22 @@ def main(argv=None) -> int:
     lim = float(np.max(np.abs(finite)))
     norm = TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim)
 
-    nrows = len(platforms)
-    fig, axes = plt.subplots(nrows, len(STRATEGIES),
-                             figsize=(4.3 * len(STRATEGIES), 3.3 * nrows),
-                             squeeze=False, sharex=True, sharey=True)
-    for i, (kind, cells) in enumerate(sorted(platforms.items())):
-        for j, s in enumerate(STRATEGIES):
-            panel(axes[i][j], cells, s, args.dtype, dims, pops, norm)
-            if i == 0:
-                axes[i][j].set_title(TITLES[s], color=INK, fontsize=10)
-            if j == 0:
-                axes[i][j].set_ylabel(f"{PLATFORM.get(kind, kind)}\nmodel dimension d",
-                                      color=INK)
+    # One row, platform after platform: the paper prints it full width, and two rows
+    # of two took twice the height for the same cells.
+    panels = [(kind, cells, st) for kind, cells in sorted(platforms.items())
+              for st in STRATEGIES]
+    fig, axes = plt.subplots(1, len(panels), figsize=(2.75 * len(panels), 3.0),
+                             squeeze=False, sharey=True)
+    for j, (kind, cells, st) in enumerate(panels):
+        ax = axes[0][j]
+        panel(ax, cells, st, args.dtype, dims, pops, norm)
+        ax.set_title(f"{TITLES[st]}\n{PLATFORM.get(kind, kind)}", color=INK, fontsize=9)
+        if j == 0:
+            ax.set_ylabel("model dimension d", color=INK)
 
     sm = plt.cm.ScalarMappable(cmap=CMAP, norm=norm)
-    fig.colorbar(sm, ax=axes.ravel().tolist(),
-                 label="$\\log_{10}(t / t_\\mathrm{dense})$:  below 0, faster than dense")
+    fig.colorbar(sm, ax=axes.ravel().tolist(), fraction=0.02, pad=0.01,
+                 label="$\\log_{10}(t / t_\\mathrm{dense})$")
     out = args.out / f"f4-cost-{args.dtype}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print(out)
