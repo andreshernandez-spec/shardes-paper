@@ -25,4 +25,20 @@ python pin_releases.py --out pins/releases-<date>.json
 python olmo3_if_data.py --out data/olmo3_if
 ```
 
+## Phase 0 results
+
+See `docs/end_to_end/00-plan.md`, "Phase 0 results". In short: every pin resolves;
+Olmo 3 RL-Zero-IF `step_100` and `step_1000` are the same weights; the IF run's
+training set (13,179 rows) and its per-step prompt stream are rebuilt exactly, and
+the released Dolci set is that set in the run's pre-shuffle order.
+
+## Throughput probe
+
+`probe/`: `probe_throughput.py` decodes one ES member batch at a time with vLLM from
+each start checkpoint, with the run's own prompts, template, stop strings and cap;
+`probe.yaml` is the config, run once per GPU type; `probe_worker.py` is the vLLM
+worker extension that times a full in-place weight rewrite; `cost.py` turns the
+records into the cost of the matched ES runs; `pod.sh` bootstraps a pod and launches
+the probe detached. Its own venv: `requirements-vllm.txt`.
+
 Tests: `pytest tests/end_to_end` from the repository root.

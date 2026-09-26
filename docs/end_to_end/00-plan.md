@@ -1,7 +1,7 @@
 # 00. Plan: ES fine-tuning against released RL checkpoints
 
-Status 2026-09-26: plan. Phase 0 (pins, data reconstruction) and the throughput probe
-are the only work started; nothing after the probe runs without a go.
+Status 2026-09-26: plan. Phase 0 is done (results below); the throughput probe is
+built and waiting for a pod; nothing after the probe runs without a go.
 
 ## The question
 
@@ -138,6 +138,32 @@ so a sampler difference cannot explain a gap.
 6. Provenance as in the rest of the repository: configs committed before runs and
    cited by SHA, records that stamp both repositories, writers that refuse to
    overwrite, and assertions where each number is produced that the work was done.
+
+## Phase 0 results (2026-09-26)
+
+Records: `experiments/end_to_end/pins/` and `experiments/end_to_end/data/olmo3_if/`.
+
+- Every pin resolves. Olmo 3 base `main` is byte-identical to `stage3-step11921`, the
+  IF run's logged start. RL-Zero-IF `main` (step 2000) is on no branch; its `step_100`
+  and `step_1000` hold identical weights, so neither is used until we know which step
+  they are. Tulu 3.1 `main` is byte-identical to `step_1920`. The Tulu data file is
+  the 2024-11-18 upload. Both open-instruct commits exist; the IF run's logged config
+  agrees with every value in `releases.py`.
+- **The IF run's training data is reconstructed exactly.** open-instruct's path at
+  d928a7c samples 13,314 of the 88,556 source rows with `RandomState(42)`; the
+  length filter keeps 13,179. Dolci-RL-Zero-IF-7B is that filtered set in the run's
+  pre-shuffle order, with every prompt identical byte for byte, so the released set
+  and the run's set are the same. Our tokenizer (transformers 5.x) counts one kept
+  prompt at 2,049 tokens where the run's counted at most 2,048, which is why the set
+  is taken from Dolci after checking the order, not from our own filter; with one row
+  fewer every later permutation would differ.
+- **The per-step prompt stream is reconstructed**: `Dataset.shuffle(seed=1)` then
+  open-instruct's `ShufflingIterator` (seed 1, 32 per step), recorded for steps 1 to
+  2000. ES iteration `i` can see exactly the prompts RL step `i` saw.
+- Prompt lengths under `olmo_thinker`: median 223 tokens, mean 285, p95 592, max 2,018
+  (our tokenizer, the rows our filter kept).
+- For the backend: vLLM's prefix caching must be off (or reset per member) under
+  full-rank ES, since KV computed under one member's weights is wrong for the next.
 
 ## Phases and gates
 
