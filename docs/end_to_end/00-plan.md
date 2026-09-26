@@ -1,7 +1,8 @@
 # 00. Plan: ES fine-tuning against released RL checkpoints
 
-Status 2026-09-26: Phase 0 and the throughput probe are done (results below). Paused
-for assessment; nothing further runs without a go.
+Status 2026-09-26: Phase 0 and the throughput probe are done (results below). Andres
+chose option 5: Tulu 3.1 first, planned in `01-tulu31-plan.md`. Nothing further runs
+without a go.
 
 ## The question
 
