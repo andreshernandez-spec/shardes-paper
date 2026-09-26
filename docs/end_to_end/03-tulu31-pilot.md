@@ -65,3 +65,20 @@ batches (center plus 16 members) plus the member writes and the update, about 5.
 minutes; 30 iterations about 2.75 h per arm. Three pods for about 3 h each, the random
 arm chained after one of them (it decodes only the center, about 12 minutes): about
 $25-35 at $2.69-3.49/h. All pods deleted after harvest.
+
+## Amendment, 2026-09-27, before any pilot data
+
+**GPU type: H200 SXM (141 GB) instead of H100 80GB, for every arm, and therefore for the
+matched run and its evaluation.** The first arm, started on an H100, loaded the f32
+master (8.03B parameters, 30 GiB) beside vLLM's half of the card and reached 80.7 GB,
+surviving only because JAX's allocator retried with smaller blocks; the update's
+temporaries would not fit. It then stopped at iteration 0 on a bug in our weight check
+(vLLM pads the vocabulary from 128,264 to 128,320 rows; the check refused the padding,
+fixed in the next commit). It had decoded and scored iteration 0's center before the
+check stopped it, but the log line is written at the end of an iteration, so that value
+was never logged or printed, and no member was decoded. No pilot data exists from that
+pod, and the random arm it had started was stopped before
+its first iteration, since the arms are compared pairwise and must share a GPU type.
+Price: $3.59/h against the $3.49 the H100 has cost us on Secure Cloud; the H200 decodes
+faster (4.8 against 3.35 TB/s), so per result it should cost no more. The configs are
+unchanged: `gpu_memory_utilization` is a fraction of the card.

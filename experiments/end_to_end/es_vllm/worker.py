@@ -67,6 +67,7 @@ class ESWorker:
 
     def es_init(self, model_dir: str, n: int, sigma: float, lr: float, seed: int) -> dict:
         self._es_master = load_master(model_dir)
+        torch.cuda.empty_cache()  # the bf16 staging tensors, back to the device for JAX
         self._es_names = stream.leaf_names(self._es_master)
         self._es_n, self._es_sigma, self._es_lr = int(n), float(sigma), float(lr)
         self._es_key = jax.random.key(seed)
@@ -132,7 +133,7 @@ class ESWorker:
     def es_check(self, i=None) -> dict:
         """Bit-for-bit comparison of the engine's weights with member `i` or the view."""
         self._es_index = {name: k for k, name in enumerate(self._es_names)}
-        seen, bad = set(), []
+        seen, bad, padded = set(), [], {}
         for name, param in self.model_runner.model.named_parameters():
             parts = [name]
             for packed, pieces in PACKED.items():
@@ -150,10 +151,16 @@ class ESWorker:
                 offset += rows
                 seen.add(p)
             if offset != got.shape[0]:
-                bad.append(f"{name}: {offset} rows expected, engine has {got.shape[0]}")
+                # vLLM pads the vocabulary to a multiple of 64 (Tulu's 128,264 rows become
+                # 128,320); the padding rows are no token's and are never compared.
+                vocab = name.endswith(("embed_tokens.weight", "lm_head.weight"))
+                if vocab and offset < got.shape[0]:
+                    padded[name] = int(got.shape[0] - offset)
+                else:
+                    bad.append(f"{name}: {offset} rows expected, engine has {got.shape[0]}")
         missing = sorted(set(self._es_names) - seen)
         return {"checked": len(seen), "mismatched": bad[:10], "unchecked": missing[:10],
-                "ok": not bad and not missing}
+                "vocab_padding_rows": padded, "ok": not bad and not missing}
 
     def es_digest(self) -> str:
         """sha256 over the view's bytes, leaf by leaf in name order: what a rebuild from
