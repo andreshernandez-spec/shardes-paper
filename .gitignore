@@ -14,3 +14,6 @@ experiments/phase1/kaggle/output/
 experiments/phase2/results-rehearsal/
 experiments/phase2/env.json
 experiments/phase2/figures-rehearsal/
+.venv-*/
+# Probe smoke runs debug the driver on a small model; never a result.
+experiments/end_to_end/probe/results-smoke/

@@ -1,0 +1,9 @@
+# The ES-vs-RL paper's vLLM side: the throughput probe now, the ES rollout backend later.
+# Its own venv, like requirements-grpo.txt: torch's CUDA stack and a CUDA jaxlib are
+# never installed together by accident. The library arrives through requirements.txt
+# with jax for CPU only; the probe keeps JAX off the GPU.
+#
+#     python -m venv .venv-vllm && .venv-vllm/bin/pip install -r experiments/end_to_end/requirements-vllm.txt
+-r ../../requirements.txt
+vllm==0.30.0
+pyarrow           # the probe reads prompts from the pinned parquet sources
