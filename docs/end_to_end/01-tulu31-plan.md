@@ -98,15 +98,17 @@ outputs differ between A100 and H100).
 
 **Total to a first result: about $200-300 with one seed.**
 
-## Decisions still open
+## Decisions (Andres, 2026-09-26)
 
-1. **Greedy or temperature 1 for ES rollouts.** The RL run sampled at 1.0. Greedy is the
-   usual ES choice, deterministic, and what the probe priced (Tulu responses ~300 tokens
-   either way is untested at 1.0). Recommendation: greedy, sampled as an ablation later.
-2. **Prompts per member.** 192 (four RL steps per ES iteration, keeping the run's prompt
-   order; 2.2x cheaper per rollout than 48) or 48 (one RL step per iteration, 4x the
-   iterations). Recommendation: 192.
-3. **Keep T2**, the Countdown check against Qiu's code. Recommendation: yes; it is the
-   cheapest way to find a backend bug before it costs a 38 GPU-hour run.
-4. **One GPU or an 8-GPU node for T5**: the same cost, 5 h against 1.6 days, and 8-GPU
-   stock is intermittent.
+1. **Greedy ES rollouts**; temperature 1.0 (the RL run's) as a later ablation.
+2. **192 prompts per member**: four RL steps per ES iteration, in the run's own prompt
+   order; 2.2x cheaper per rollout than 48.
+3. **Keep T2**, the Countdown check against Qiu's code.
+4. **One GPU for T5 is fine even if it takes days**, as long as the run is equivalent.
+   It is: the same algorithm, data, prompt order and rollout budget, and shardes' update
+   does not depend on the device count. What must not change is the GPU type, for the run
+   and for the evaluation of its checkpoints, since greedy outputs differ between A100 and
+   H100. The two cost the same per result ($127-145 A100, $122-159 H100, measured); an
+   H100 takes ~1.6 days against ~3.8, halving the exposure to a community host reclaiming
+   the pod, and the run resumes from its fitness log either way. Leaning H100; confirmed
+   at the pilot by availability.
