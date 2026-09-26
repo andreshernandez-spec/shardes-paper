@@ -16,10 +16,7 @@ with lower losses and away from those with higher losses. Ranking makes the upda
 insensitive to strictly increasing transformations of the scores.
 
 \emph{Mirrored} sampling evaluates each perturbation $\epsilon$ together with
-$-\epsilon$, so $N$ candidates use $N/2$ independent directions. No gradient is needed
-to train. In Section~\ref{sec:quality} we compute a gradient only as a reference and
-measure \emph{alignment}, $\cos(\Delta\theta,-\nabla L)$, between an ES update and
-the direction that locally decreases a differentiable loss $L$.
+$-\epsilon$, so $N$ candidates use $N/2$ independent directions.
 
 \paragraph{Two separate choices.} The perturbation design determines how candidates
 are represented and evaluated. The update placement determines where the weighted sum

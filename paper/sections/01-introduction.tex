@@ -1,52 +1,60 @@
 % Main claim: update placement trades repeated computation for communication.
 \section{Introduction}
 
-Evolution strategies (ES) train a network without backpropagation: perturb the weights
-with random noise, score each perturbed model, and move the weights toward the candidates
-that scored well. The candidates form a \emph{population}. Their evaluations can run
-independently, making ES attractive when many devices are available.
+Evolution strategies (ES) train a network without backpropagation: in each iteration,
+called a \emph{generation}, they evaluate a \emph{population} of randomly perturbed
+copies of the weights, called \emph{candidates}, and move the weights toward the
+candidates that scored well. Their evaluations are independent, so the work of one
+generation can be divided across many devices.
 
-Distributed ES is often described as cheap to communicate because devices exchange only
-scalar fitness scores \citep{salimans2017}. Those scores are enough to reconstruct the
-update when every device can regenerate the perturbations. But each device must then
-repeat the entire reconstruction. An alternative is to reconstruct a partial update on
-each device and add the partial updates with an \emph{all-reduce}, an operation that
-returns their sum to every device. This sends a model-sized array, but divides the
-reconstruction work across devices.
+The standard account of distributed ES is that devices need to exchange only one number
+per candidate, its fitness score \citep{salimans2017}. These scores are enough to
+reconstruct the weight update when every device can regenerate the perturbations from
+shared random seeds. Every device then repeats the entire reconstruction, which we call
+\emph{replication}. Alternatively, each device can reconstruct only the part of the
+update that comes from its own candidates, and the devices add these partial updates
+with an \emph{all-reduce}, an operation that returns their sum to every device. This
+approach, which we call \emph{splitting}, divides the reconstruction work across
+devices, but the all-reduce moves a model-sized array.
 
-For example, with four devices and 100 candidates, each device evaluates 25 candidates.
-After collecting the scores, every device can reconstruct the update from all 100
-perturbations, or reconstruct its own 25 contributions and combine the partial updates.
-The choice is whether the saved computation is worth the added communication.
+For example, with four devices and 100 candidates, each device evaluates 25 candidates,
+and the devices then share all 100 fitness scores. Under replication, every device
+reconstructs the update from all 100 perturbations; under splitting, each device
+reconstructs a partial update from its own 25, and an all-reduce sums the four partial
+updates. Splitting is faster when the computation it saves outweighs the communication
+it adds.
 
-The perturbation design changes this balance. \citet{qiu2025} use full-rank Gaussian
-noise, regenerated from a seed whenever needed, which saves memory but makes update
-reconstruction expensive. EGGROLL \citep{eggroll2025} uses products of thin matrices as
-low-rank perturbations. These permit efficient batched evaluation with a shared base
-weight matrix and make the update cheap to reconstruct. Neither paper compares update placements, and they do not compare both perturbation
-designs in one implementation. Existing systems illustrate two ways of keeping the
-complete reconstruction together: Algorithm 2 of \citet{salimans2017} repeats it on
-every worker, while EGGROLL's vLLM setup reconstructs on a primary rank and broadcasts
-the updated model \citep[Appendix L.2]{eggroll2025}. We test whether dividing that
-reconstruction work is worth its communication cost.
+The perturbation design changes this balance. \citet{qiu2025} perturb every weight
+independently (full-rank noise) and regenerate the noise from a seed instead of storing
+it, so reconstructing the update means generating a model-sized noise array again for
+every candidate. EGGROLL \citep{eggroll2025} perturbs each weight matrix by the product
+of two thin matrices (low-rank noise), so reconstructing the update needs only those
+thin factors. Existing systems reconstruct the complete update without dividing it:
+Algorithm 2 of \citet{salimans2017} uses replication, while EGGROLL's vLLM setup
+reconstructs the update on one primary device and broadcasts the updated model
+\citep[Appendix L.2]{eggroll2025}. None of these papers compares the two \emph{update
+placements}, replication and splitting, or tests both perturbation designs in one
+implementation. We measure when splitting is faster than replication.
 
-We built a JAX \citep{jax2018} library\ifanonymous\else, \textbf{shardes} \citep{shardes},\fi{} to make that
-comparison. Every device holds the complete model; the population is what is split
-across devices. The library supports both perturbation designs under both placements,
-so their costs can be compared with the same model and evaluation code. We ask three
-questions:
-\begin{itemize}
-  \item \textbf{When does splitting the update pay?} A timing model explains the balance
-    between repeated computation and communication. On the block benchmark, splitting
-    wins for full-rank noise on a single host, while replication wins for rank-1 noise
-    at the larger matrix width.
-  \item \textbf{Does the result carry over?} The placement preference holds on
-    Qwen2.5-0.5B on the TPU. Across a slow connection between hosts, replication wins
-    for large full-rank updates too.
-  \item \textbf{Do cheaper perturbations remain useful?} On matched block configurations,
-    rank-1 generation time is 0.22 times the dense time on the A100 and 0.08 times on
-    the v5e. The tested ranks have close one-update alignment and reach similar observed
-    final Countdown accuracy, but differ early in training.
+We built a JAX \citep{jax2018} library\ifanonymous\else, \textbf{shardes}
+\citep{shardes},\fi{} to make this measurement. Every device holds a complete copy of
+the model, and the population is divided among the devices. The library supports both
+perturbation designs under both placements, so all four combinations share the same
+model and evaluation code and their costs can be compared directly. We ask three
+questions:\begin{itemize}
+  \item \textbf{When is splitting faster than replication?} We first measure eight
+    devices in one host, linked by a fast interconnect (NVLink on the A100s, ICI on the
+    TPU). There, splitting is faster for every full-rank configuration of a single
+    transformer block, and replication is faster for rank-1 noise at width 2048. A timing
+    model that compares the reconstruction time saved with the communication time added
+    agrees with all 30 configurations in which the two placements are clearly separated
+    by repeated measurements.
+  \item \textbf{Does the result hold for a real model and across hosts?} On
+    Qwen2.5-0.5B on the TPU, the faster placement is the same as on the block: splitting
+    for full rank, replication for low rank. Across a slow connection between two A100
+    hosts, replication is faster for both perturbation types at width 2048, reversing
+    the full-rank result.
+  \item \textbf{What do low-rank perturbations save?} On the block, a rank-1 generation
+    takes 0.22 times as long as one with stored full-rank noise on the A100, and 0.08 times
+    as long on the v5e.
 \end{itemize}
-The placement measurements are the main result. The learning experiments check the
-practical relevance of the cheaper perturbations within one model family and one task.
