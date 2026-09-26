@@ -1,7 +1,7 @@
 # 00. Plan: ES fine-tuning against released RL checkpoints
 
-Status 2026-09-26: plan. Phase 0 is done (results below); the throughput probe is
-built and waiting for a pod; nothing after the probe runs without a go.
+Status 2026-09-26: Phase 0 and the throughput probe are done (results below). Paused
+for assessment; nothing further runs without a go.
 
 ## The question
 
@@ -165,15 +165,43 @@ Records: `experiments/end_to_end/pins/` and `experiments/end_to_end/data/olmo3_i
 - For the backend: vLLM's prefix caching must be off (or reset per member) under
   full-rank ES, since KV computed under one member's weights is wrong for the next.
 
+## Throughput probe results (2026-09-26)
+
+Full record: `experiments/end_to_end/probe/README.md`. Cost of an ES run matched to the
+released checkpoint, measured per 32-, 48- or 192-prompt member batch, 1.2x uptime:
+
+- **Tulu 3.1: $122-159** at 192 prompts per member, on A100 or H100 alike; $41-53 to
+  step 640. The estimate above held.
+- **Olmo 3 RL-Zero IF: $4,800-6,200 greedy, $1,850-2,100 at temperature 1.0.** The
+  estimate above was off by 50x. Under greedy decoding the base model runs to the
+  16,384-token cap on about half the prompts; sampled at the run's temperature it stops
+  looping, but averages 2,873 tokens (p90 6,556), and a full-rank member waits for its
+  longest sample.
+- Greedy outputs differ between A100 and H100 on most prompts, so a run and its
+  evaluation stay on one GPU type.
+- A full weight rewrite costs 12-19 ms per member: negligible.
+
+Options for the Olmo 3 setting, for the assessment (none decided):
+
+1. A lower response cap (2,048 to 4,096). Bounds each member's time; the RL run's cap was
+   16,384, but it also masked truncated completions, so its gradient never came from
+   them. Costs fidelity to the run's generation budget.
+2. More prompts per member for the same rollouts (fewer, larger iterations): on Tulu,
+   4x the prompts cost 2.2x less per rollout.
+3. EGGROLL mode through per-request LoRA: every member in one continuously batched
+   engine, so no member waits alone for its longest sample. This is the scheduling
+   advantage the plan wanted measured; it now has a measured reason, and is unmeasured
+   itself.
+4. Stop a response when it starts repeating, scored as a failure.
+5. Swap the order: Tulu 3.1 first, since it is affordable as designed.
+
 ## Phases and gates
 
 - **Phase 0, desk.** Pin every release by LFS hash; record the run's logged config;
   rebuild the Olmo 3 IF training set and prompt stream and compare with Dolci; pin the
   Tulu 3.1 data and code.
-- **Throughput probe.** About one GPU-hour each on an A100 and an H100: vLLM, both
-  models, real prompts, templates and caps, per-member batch shapes; measures tokens/s
-  and the greedy length distribution. Replaces the cost estimates below. **Pause and
-  assess here.**
+- **Throughput probe.** Done 2026-09-26, about $3.9 (results above). **Paused here for
+  assessment.**
 - Phase 1: the vLLM backend for shardes, export, harness. Gate G1: harness reproduces
   the published numbers above.
 - Phase 2: implementation check against Qiu's released ES code on Countdown at 0.5B or
@@ -182,7 +210,7 @@ Records: `experiments/end_to_end/pins/` and `experiments/end_to_end/data/olmo3_i
   G3: one sigma climbs clearly above the random-reward walk.
 - Phase 4: the ES runs at matched rollouts; Phase 5: evaluation and write-up.
 
-## Cost model (estimates until the probe)
+## Cost model (the pre-probe estimates, kept for the record; superseded above)
 
 One Olmo 3 IF ES run matched to step 2000 (512,000 rollouts; ~250 prompt tokens each;
 mean response length L unknown until the probe). Assumed throughput: A100 decode 2-3k
