@@ -5,7 +5,7 @@
     python timemodel.py --json out.json       # the same rows as JSON
     python timemodel.py --fabric 120e-6,12.5e9 --label "25 GbE"   # predict another fabric
 
-Section 4 of the paper commits a byte count before the measurement and Section 6 reports
+The paper commits a byte count before the measurement and Section 6 reports
 end-to-end seconds. Nothing converts one into the other, so the sentence "B wins whenever
 the contraction it avoids costs more than those bytes" is an assertion: bytes reach time
 through an achieved bandwidth that is itself a function of message size, and the same byte
@@ -15,7 +15,7 @@ The model has one line and no free parameters once the two harnesses have run:
 
     t_A - t_B = C(N, d) (D - 1) / D  +  ag(4N)  -  ar(4P)
 
-  C(N, d)   the replicated contraction, measured by `contraction_isolation.py`
+  C(N, d)   the reconstruction probe slope minus its included weight gather
   ar, ag    the two collectives at their real payloads, measured by `allreduce_ladder.py`
             as an in-program step cost, alpha + bytes / beta between its grid points
   P = 6 d^2 for the block (six square matrices, `problems/transformer_block.py`)
@@ -25,10 +25,10 @@ close it. That mode needs no contraction records and is what the residual table 
 where the solved C disagrees with the measured one, the difference is cost the two isolated
 harnesses do not see, and saying so is the point of the exercise.
 
-WHAT THIS IS AND IS NOT. Section 4's byte model was committed before E4 and E7, and this
+WHAT THIS IS AND IS NOT. The byte model was committed before E4 and E7, and this
 one was not: it is calibrated on the single-host grids it is checked against, so it is an
 explanation, not a prediction. `--fabric` is where it becomes a prediction, and
-`docs/11-e18b-preregistration.md` is that prediction written down before the rental.
+`docs/12-e18b-preregistration.md` is that prediction written down before the rental.
 """
 from __future__ import annotations
 
@@ -36,6 +36,7 @@ import argparse
 import collections
 import json
 import pathlib
+import statistics
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -141,10 +142,20 @@ def load_contraction(kind: str, devices=DEVICES) -> dict:
     return out
 
 
+def compute_seconds(record: dict, gather_seconds: float) -> float:
+    """Remove A's weight gather from its recorded reconstruction-probe slope.
+
+    Historical records include this gather in ``contraction_seconds``. Keep those
+    records intact and subtract it here, before adding the communication terms.
+    """
+    return record["contraction_seconds"] - gather_seconds
+
+
 def rows(platform: str, spec: dict, devices=DEVICES, fabric: Fabric | None = None) -> list:
     sweep = load_sweep(spec["sweeps"], devices)
     contr = load_contraction(spec["kind"], devices)
-    fab = fabric or Fabric.from_ladder(HERE / spec["ladder"], platform)
+    measured_fab = Fabric.from_ladder(HERE / spec["ladder"], platform)
+    fab = fabric or measured_fab
     out = []
     for (strategy, d_model, n), t in sorted(sweep.items()):
         ar = fab.allreduce(params_bytes(d_model))
@@ -153,13 +164,14 @@ def rows(platform: str, spec: dict, devices=DEVICES, fabric: Fabric | None = Non
         # Backwards: the contraction that would close this cell.
         c_solved = (delta - ag + ar) * devices / (devices - 1)
         rec = contr.get((strategy, d_model, n))
-        c_meas = rec["contraction_seconds"] if rec else None
+        measured_ag = measured_fab.allgather(BYTES_PER_F32 * n)
+        c_meas = compute_seconds(rec, measured_ag) if rec else None
         # With the isolation records the two modelled terms become measured ones: the
         # saving is C - C_local, not C (D-1)/D, because the contraction does not shard
         # at 1/D; and the collective is the psum this program actually issues, not the
         # ladder's psum in an empty one.
         if rec is not None:
-            saving = rec["contraction_seconds"] - rec["contraction_local_seconds"]
+            saving = c_meas - rec["contraction_local_seconds"]
             pred = saving + ag - rec["allreduce_insitu_seconds"]
         else:
             pred = None
@@ -171,7 +183,7 @@ def rows(platform: str, spec: dict, devices=DEVICES, fabric: Fabric | None = Non
             "contraction_solved": c_solved,
             "contraction_measured": c_meas,
             "contraction_local_measured": rec["contraction_local_seconds"] if rec else None,
-            "shard_ratio": rec["shard_ratio"] if rec else None,
+            "shard_ratio": c_meas / (devices * rec["contraction_local_seconds"]) if rec else None,
             "allreduce_insitu": rec["allreduce_insitu_seconds"] if rec else None,
             "allreduce_insitu_over_ladder": (rec["allreduce_insitu_seconds"] / ar) if rec else None,
             "delta_predicted": pred,
@@ -250,6 +262,15 @@ def summary(rows_) -> list[str]:
                            if r["d_model"] == 512]),
                       rng([r["allreduce_insitu_over_ladder"] for r in sel
                            if r["d_model"] == 2048])))
+    known = [r for r in rows_ if r["delta_predicted"] is not None]
+    if known:
+        residuals = [abs(r["delta_measured"] - r["delta_predicted"]) * 1e3 for r in known]
+        misses = [abs(r["delta_measured"]) * 1e3 for r in known if not r["sign_agrees"]]
+        out.append("median absolute residual: %.3f ms" % statistics.median(residuals))
+        out.append("measured gaps at disagreements (ms): " + ", ".join(f"{v:.3f}" for v in misses))
+        large_low = [r for r in known if r["strategy"] in LOW_RANK and r["d_model"] == 2048]
+        out.append("large low-rank absolute residual (ms): " + rng([
+            abs(r["delta_measured"] - r["delta_predicted"]) * 1e3 for r in large_low], "%.3f"))
     return out
 
 

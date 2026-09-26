@@ -77,7 +77,7 @@ def main(argv=None) -> int:
             r"\begin{table*}[t]", r"\centering", r"\small",
             r"\caption{What one real-model update costs, in ms (Qwen2.5-0.5B, one "
             r"ask, next-token loss and tell on the fixed prompt batch, TPU v5e-8, "
-            r"median of five repeats). Each entry is the faster of the two placements; "
+            r"median of five repeats). Each entry is the faster placement (split for full rank at multiple devices, replicated for low rank); "
             r"Figure~\ref{fig:f9} gives the ratio between them. OOM: neither placement "
             r"fits a 16\,GB chip at that shape.}",
             r"\label{tab:tb5}",

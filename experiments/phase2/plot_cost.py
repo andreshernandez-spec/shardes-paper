@@ -136,6 +136,53 @@ def panel(ax, cells: dict, strategy: str, dtype: str, dims, pops, norm) -> None:
         spine.set_visible(False)
 
 
+def common_comparison(platforms: dict, dtype: str, out: pathlib.Path) -> None:
+    """Matched feasible configurations, separated from the full memory grid."""
+    if len(platforms) != 2:
+        return
+    kinds = sorted(platforms)
+    comparable = []
+    for kind in kinds:
+        cs = platforms[kind]
+        comparable.append({(d, n) for d, n, strategy, dt in cs
+                           if strategy == BASELINE and dt == dtype
+                           and all(cs.get((d, n, st, dt)) not in (None, OOM)
+                                   for st in [BASELINE, *STRATEGIES])})
+    configs = sorted(set.intersection(*comparable))
+    if not configs:
+        raise ValueError("no common feasible configurations")
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.5), sharey=True)
+    for ax, strategy in zip(axes, STRATEGIES):
+        for kind, color, marker in zip(kinds, ("#256abf", "#eb6834"), ("o", "^")):
+            cs = platforms[kind]
+            vals = [cs[d, n, strategy, dtype] / cs[d, n, BASELINE, dtype] for d, n in configs]
+            ax.plot(vals, range(len(configs)), linestyle="none", marker=marker, ms=7,
+                    color=color, label="A100" if "A100" in kind else "TPU v5e")
+        ax.axvline(1, color=MUTED, lw=1)
+        ax.set_xscale("log")
+        ax.set_xlabel("generation time / stored full-rank time")
+        ax.set_title("Regenerated full rank (seed)" if strategy == "seed_regenerated"
+                     else "Rank-1 perturbations", fontsize=11, loc="left")
+        ax.grid(axis="x", color="#e6e6e3")
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+    axes[0].set_yticks(range(len(configs)), labels=[f"d={d}, N={n}" for d, n in configs])
+    axes[0].invert_yaxis()
+    axes[0].set_xticks([1, 2, 5, 10], labels=["1", "2", "5", "10"])
+    axes[0].set_xlim(0.85, 10)
+    axes[1].set_xticks([0.05, 0.1, 0.2, 0.5, 1], labels=["0.05", "0.1", "0.2", "0.5", "1"])
+    axes[1].set_xlim(0.035, 1.15)
+    for ax in axes:
+        ax.xaxis.set_minor_locator(NullLocator())
+    fig.legend(*axes[0].get_legend_handles_labels(), loc="lower center", ncol=2,
+               frameon=False, fontsize=10)
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    dest = out / f"f4-cost-common-{dtype}.png"
+    fig.savefig(dest, dpi=200)
+    plt.close(fig)
+    print(dest)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", type=pathlib.Path, nargs="+",
@@ -185,6 +232,8 @@ def main(argv=None) -> int:
     out = args.out / f"f4-cost-{args.dtype}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print(out)
+    plt.close(fig)
+    common_comparison(platforms, args.dtype, args.out)
     return 0
 
 

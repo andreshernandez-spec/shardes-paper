@@ -1,53 +1,59 @@
-% CLAIM: none of ours. The update, the two published designs, the names used below.
 \section{Background}
 \label{sec:background}
 
-\paragraph{The update.} With weights $\theta$, noise scale $\sigma$ and a population of
-$N$ random perturbations $\epsilon_i$, ES scores every perturbed copy,
-$f_i = f(\theta+\sigma\epsilon_i)$, and moves $\theta$ by
+\paragraph{The update.} Let $\theta$ contain the model's $P$ parameters. A generation
+(one training update) evaluates $N$ perturbed candidates,
+$f_i=f(\theta+\sigma\epsilon_i)$, where $\sigma$ sets the noise scale. It then updates
 \begin{equation}
   \Delta\theta = -\frac{\eta}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
   \label{eq:update}
 \end{equation}
-where $\eta$ is the learning rate and the weights $w_i$ come from the fitnesses
-\citep{wierstra2014,nesterov2017}. The fitness is a loss to be minimized (a reward
-enters negated), and $w_i$ is its centered rank \citep{salimans2017}: the rank of $f_i$,
-scaled to $[-\tfrac12,\tfrac12]$, so $\theta$ moves toward the perturbations that scored
-low and away from those that scored high. Ranks make the update ignore any strictly
-increasing transformation of the fitness. Where the weighted sum in
-Eq.~\ref{eq:update} is computed is the subject of this paper.
-\emph{Mirrored} (antithetic) sampling evaluates each $\epsilon$ together with $-\epsilon$,
-so $N$ members are $N/2$ independent directions. No gradient flows through the model;
-the gradient appears only as a reference in Section~\ref{sec:quality}, where we report
-$\cos(\Delta\theta, -\nabla L)$, the cosine between the update and the
-gradient-descent direction of a loss $L$, as \emph{alignment}.
+where $\eta$ is the learning rate and $w_i$ is computed from candidate $i$'s score
+\citep{wierstra2014,nesterov2017}. Here a fitness score is a loss to minimize; rewards
+enter negated. We use \emph{centered ranks}: scores are ranked and scaled to
+$[-\tfrac12,\tfrac12]$ \citep{salimans2017}. The update moves toward perturbations
+with lower losses and away from those with higher losses. Ranking makes the update
+insensitive to strictly increasing transformations of the scores.
 
-\paragraph{Two designs.} \citet{qiu2025} keep full-rank Gaussian noise and store none of
-it: each member's noise is regenerated from its seed when it is needed, once to evaluate
-and once to form the sum. Nothing model-sized is kept per member, at the price of
-generating every perturbation twice. They fine-tune billion-parameter models with
-populations as small as 30. EGGROLL \citep{eggroll2025} makes the noise cheap instead:
-each $m\times n$ weight matrix is perturbed by $AB^\top/\sqrt r$ with $A$ and $B$ thin
-Gaussian factors of rank $r$, and always in mirrored pairs. It reports populations in the
-tens of thousands. Table~\ref{tab:arms} gives the name each variant has in the rest of
-the paper.
+\emph{Mirrored} sampling evaluates each perturbation $\epsilon$ together with
+$-\epsilon$, so $N$ candidates use $N/2$ independent directions. No gradient is needed
+to train. In Section~\ref{sec:quality} we compute a gradient only as a reference and
+measure \emph{alignment}, $\cos(\Delta\theta,-\nabla L)$, between an ES update and
+the direction that locally decreases a differentiable loss $L$.
+
+\paragraph{Two separate choices.} The perturbation design determines how candidates
+are represented and evaluated. The update placement determines where the weighted sum
+in Eq.~\ref{eq:update} is computed. We vary both choices independently.
+
+Full-rank Gaussian noise perturbs every weight independently. It can be stored as a
+full array for every candidate (\emph{dense}) or regenerated from a seed when needed
+(\emph{seed}) \citep{qiu2025}. The latter avoids persistent model-sized noise arrays
+per candidate, at the cost of generating the noise for evaluation and again for the update.
+
+Low-rank noise represents the perturbation of an $m\times n$ weight matrix as
+$UV^\top/\sqrt r$, where $U$ is $m\times r$ and $V$ is $n\times r$. Rank 1 uses
+one column in each factor. The factors store $r(m+n)$ values instead of $mn$, and the
+full perturbation matrix need not be formed \citep{eggroll2025}. Each perturbation has
+rank at most $r$; the weighted sum over candidates can have higher rank.
+Table~\ref{tab:arms} fixes the names used below. Unless qualified, \emph{rank $r$}
+means mirrored sampling.
 
 \begin{table}[t]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\caption{The perturbation arms and their names in the text, figures and tables.}
+\caption{Perturbation variants. Dense and seed use the same full-rank noise distribution;
+  their storage differs. Pairing is a separate choice.}
 \label{tab:arms}
-\begin{tabular}{lp{0.62\linewidth}}
+\begin{tabular}{llll}
 \toprule
-name & what it is \\
+name & noise & storage & paired? \\
 \midrule
-dense & full-rank Gaussian noise, stored for every member: the baseline \\
-seed & full-rank noise regenerated from a per-member seed \citep{qiu2025} \\
-seed, mirrored & the same, in mirrored pairs (the full-rank arm of Section~\ref{sec:quality}) \\
-rank $r$ & rank-$r$ noise kept as two thin factors, the full perturbation matrix never formed, in mirrored pairs \citep{eggroll2025} \\
-rank $r$, unpaired & the same without pairing \\
-naive & every member gets its own copy of the weights; used only in Table~\ref{tab:tb1} \\
+dense & full rank & full arrays & no \\
+seed & full rank & regenerated & no \\
+seed, mirrored & full rank & regenerated & yes \\
+rank $r$ & low rank & thin factors & yes \\
+rank $r$, unpaired & low rank & thin factors & no \\
 \bottomrule
 \end{tabular}
 \end{table}

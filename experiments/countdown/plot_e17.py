@@ -50,7 +50,13 @@ def repeat_range(strategy, n, d):
 def main() -> None:
     pops = sorted({int(f.name.split("N=")[1].split("__")[0]) for f in RESULTS.glob("s=*.json")})
     arms = [(s, l) for s, l in ARMS if any(RESULTS.glob(f"s={s}__*.json"))]
-    fig, axes = plt.subplots(1, len(arms), figsize=(2.4 * len(arms), 2.7), sharey=True, squeeze=False)
+    fig = plt.figure(figsize=(2.4 * len(arms), 3.8))
+    grid = fig.add_gridspec(2, len(arms), height_ratios=(3.2, 1), hspace=0.42)
+    axes = [[]]
+    memory_axes = []
+    for j in range(len(arms)):
+        axes[0].append(fig.add_subplot(grid[0, j], sharey=axes[0][0] if j else None))
+        memory_axes.append(fig.add_subplot(grid[1, j]))
     for ax, (strategy, label) in zip(axes[0], arms):
         for n in pops:
             xs, ys = [], []
@@ -84,16 +90,32 @@ def main() -> None:
         ax.grid(True, color="#e6e6e3", lw=0.8)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-    axes[0][0].set_ylabel(r"$t_B / t_A$")
-    axes[0][0].text(1.05, 1.8, "replicated (A) faster", color="#52514e", fontsize=8, va="top")
-    axes[0][0].text(1.05, 0.62, "all-reduce (B) faster", color="#52514e", fontsize=8)
+    for mem, (strategy, _) in zip(memory_axes, arms):
+        for i, n in enumerate(pops):
+            for j, d in enumerate(DEVICES):
+                a, b = cell(strategy, "A", n, d), cell(strategy, "B", n, d)
+                missing = a is None or b is None
+                oom = a == "oom" or b == "oom"
+                mem.text(j, i, "?" if missing else "x" if oom else ".",
+                         ha="center", va="center", color="#777777" if oom else SHADES[n],
+                         fontsize=10 if oom else 15)
+        mem.set(xlim=(-0.5, 3.5), ylim=(len(pops)-0.5, -0.5))
+        mem.set_xticks(range(4), labels=DEVICES)
+        mem.set_yticks(range(len(pops)), labels=[str(n) for n in pops])
+        mem.tick_params(length=0, labelsize=8)
+        mem.spines[["top", "right", "bottom", "left"]].set_visible(False)
+        mem.set_xlabel("devices; x = OOM, dot = fits", fontsize=8)
+    memory_axes[0].set_ylabel("population N", fontsize=8)
+    axes[0][0].set_ylabel("split / replicated time")
+    axes[0][0].text(1.05, 1.8, "replication faster", color="#52514e", fontsize=8, va="top")
+    axes[0][0].text(1.05, 0.62, "splitting faster", color="#52514e", fontsize=8)
     handles = {}
     for ax in axes[0]:
         for h, l in zip(*ax.get_legend_handles_labels()):
             handles.setdefault(l, h)
     fig.legend(handles.values(), handles.keys(), frameon=False, fontsize=10,
                loc="lower center", ncol=len(handles), bbox_to_anchor=(0.5, -0.02))
-    fig.tight_layout(rect=(0, 0.09, 1, 1))
+    fig.subplots_adjust(left=0.07, right=0.98, top=0.91, bottom=0.2, wspace=0.28)
     FIGURES.mkdir(exist_ok=True)
     out = FIGURES / "f9-e17-crossover.png"
     fig.savefig(out, dpi=200)

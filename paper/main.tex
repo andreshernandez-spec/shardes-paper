@@ -18,9 +18,7 @@
 \usepackage{natbib}
 \usepackage{tikz}
 \usetikzlibrary{positioning}
-% No float barrier at section boundaries: with the full-width tables of Section 6 it
-% left half of a page empty. Every float sits at the top of a page ([t]), and a page may
-% carry two full-width floats, so Section 6's figures stay next to their text.
+% Allow full-width figures and tables near the discussion they support.
 \usepackage[hidelinks]{hyperref}
 
 \renewcommand{\dbltopfraction}{0.85}
@@ -33,7 +31,7 @@
 % The experiments' repository, or a neutral phrase in the anonymous build.
 \newcommand{\paperurl}{\ifanonymous the experiments' repository (withheld for review)\else\url{https://github.com/andreshernandez-spec/shardes-paper}\fi}
 
-\title{Scalars or all-reduce? Placing the update in sharded evolution strategies on GPUs and TPUs}
+\title{Where should distributed evolution strategies compute the update?\\A study on GPUs and TPUs}
 \ifanonymous
 \author{Anonymous authors}
 \else
@@ -46,7 +44,20 @@
 \maketitle
 
 \begin{abstract}
-Evolution strategies (ES) are often described as cheap to distribute because devices exchange only scalar fitness scores. This approach still requires every device to reconstruct the full parameter update. We compare it with splitting that computation across devices and combining partial updates with an all-reduce. Using shardes, a joint JAX implementation, we study full-rank and low-rank perturbations on A100 GPUs and TPU v5e chips, with a transformer-block benchmark and Qwen2.5-0.5B. The faster placement depends on whether the computation saved outweighs the communication added. On the block benchmark with eight devices in one host, all-reduce gives 1.2–5.6× speedups for full-rank perturbations. For low-rank perturbations at the larger matrix width, it takes 4–46\% longer than replication. Qwen2.5-0.5B shows the same placement tradeoff, while a slow connection between two A100 hosts makes replication faster for large full-rank updates. At equal population, rank-1 updates align with the loss-reducing gradient direction about as well as full-rank updates at 0.5B and 1.5B parameters. On Countdown, the tested ranks reach similar final accuracy: full rank learns faster per sample early on, while rank-1 updates run 1.44× faster with matched evaluation batching. Code, configurations, and results are released.
+Evolution strategies (ES) can distribute model evaluations by exchanging only scalar
+fitness scores, but every device must then reconstruct the same parameter update. We
+compare this replication with splitting the reconstruction across devices and combining
+partial updates with an all-reduce. The faster choice depends on whether the computation
+saved outweighs the communication added. Using one JAX implementation, we measure this
+tradeoff for full-rank and low-rank perturbations on A100 GPUs and TPU v5e chips. On a
+transformer-block benchmark with eight devices in one host, splitting gives
+1.2--5.6$\times$ speedups for full-rank perturbations; for low-rank perturbations at the
+larger matrix width, it takes 4--46\% longer than replication. The placement preference
+carries over to Qwen2.5-0.5B on the TPU, while a slow connection between two A100 hosts
+reverses the full-rank preference for large updates. Supporting learning experiments find
+similar directional alignment and observed final Countdown accuracy across the tested
+perturbations, with full rank ahead at the first training checkpoint. These checks do not
+establish equivalent learning efficiency. Code, configurations, and results are released.
 \end{abstract}
 
 \input{sections/01-introduction}
@@ -68,6 +79,7 @@ rented A100 nodes. No grant or employer resources were used.
 \bibliographystyle{plainnat}
 \bibliography{references}
 
+\clearpage
 \appendix
 \input{sections/appendix}
 
