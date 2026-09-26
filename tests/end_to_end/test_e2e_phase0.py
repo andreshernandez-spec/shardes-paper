@@ -119,3 +119,14 @@ def test_records_cite_commits_only_where_the_audit_expects(record):
     if "env" in doc:
         assert doc["env"]["shardes"]["commit"] != doc["env"]["commit"], \
             "without a separate library commit the audit reads this as a monorepo record"
+
+
+def test_filtered_set_is_taken_from_the_release_only_if_it_is_the_sample_in_order():
+    sample = [(10, "a"), (3, "b"), (7, "c"), (1, "d")]
+    assert data.filtered_from_release(sample, ["a", "c", "d"]) == [10, 7, 1]
+    with pytest.raises(ValueError, match="order"):
+        data.filtered_from_release(sample, ["c", "a"])
+    with pytest.raises(ValueError, match="outside"):
+        data.filtered_from_release(sample, ["a", "z"])
+    with pytest.raises(ValueError, match="duplicate"):
+        data.filtered_from_release([(1, "a"), (2, "a")], ["a"])

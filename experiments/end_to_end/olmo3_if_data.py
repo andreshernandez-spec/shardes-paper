@@ -15,6 +15,13 @@ d928a7c and the run's logged config (W&B wn9zgjj3):
    `olmo_thinker` template and `add_generation_prompt=True`, and the full messages
    without it; `rlvr_filter_v1` keeps a row only if the prompt is at most 2,048 tokens
    and the full sequence at most 10,240.
+
+   The filter is the one step we cannot replay exactly: it counts tokens with the
+   run's transformers (4.57, Oct 2025), and 5.x counts one row 2,049 where the run
+   kept it. The released Dolci-RL-Zero-IF-7B is that filtered set, dumped in the
+   run's own pre-shuffle order (checked here: its rows are an order-preserving subset
+   of step 1's sample). So the filtered set is taken from Dolci once that check
+   passes, and every row where our count disagrees with the run's is recorded.
 3. `setup_datasets` shuffles with `Dataset.shuffle(seed=1)`, which is
    `np.random.default_rng(1).permutation(n)` (checked against `datasets` below).
 4. `ShufflingIterator(np.arange(n), 32, seed=1)` yields each step's 32 prompts: one
@@ -89,6 +96,24 @@ def sample_indices(n_source: int, count: int, seed: int) -> np.ndarray:
     return np.random.RandomState(seed).choice(n_source, size=count, replace=False)
 
 
+def filtered_from_release(sample: list, release_keys: list) -> list:
+    """Source positions of the run's filtered set, taken from its release.
+
+    `sample` is [(source position, key)] in the run's sample order. The release must be
+    an order-preserving subset of it, which is what a dump of the filtered, not yet
+    shuffled dataset is; anything else raises, since then it is not the run's set.
+    """
+    pos_of = dict((k, p) for p, k in sample)
+    if len(pos_of) != len(sample):
+        raise ValueError("duplicate keys in the sample; key-based matching is unsafe")
+    wanted = set(release_keys)
+    if not wanted <= set(pos_of):
+        raise ValueError("the release has rows outside the run's sample")
+    if list(release_keys) != [k for _, k in sample if k in wanted]:
+        raise ValueError("the release is not the sample in the sample's order")
+    return [pos_of[k] for k in release_keys]
+
+
 def as_messages(value):
     """The source stores messages as a list of structs; older dumps as a repr string."""
     return ast.literal_eval(value) if isinstance(value, str) else value
@@ -159,8 +184,13 @@ def compare_with_dolci(train_rows: list, dolci: list) -> dict:
         s = s.strip()
         return s[len("user: "):] if s.startswith("user: ") else s
 
-    same_prompt = sum(norm(prompt_text(train[k])) == norm(dol[k]["prompt"]) for k in common)
+    differing = [k for k in common if norm(prompt_text(train[k])) != norm(dol[k]["prompt"])]
+    same_prompt = len(common) - len(differing)
+    examples = [{"key": k, "ours": prompt_text(train[k])[-80:],
+                 "dolci": dol[k]["prompt"][-80:]} for k in differing[:3]]
     return {
+        "prompt_differences": {"count": len(differing), "keys": differing,
+                               "examples_last_80_chars": examples},
         "training_rows": len(train_rows), "training_unique_keys": len(train),
         "dolci_rows": len(dolci), "dolci_unique_keys": len(dol),
         "common_keys": len(common),
@@ -216,14 +246,25 @@ def main(argv=None) -> int:
             dropped.append({"source_index": pos, "key": row["key"],
                             "prompt_tokens": len(p_ids), "full_tokens": len(full)})
 
-    order = [kept[i] for i in np.random.default_rng(seed).permutation(len(kept)).tolist()]
+    # The run's filtered set, from Dolci, after proving Dolci is our sample, filtered,
+    # in order. Anything else means the reconstruction is wrong and nothing is written.
+    dolci_rows = load_dolci()
+    filtered = filtered_from_release([(p, source[p]["key"]) for p in sampled.tolist()],
+                                     [r["key"] for r in dolci_rows])
+    ours, theirs = set(kept), set(filtered)
+    disagreements = {
+        "kept_by_run_dropped_by_us": [d for d in dropped if d["source_index"] in theirs],
+        "dropped_by_run_kept_by_us": sorted(ours - theirs),
+    }
+    order = [filtered[i]
+             for i in np.random.default_rng(seed).permutation(len(filtered)).tolist()]
     order_keys = [source[i]["key"] for i in order]
     stream = prompt_stream(len(order), batch, seed, STEPS)
     drawn = sum(len(b) for b in stream)
     if drawn != STEPS * batch:  # the work asked for is the work done
         raise SystemExit(f"stream drew {drawn} prompts, expected {STEPS * batch}")
 
-    dolci = compare_with_dolci([source[i] for i in order], load_dolci())
+    dolci = compare_with_dolci([source[i] for i in order], dolci_rows)
     lens = np.array(prompt_lens)
     outputs = [str(set_path.relative_to(HERE)), str(stream_path.relative_to(HERE))]
     env = env_block(HERE, outputs, ("numpy", "transformers", "datasets", "pyarrow",
@@ -241,11 +282,13 @@ def main(argv=None) -> int:
     harness.write_atomic(set_path, {
         **common,
         "sampled": count, "dataset_config_seed": R.OLMO3_IF_DATASET_CONFIG_SEED,
-        "kept": len(kept), "dropped": dropped,
+        "kept_by_our_filter": len(kept), "dropped_by_our_filter": dropped,
+        "filter_disagreements_with_run": disagreements,
+        "training_rows": len(order),
         "shuffle_seed": seed,
         "order_keys": order_keys, "order_keys_sha256": sha256_lines(order_keys),
         "order_source_indices": order,
-        "prompt_tokens": {"mean": float(lens.mean()), "median": float(np.median(lens)),
+        "prompt_tokens_our_tokenizer": {"mean": float(lens.mean()), "median": float(np.median(lens)),
                           "p95": float(np.percentile(lens, 95)), "max": int(lens.max())},
         "dolci": {"repo": R.OLMO3_IF_DOLCI.repo, "revision": R.OLMO3_IF_DOLCI.commit,
                   **dolci},
@@ -258,10 +301,10 @@ def main(argv=None) -> int:
         "stream": stream,
         "stream_sha256": sha256_lines(json.dumps(b) for b in stream),
     })
-    print(f"source {len(source)} -> sampled {count} -> kept {len(kept)} "
-          f"(dropped {len(dropped)}); Dolci common keys {dolci['common_keys']} of "
-          f"{dolci['dolci_rows']}; only in training {len(dolci['only_in_training'])}, "
-          f"only in Dolci {len(dolci['only_in_dolci'])}")
+    print(f"source {len(source)} -> sampled {count} -> our filter keeps {len(kept)}, "
+          f"the run kept {len(filtered)}; disagreements "
+          f"{ {k: len(v) for k, v in disagreements.items()} }; prompt text differs "
+          f"from Dolci on {dolci['prompt_differences']['count']} rows")
     return 0
 
 
