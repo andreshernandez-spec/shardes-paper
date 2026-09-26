@@ -10,6 +10,7 @@ This cannot name the account to look for it, so it looks for the two shapes it a
 in: a kernel id with a real owner, and an address nobody decided to publish.
 """
 
+import hashlib
 import pathlib
 import re
 import subprocess
@@ -28,6 +29,22 @@ EMAIL = re.compile(r"[A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z][A-Za-z.]*")
 #: carry, and the two ssh remotes, which are shaped like addresses.
 ADDRESSES = {"andres.hernandez@gmx.net", "andres.hernandez.deml@gmail.com",
              "git@github.com", "git@specgithub.com"}
+
+
+# Original attribution and anonymous-placeholder addresses in the official style bundle.
+# Hashes are from the unchanged archive linked by the MLSys 2027 CFP (paper/README.md).
+# This does not allow those addresses in our files or exempt edited vendor files.
+PUBLISHED_STYLE_SHA256 = {
+    "paper/mlsys2025.sty": "05a9842992b7ef71851fd2380a1058f83b0faafc106602cabc4c169d372ad8e2",
+    "paper/mlsys2025.bst": "c9c9f1b83e32512b93f6208e28ba2989fc691b6f70763ad0657a77d44bc067a7",
+    "paper/fancyhdr.sty": "b56ec4434b9f4607529a4b23dc68ad8d4b94f1f631c8cddaf7da78140d53a5ea",
+    "paper/algorithm.sty": "93fd0eb31c112eb405833db8f1d7f5d238c7e691b1c05680d7276e68f36d564a",
+    "paper/algorithmic.sty": "48d18794a5d97c0479a588cc2eac0917992feb9da83acc4631b8f55757d80f9b",
+}
+
+
+def _published_style(name, text):
+    return hashlib.sha256(text.encode()).hexdigest() == PUBLISHED_STYLE_SHA256.get(name)
 
 
 def _tracked_text():
@@ -57,5 +74,14 @@ def test_every_kernel_id_has_the_placeholder_for_an_owner():
 def test_every_address_is_one_that_was_published_on_purpose():
     found = sorted({f"{name}: {m.group(0)}" for name, text in _tracked_text()
                     for m in EMAIL.finditer(text)
-                    if m.group(0) not in ADDRESSES and not m.group(0).endswith("@example.com")})
+                    if not _published_style(name, text)
+                    and m.group(0) not in ADDRESSES and not m.group(0).endswith("@example.com")})
     assert not found, "an address nobody decided to publish:\n  " + "\n  ".join(found)
+
+
+def test_style_address_exception_requires_exact_published_file():
+    name = "paper/mlsys2025.sty"
+    text = (ROOT / name).read_text()
+    assert _published_style(name, text)
+    assert not _published_style("paper/main.tex", text)
+    assert not _published_style(name, text + "\n% unintended@example.com\n")
