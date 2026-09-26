@@ -177,14 +177,17 @@ def compare_with_dolci(train_rows: list, dolci: list) -> dict:
     dol = {r["key"]: r for r in dolci}
     common = sorted(set(train) & set(dol))
 
+    def raw_prompt(row):
+        # rlvr_tokenize_v2's RAW_PROMPT_KEY: "role: content" per message, joined by "\n".
+        # Exact, no stripping: prompts that start with whitespace are real.
+        msgs = as_messages(row["messages"])
+        prompt = msgs if len(msgs) == 1 else msgs[:-1]
+        return "\n".join(f"{m['role']}: {m['content']}" for m in prompt)
+
     def prompt_text(row):
-        return as_messages(row["messages"])[-1]["content"] if "messages" in row else row["prompt"]
+        return raw_prompt(row)
 
-    def norm(s):
-        s = s.strip()
-        return s[len("user: "):] if s.startswith("user: ") else s
-
-    differing = [k for k in common if norm(prompt_text(train[k])) != norm(dol[k]["prompt"])]
+    differing = [k for k in common if raw_prompt(train[k]) != dol[k]["prompt"]]
     same_prompt = len(common) - len(differing)
     examples = [{"key": k, "ours": prompt_text(train[k])[-80:],
                  "dolci": dol[k]["prompt"][-80:]} for k in differing[:3]]
