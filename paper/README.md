@@ -28,8 +28,8 @@ Tables in `generated/` are written by the committed generators, never edited by 
 CI checks that `make tables` reproduces them byte for byte. Figures are included directly
 from `experiments/*/figures`.
 
-`make figures` regenerates the main plots plus the full cost and frozen-embedding plots.
-The full scaling grids and synthetic-alignment plot retain their original generators.
+`make figures` regenerates the main plots plus the full cost plot.
+The full scaling grids retain their original generators.
 All PDF targets regenerate tables and these figures first. Set `PYTHON` to the intended
 interpreter when the active shell is outside the project environment.
 `experiments/phase2/paper_evidence.py` prints the worked-model, provenance, communication,

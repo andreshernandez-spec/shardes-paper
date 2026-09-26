@@ -5,7 +5,8 @@ Splitting update reconstruction helps when the computation saved exceeds the cos
 communicating a model-sized update. In our single-host measurements, this favors
 splitting for full-rank perturbations and replication for low-rank perturbations at
 large matrix width. The same preference holds on Qwen2.5-0.5B on the TPU. Across the
-measured slow connection between A100 hosts, large full-rank updates favor replication too.
+measured slow connection between two A100 hosts, replication is faster for both
+perturbation types at width 2048.
 
 To choose a placement, measure reconstruction and the added communication cost in the
 relevant computation context. Isolated communication benchmarks and ideal $1/D$ compute
@@ -13,8 +14,4 @@ scaling can misestimate the small differences that decide low-rank cases. The mo
 explains most measured preferences but is not an exact decision rule.
 
 Low-rank perturbations also reduce generation time relative to stored full-rank noise
-on the block, especially on the tested TPU. Their updates have similar measured
-directional alignment, and the tested ranks reach similar observed final Countdown
-accuracy. Full rank learns faster per sample at the first checkpoint. The limited
-learning experiments support using the cheaper perturbations in this setting, while
-leaving broader learning-efficiency comparisons open.
+on the block, especially on the tested TPU.

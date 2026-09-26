@@ -30,12 +30,10 @@ tables:
 	cd ../experiments/phase2 && $(PYTHON) paper_evidence.py --latex >/dev/null
 	cd ../experiments/phase2/multihost && $(PYTHON) tb7_e18.py --latex >/dev/null
 	cd ../experiments/countdown && $(PYTHON) tb5_e17.py --latex >/dev/null
-	cd ../experiments/countdown && $(PYTHON) tb6_e16.py --latex >/dev/null
 
 figures:
 	cd ../experiments/phase2 && $(PYTHON) plot_paper.py >/dev/null
 	cd ../experiments/phase2 && $(PYTHON) plot_cost.py --results results-cost results-cost-tpu-v5e8 >/dev/null
-	cd ../experiments/countdown && $(PYTHON) plot_e13.py >/dev/null
 	cd ../experiments/countdown && $(PYTHON) plot_e17.py >/dev/null
 
 clean:

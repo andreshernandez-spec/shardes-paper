@@ -54,11 +54,7 @@ questions:\begin{itemize}
     for full rank, replication for low rank. Across a slow connection between two A100
     hosts, replication is faster for both perturbation types at width 2048, reversing
     the full-rank result.
-  \item \textbf{Do low-rank perturbations remain useful for training?} On the block, a
-    rank-1 generation takes 0.22 times as long as one with stored full-rank noise on the
-    A100, and 0.08 times as long on the v5e. In training experiments with Qwen2.5-0.5B,
-    the tested ranks align similarly with the true gradient and reach similar final
-    accuracy on the Countdown arithmetic task, but full rank learns faster early on.
+  \item \textbf{What do low-rank perturbations save?} On the block, a rank-1 generation
+    takes 0.22 times as long as one with stored full-rank noise on the A100, and 0.08 times
+    as long on the v5e.
 \end{itemize}
-The placement measurements are the main result. The learning experiments check the
-practical relevance of the cheaper perturbations within one model family and one task.
