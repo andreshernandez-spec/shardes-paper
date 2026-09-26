@@ -27,8 +27,9 @@ Measuring it needs both designs in one implementation, so that the comparison is
 between the placements and not between codebases. The standard JAX ES library,
 evosax \citep{lange2022evosax}, stores the population as one dense (population,
 parameters) matrix, which has no place for low-rank noise kept as factors and does not fit
-full-rank noise for large models. We therefore built \textbf{shardes}, a JAX
-\citep{jax2018} library that splits the population across devices and takes the
+full-rank noise for large models. We therefore built \textbf{shardes}
+\citep{shardes}, a JAX \citep{jax2018} library that splits the population across
+devices and takes the
 perturbation scheme as a plug-in. The paper is about what it measures.
 
 We also check that the cheaper perturbation is worth having: whether low-rank updates
