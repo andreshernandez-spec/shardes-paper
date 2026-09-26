@@ -53,10 +53,10 @@ number), MATH (flex: boxed, Minerva, dollar-delimited, sympy equivalence) or IFE
 The run's environment pinned `antlr4-python3-runtime==4.11.0` and `sympy==1.13.1`. The
 MATH verifier parses LaTeX with sympy and returns False on an ImportError, so a missing
 antlr would silently zero MATH rewards; `check_environment()` raises instead. Still open:
-whether the sympy torch requires changes any verdict; if it does, the verifier runs in
-its own small environment.
+whether a newer sympy changes any verdict. Rather than argue it, the verifier gets its
+own environment pinned as the run's (`requirements-verify.txt`: sympy 1.13.1, antlr
+4.11.0), since torch in the vLLM venv requires sympy>=1.13.3; there the MATH test passes.
 
 ## To do
 
-- Pin the verifier environment (antlr 4.11.0; sympy 1.13.1 or a checked newer one).
 - T0 item 4: the evaluation harness (OLMES), next.
