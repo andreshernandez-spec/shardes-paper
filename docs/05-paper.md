@@ -219,18 +219,14 @@ Four sub-claims, each falsifiable and each a finding whichever way it lands:
   `N/d_eff`, on curves whose slope never wavers from one half; E1 has no rank-16
   curve, so lr16 rides on the r1/r4 trend. `experiments/countdown/analysis_c6b.py`
   reproduces every number from committed artifacts.
-- **C6c, embeddings under perturbation. MEASURED, and freezing costs nothing here.**
-  Qwen's tied embedding is ~27% of the 0.5B parameters, and EGGROLL's reference
-  raises NotImplementedError there; the `embed` seam perturbs it without forming
-  the table, which is what makes the ablation runnable at all. Three seeds of
-  rank 1 with the embedding frozen behind the model closure land at 0.154
-  [0.149-0.157] held-out reward against the live arm's 0.155 [0.152-0.158]: on
-  Countdown at this scale, perturbing and updating the tied table buys nothing
-  detectable, so the capability's value here is the choice it enables (27% of
-  the parameters can sit out for free), not a quality win. A task whose reward
-  depends on token-level knowledge rather than arithmetic composition is where
-  the two arms could still separate; that is a scope note, not a finding.
-  `results/e13-a100-2026-08-17/es-lr1-frozen-embed-*` alongside the campaign.
+- **C6c, embeddings under perturbation. Clean-rerun result supersedes the pilot.**
+  Qwen's tied embedding is 27% of the parameters, and the tested EGGROLL reference
+  declines it. In the clean 2026-08-22 campaign, freezing it gives 5.55% final solve
+  rate [5.20, 6.00], against 6.18% [6.10, 6.35] for rank 1 updating all parameters.
+  The three-seed ranges do not overlap. The earlier 08-17 mean-reward comparison
+  did not show this difference and no longer supports the claim that freezing
+  costs nothing. `experiments/phase2/paper_evidence.py` reproduces the solve-rate
+  comparison from the clean records.
 - **C6d, reproducibility. MEASURED, and the claim sharpened into three.** At 0.5B
   on 8 real A100s: (1) same program, same seed is *bitwise* deterministic across
   processes (two independent 20-generation D=8 runs agree exactly in all 494M

@@ -2,28 +2,28 @@
 \begin{table*}[t]
 \centering
 \small
-\caption{What one real-model update costs, in ms (Qwen2.5-0.5B, one ask, next-token loss and tell on the fixed prompt batch, TPU v5e-8, median of five repeats). Each entry is the faster of the two placements; Figure~\ref{fig:f9} gives the ratio between them. OOM: neither placement fits a 16\,GB chip at that shape.}
+\caption{What one real-model update costs, in ms (Qwen2.5-0.5B, one generation (evaluate, then update) on the fixed prompt batch, TPU v5e-8, median of five repeats). Each entry is the faster placement (split for full rank at multiple devices, replicated for low rank); Figure~\ref{fig:f9} gives the ratio between them. OOM: neither placement fits a 16\,GB chip at that shape. Dashes mean a comparison lacks two clean records, not a memory failure. All one-device records are excluded.}
 \label{tab:tb5}
-\begin{tabular}{llrrrr}
+\begin{tabular}{llrrr}
 \toprule
-arm & $N$ & $D{=}1$ & $D{=}2$ & $D{=}4$ & $D{=}8$ \\
+variant & $N$ & $D{=}2$ & $D{=}4$ & $D{=}8$ \\
 \midrule
-seed, mirrored & 32 & 4902 & 2481 & 1263 & 673 \\
-seed, mirrored & 64 & 9788 & 4893 & 2469 & 1276 \\
-seed, mirrored & 128 & 19559 & 9718 & 4882 & 2482 \\
-seed, mirrored & 240 & 36658 & 18159 & 9102 & 4590 \\
-rank 1 & 32 & OOM & 217 & 109 & 71 \\
-rank 1 & 64 & OOM & OOM & 219 & 122 \\
-rank 1 & 128 & OOM & OOM & OOM & 230 \\
-rank 1 & 240 & OOM & OOM & OOM & OOM \\
-rank 4 & 32 & OOM & 211 & 111 & 72 \\
-rank 4 & 64 & OOM & OOM & 214 & 119 \\
-rank 4 & 128 & OOM & OOM & OOM & 227 \\
-rank 4 & 240 & OOM & OOM & OOM & OOM \\
-rank 16 & 32 & OOM & 225 & 117 & 78 \\
-rank 16 & 64 & OOM & OOM & 241 & 136 \\
-rank 16 & 128 & OOM & OOM & OOM & 272 \\
-rank 16 & 240 & OOM & OOM & OOM & OOM \\
+seed, mirrored & 32 & -- & 1263 & 673 \\
+seed, mirrored & 64 & -- & 2469 & 1276 \\
+seed, mirrored & 128 & -- & 4882 & 2482 \\
+seed, mirrored & 240 & -- & 9102 & 4590 \\
+rank 1 & 32 & -- & 109 & 71 \\
+rank 1 & 64 & -- & 219 & 122 \\
+rank 1 & 128 & -- & OOM & 230 \\
+rank 1 & 240 & -- & OOM & OOM \\
+rank 4 & 32 & -- & -- & 72 \\
+rank 4 & 64 & -- & -- & 119 \\
+rank 4 & 128 & -- & -- & 227 \\
+rank 4 & 240 & -- & -- & OOM \\
+rank 16 & 32 & 225 & -- & 78 \\
+rank 16 & 64 & OOM & -- & 136 \\
+rank 16 & 128 & OOM & -- & 272 \\
+rank 16 & 240 & OOM & -- & OOM \\
 \bottomrule
 \end{tabular}
 \end{table*}

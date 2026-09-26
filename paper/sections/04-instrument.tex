@@ -1,36 +1,27 @@
-% CLAIM: what the library guarantees so that A and B, and the perturbation arms, compute
-% the same thing. Evidence: the library's tests; experiments/countdown/results/c6d-*.
-\section{The library}
+\section{A common implementation}
 \label{sec:instrument}
 
-shardes is built on JAX and its compiler-driven sharding \citep{jax2018,gspmd2021}. It
-exposes the usual ask, evaluate and tell loop: \emph{ask} for $N$ perturbed copies of
-the model, \emph{evaluate} their fitnesses, \emph{tell} the fitnesses back to get the
-update. We replicate the model and distribution state and study sharding across
-population members. Three properties make the comparisons in this paper fair.
+The library uses JAX and compiler-driven sharding \citep{jax2018,gspmd2021}. It generates
+perturbations, evaluates candidates, and reconstructs an update. The model is replicated
+and the population is split across devices. Three controls make the comparisons useful.
 
-\paragraph{The device count does not change what is computed.} Member $i$'s seed depends
-on $i$ alone, so the population is the same on 1 and on 8 devices. On eight A100s, with
-the fitnesses held fixed, the $D{=}1$ and $D{=}8$ updates of Qwen2.5-0.5B agree to
-$6.3\times10^{-6}$ relative error, and two 20-generation runs of the same $D{=}8$
-program agree byte for byte. Two separately compiled programs need not follow the same
-training trajectory: compiler fusion can flip near-tied greedy tokens.
+\paragraph{The population stays fixed.} A candidate's random seed depends on its
+identity, not its device. Changing device count therefore evaluates the same
+perturbations. With scores held fixed, Qwen2.5-0.5B updates on one and eight A100s agree
+to $6.3\times10^{-6}$ relative error in the norm of the whole parameter tree. Floating-point and compilation differences can
+still change training trajectories; Appendix~\ref{sec:implementation} describes the checks.
 
-\paragraph{Low-rank noise is never formed as a full matrix.} A rank-$r$ perturbation stays as its
-two factors through evaluation and through the sum (Section~\ref{sec:placement}): a dense layer computes $x(W+\tfrac{\sigma}{\sqrt r}AB^\top)^\top$
-as $xW^\top + ((xB)A^\top)\tfrac{\sigma}{\sqrt r}$, so no $m\times n$ noise matrix exists
-and all members share the base multiply $xW^\top$. The price is at the API: a model must
-route its matrix multiplies and embedding lookups through the library's layers, so an
-existing model does not run unmodified.
+\paragraph{Low-rank perturbations stay factored.} A layer computes
+$x(W+\sigma UV^\top/\sqrt r)^\top$ as
+$xW^\top+((xV)U^\top)\sigma/\sqrt r$. Inputs from different candidates are batched
+against the same base weight matrix $W$; each candidate still has its own activations
+and low-rank correction. The individual full noise matrices are never formed. Models
+must route matrix multiplies and embedding lookups through the library's layers, so
+an existing model needs adaptation.
 
-\paragraph{Fitness is float32 or wider.} In bfloat16, 256 real losses collapsed to 2
-distinct values, and ranks computed from ties are noise. The library refuses rather than
-casts; the model itself may run in bfloat16.
-
-\paragraph{Gathering fitnesses.} Centered ranks need every fitness, so \emph{tell}
-gathers the $N$ scalars to every device and sorts them there. The gather costs
-microseconds (Table~\ref{tab:tb8}). The sort is local and repeated on every device: on
-the v5e at $N{=}2^{18}$ it takes 12\,ms, the same on 1 and 8 devices. Up to a thousand
-members, which covers every experiment here except the largest populations of the cost
-grid, the whole ranking step is 60\,$\mu$s or less; at 4096 members it is 0.2\,ms
-(Appendix~\ref{sec:barrier}).
+\paragraph{Scores retain enough precision to rank.} The library requires float32 or
+wider fitness scores even when model evaluation uses bfloat16. On a synthetic block,
+casting 256 losses to bfloat16 left only two distinct values, losing distinctions needed
+to rank the candidates. Casting those rounded values back to float32 cannot recover
+the lost information. Ranking and reproducibility details are in
+Appendix~\ref{sec:implementation}.

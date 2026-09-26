@@ -1,28 +1,20 @@
-% CLAIM: restates the results and the rule. No new claims.
 \section{Conclusion}
 
-``ES only communicates scalars'' is true for one placement of the update and a poor
-guide to which placement is faster. Splitting the sum helps when the computation it
-saves takes longer than the model-sized all-reduce it adds. On one A100 node and one v5e
-host that means all-reduce for full-rank noise and replicating for low-rank noise at
-large width, also on a real 0.5B model. Low-rank noise saves more on the TPU than on the
-GPU, aligns with the gradient-descent direction about as well at equal population, and
-on Countdown, updating all parameters, ends at similar accuracy, behind full rank at the
-first checkpoint.
+Exchanging only scalar scores can make distributed ES repeat substantial work.
+Splitting update reconstruction helps when the computation saved exceeds the cost of
+communicating a model-sized update. In our single-host measurements, this favors
+splitting for full-rank perturbations and replication for low-rank perturbations at
+large matrix width. The same preference holds on Qwen2.5-0.5B on the TPU. Across the
+measured slow connection between A100 hosts, large full-rank updates favor replication too.
 
-\paragraph{What to do differently.}
-\begin{itemize}
-  \item Time your sum and your model-sized all-reduce, both inside the program, and
-    compare them with Eq.~\ref{eq:crossover}. On a single host with a fast interconnect
-    we found all-reduce faster for full-rank noise, and replication faster for low-rank
-    noise at large width, where the all-reduce took 4--15\% longer on the A100 and
-    17--46\% longer on the v5e. Across a slow host boundary the all-reduce kept its lead only
-    where the model-sized buffer was small: full-rank noise at width 512 (6\,MiB).
-  \item Keep fitness in float32: in bfloat16 a population's losses collapse to a handful
-    of ties, and ranks of ties are noise.
-  \item Forcing full-precision matrix multiplies cost the low-rank arms 1.6--1.9$\times$
-    in time and the full-rank arms at most 8\%; whether it buys any accuracy we did not
-    measure, so check before paying for it.
-  \item Above about $10^4$ members, budget for the ranking sort, which every device
-    repeats.
-\end{itemize}
+To choose a placement, measure reconstruction and the added communication cost in the
+relevant computation context. Isolated communication benchmarks and ideal $1/D$ compute
+scaling can misestimate the small differences that decide low-rank cases. The model
+explains most measured preferences but is not an exact decision rule.
+
+Low-rank perturbations also reduce generation time relative to stored full-rank noise
+on the block, especially on the tested TPU. Their updates have similar measured
+directional alignment, and the tested ranks reach similar observed final Countdown
+accuracy. Full rank learns faster per sample at the first checkpoint. The limited
+learning experiments support using the cheaper perturbations in this setting, while
+leaving broader learning-efficiency comparisons open.

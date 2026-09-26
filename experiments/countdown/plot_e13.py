@@ -103,8 +103,9 @@ def main() -> None:
         secs = seconds_before(stem)
         t = [statistics.mean(secs[x // EVALS_PER_UNIT]) for x, _ in pts]
         for ax, xs in ((axes[0], [x for x, _ in pts]), (axes[1], t)):
-            ax.plot(xs, mean, color=color, lw=1.5, marker="o", ms=3, label=label, zorder=3)
-            ax.fill_between(xs, lo, hi, color=color, alpha=0.15, lw=0, zorder=2)
+            if stem != "es-lr1-frozen-embed":
+                ax.plot(xs, mean, color=color, lw=1.5, marker="o", ms=4, label=label, zorder=3)
+                ax.fill_between(xs, lo, hi, color=color, alpha=0.15, lw=0, zorder=2)
         print(f"  {label:28s} " + " ".join(
             f"{x // 1000}k/{s:.0f}s:{m:.2f}" for (x, _), s, m in zip(pts, t, mean)))
         print(f"    at {pts[1][0] // 1000}k: solved {lo[1]:.2f}-{hi[1]:.2f}%, final "
@@ -123,20 +124,40 @@ def main() -> None:
         ax.grid(True, color="#e6e6e3", lw=0.8)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
-    axes[0].set_xlabel("training sample evaluations")
+    axes[0].set_xlabel("scored training completions")
     axes[0].set_ylabel("held-out puzzles solved (%)")
     axes[0].set_xlim(0, 500 * EVALS_PER_UNIT)
-    axes[0].set_xticks([0, 24000, 48000, 72000, 96000, 120000])
-    axes[0].set_xticklabels(["0", "24k", "48k", "72k", "96k", "120k"])
-    axes[1].set_xlabel("cumulative update time (s)")
+    axes[0].set_xticks([0, 12000, 36000, 60000, 90000, 120000])
+    axes[0].set_xticklabels(["0", "12k", "36k", "60k", "90k", "120k"])
+    axes[1].set_xlabel("steady-state update time (s)")
+    axes[0].set_title("Equal completion budget", fontsize=10, loc="left")
+    axes[1].set_title("Original batching: full rank in chunks, low rank in one batch", fontsize=9, loc="left")
     axes[1].set_xlim(0, None)
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, fontsize=8, ncol=5, loc="lower center",
+    fig.legend(handles, labels, frameon=False, fontsize=9, ncol=4, loc="lower center",
                bbox_to_anchor=(0.5, -0.02))
     fig.tight_layout(rect=(0, 0.07, 1, 1))
     out = FIGURES / "f7-e13-heldout.png"
-    fig.savefig(out, dpi=200)
+    fig.savefig(out, dpi=200, metadata={"Date": None, "Software": None})
     print(out)
+
+    plt.close(fig)
+    fig, ax = plt.subplots(figsize=(5.1, 3.2))
+    for stem in ("es-mirrored-seed", "es-mirrored-lr1", "es-lr1-frozen-embed"):
+        color, label = ARM_STYLE[stem]
+        pts = curves(stem, "generation", "eval_solved")
+        xs = [x / 1000 for x, _ in pts]
+        ax.plot(xs, [100 * statistics.mean(v) for _, v in pts], color=color,
+                marker="o", ms=3, lw=1.5, label=label)
+        ax.fill_between(xs, [100 * min(v) for _, v in pts], [100 * max(v) for _, v in pts],
+                        color=color, alpha=0.15, lw=0)
+    ax.set(xlabel="scored training completions (thousands)", ylabel="held-out puzzles solved (%)")
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(color="#e6e6e3")
+    ax.legend(frameon=False, fontsize=8, loc="lower right")
+    fig.tight_layout()
+    fig.savefig(FIGURES / "f7-e13-frozen.png", dpi=200, metadata={"Date": None, "Software": None})
+    plt.close(fig)
 
 
 if __name__ == "__main__":

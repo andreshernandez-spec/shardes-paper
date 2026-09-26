@@ -8,24 +8,29 @@
 \toprule
 ablation & where & result \\
 \midrule
-cost, rank 1 vs dense & A100, bf16 & 0.22x (n=9) \\
-cost, rank 4 vs dense & A100, bf16 & 0.27x (n=9) \\
-cost, rank 16 vs dense & A100, bf16 & 0.29x (n=9) \\
-cost, rank 1 vs dense & TPU v5e, bf16 & 0.08x (n=7) \\
-cost, rank 4 vs dense & TPU v5e, bf16 & 0.09x (n=7) \\
-cost, rank 16 vs dense & TPU v5e, bf16 & 0.11x (n=7) \\
-cost, bf16 vs f32 & A100, dense & 1.12x (n=8) \\
-cost, bf16 vs f32 & A100, seed & 1.08x (n=20) \\
-cost, bf16 vs f32 & A100, rank 1 & 1.00x (n=14) \\
-cost, bf16 vs f32 & TPU v5e, dense & 0.93x (n=6) \\
-cost, bf16 vs f32 & TPU v5e, seed & 1.01x (n=20) \\
-cost, bf16 vs f32 & TPU v5e, rank 1 & 0.97x (n=16) \\
-cost, highest vs default & TPU v5e, dense & 1.08x (n=5) \\
-cost, highest vs default & TPU v5e, rank 1 & 1.85x (n=6) \\
-cost, highest vs default & TPU v5e, rank 16 & 1.64x (n=6) \\
-cost, highest vs default & TPU v5e, rank 4 & 1.76x (n=6) \\
-cost, highest vs default & TPU v5e, seed, mirrored & 1.02x (n=6) \\
-cost, highest vs default & TPU v5e, seed & 1.02x (n=6) \\
+\multicolumn{3}{l}{\emph{Perturbation rank}} \\
+rank 1 vs dense & A100, bf16 & 0.22x (n=9) \\
+rank 4 vs dense & A100, bf16 & 0.27x (n=9) \\
+rank 16 vs dense & A100, bf16 & 0.29x (n=9) \\
+rank 1 vs dense & TPU v5e, bf16 & 0.08x (n=7) \\
+rank 4 vs dense & TPU v5e, bf16 & 0.09x (n=7) \\
+rank 16 vs dense & TPU v5e, bf16 & 0.11x (n=7) \\
+\midrule
+\multicolumn{3}{l}{\emph{Storage datatype}} \\
+bf16 vs f32 & A100, dense & 1.12x (n=8) \\
+bf16 vs f32 & A100, seed & 1.08x (n=20) \\
+bf16 vs f32 & A100, rank 1 & 1.00x (n=14) \\
+bf16 vs f32 & TPU v5e, dense & 0.93x (n=6) \\
+bf16 vs f32 & TPU v5e, seed & 1.01x (n=20) \\
+bf16 vs f32 & TPU v5e, rank 1 & 0.97x (n=16) \\
+\midrule
+\multicolumn{3}{l}{\emph{Matrix-multiplication precision (TPU)}} \\
+full vs default precision & TPU v5e, dense & 1.08x (n=5) \\
+full vs default precision & TPU v5e, rank 1 & 1.85x (n=6) \\
+full vs default precision & TPU v5e, rank 16 & 1.64x (n=6) \\
+full vs default precision & TPU v5e, rank 4 & 1.76x (n=6) \\
+full vs default precision & TPU v5e, seed, mirrored & 1.02x (n=6) \\
+full vs default precision & TPU v5e, seed & 1.02x (n=6) \\
 \bottomrule
 \end{tabular}
 \end{table*}

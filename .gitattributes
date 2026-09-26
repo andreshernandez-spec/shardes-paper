@@ -1,0 +1,6 @@
+# Preserve the official MLSys style archive, including its original whitespace.
+paper/mlsys2025.sty linguist-vendored -whitespace
+paper/mlsys2025.bst linguist-vendored -whitespace
+paper/fancyhdr.sty linguist-vendored -whitespace
+paper/algorithm.sty linguist-vendored -whitespace
+paper/algorithmic.sty linguist-vendored -whitespace

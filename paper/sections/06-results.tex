@@ -1,168 +1,168 @@
-% CLAIM: Eq. (crossover) accounts for the placement on both accelerators, on a real model
-% and across a host boundary; low-rank noise saves more on the TPU; the library matches the
-% reference code. Sources in the comment above each float.
 \section{Results}
 \label{sec:results}
 
 \subsection{Placement on the block}
 \label{subsec:block}
 
-% F2b -- experiments/phase2/figures/f2b-crossover-vs-d.png (plot_paper.py)
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.86\textwidth]{f2b-crossover-vs-d.png}
-  \caption{Where to compute the sum, on the block benchmark: $t_B/t_A$, the time of a
-    generation with the all-reduce placement over the time with the replicated one, for
-    every configuration of the strong-scaling sweep (solid $d{=}2048$, dashed $d{=}512$;
-    open markers the smaller population of each width, filled the larger). Below 1 the
-    all-reduce is faster. Grey band: the range observed at one device, where both
-    placements do the same work (0.95--1.01 on the A100, 0.98--1.08 on the v5e), pooled
-    over configurations; a reference, not an uncertainty for any one configuration.
-    Full-rank arms (dense, seed) fall further below 1 with every device added; at eight
-    devices rank 1 sits above 1 at $d{=}2048$ and near 1 at $d{=}512$.}
+  \includegraphics[width=0.88\textwidth]{f2b-crossover-vs-d.png}
+  \caption{Split-update time divided by replicated-update time on the block benchmark.
+    Below 1, splitting is faster; above 1, replication is faster. Panels separate hardware
+    and matrix width. Marker shape identifies population size. Bars show the range from
+    fastest split / slowest replicated repeat to slowest split / fastest replicated
+    repeat, across five repeats per placement; these are not confidence intervals.
+    The three main variants measured on both platforms are shown; the complete grids,
+    including pairing variants, are in Appendix~\ref{sec:grids}.}
   \label{fig:f2}
 \end{figure*}
 
-Figure~\ref{fig:f2} gives the answer on the block. At eight devices the all-reduce
-placement is faster in every full-rank configuration: $t_B/t_A$ is 0.42--0.55 for dense
-noise and 0.52--0.69 for seed noise on the A100 (0.70--0.83 for mirrored seed noise, run
-on the A100 only), and 0.18--0.20 and 0.50--0.55 on the v5e, and the advantage grows
-with every device added. Rank-1 noise goes the other way at width 2048: the all-reduce
-placement takes 4--15\% longer on the A100 and 17--46\% longer on the v5e, paired or
-unpaired. At width 512 rank 1 is within 10\% of parity ($t_B/t_A$ 0.92 to 1.10), and
-such small differences need caution. Each configuration's own repeats give a criterion:
-the ratio's range over the five repeats of each placement, from the fastest B repeat
-over the slowest A repeat to the slowest B over the fastest A. At eight devices that range contains 1 for six of the eight
-rank-1 configurations at width 512, which we treat as unresolved, and lies on one side of
-1 for every full-rank configuration and every rank-1 configuration at width 2048.
+At eight devices in one host, splitting the update is faster for every full-rank
+configuration. For the dense and seed variants drawn in Figure~\ref{fig:f2}, the speedup
+is 1.45--5.62$\times$. Dense alone gains 1.8--2.4$\times$ on the A100 and
+5.0--5.6$\times$ on the v5e, so this result does not depend on the slower seed-regeneration
+evaluation path. Replication is faster for rank-1 perturbations at width 2048
+(Figure~\ref{fig:f2}). For those low-rank configurations, splitting takes 4--15\% longer
+on the A100 and 17--46\% longer on the v5e. These low-rank ranges include both mirrored (drawn) and
+unpaired sampling; Appendix~\ref{sec:grids} gives all variants and absolute times.
 
-\input{generated/tb8}
+At width 512 the rank-1 placements are close. We treat a comparison as unresolved when
+its repeat range contains 1, using the range defined in the figure caption. At eight
+devices this occurs in six of the eight low-rank configurations at width 512. Every
+full-rank configuration and every low-rank configuration at width 2048 has a repeat
+range entirely on one side of 1. These repeats measure variation within a compiled run,
+not variation across hardware sessions.
 
-% F9 -- experiments/countdown/figures/f9-e17-crossover.png (plot_e17.py)
+\input{generated/worked-example}
+
+Table~\ref{tab:worked} evaluates Eq.~\ref{eq:crossover} at one configuration on each
+platform. Full-rank reconstruction costs 61--233\,ms, so splitting it easily pays for
+1--2\,ms of communication. Rank-1 reconstruction costs less than 1\,ms; the communication
+is then more expensive than the work saved. On the A100, the model gives a 1.19\,ms
+penalty for splitting rank 1, against 1.40\,ms measured. On the v5e the measured penalty
+is 2.04\,ms on a shorter replicated generation: 9.73\,ms against 19.88\,ms on the A100.
+That makes the relative penalties 21\% and 7\% respectively.
+
+The ratio plots and the timing equation describe the same difference:
+$t_B/t_A=1-(t_A-t_B)/t_A$. Thus a fixed communication penalty can look larger as a ratio
+when evaluation becomes faster. Table~\ref{tab:tb8} in the appendix reports the isolated communication
+cost; Table~\ref{tab:worked} instead uses the cost added to a reconstruction probe,
+which also includes any scheduling changes that operation causes.
+
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.9\textwidth]{f9-e17-crossover.png}
-  \caption{The same question on Qwen2.5-0.5B: $t_B/t_A$ for one full update (ask,
-    next-token loss, tell) on the TPU v5e-8, over four arms, four populations and
-    $D\in\{1,2,4,8\}$. Below 1 the all-reduce is faster. Missing points did not fit the
-    16\,GB chips under either placement; the absolute times are in
-    Table~\ref{tab:tb5}.}
+  \includegraphics[width=\textwidth]{f9-e17-crossover.png}
+  \caption{Placement on Qwen2.5-0.5B, TPU v5e: split / replicated time for a complete
+    generation, including next-token loss evaluation. Splitting is faster for full-rank
+    noise; replication is faster at every retained low-rank configuration. The strips
+    below the plots distinguish fits, memory failures (OOM), and excluded comparisons.
+    Only records stamped with a clean worktree are used; gaps are not connected.
+    All one-device records are excluded. Absolute times are in Table~\ref{tab:tb5}.}
   \label{fig:f9}
 \end{figure*}
 
-Eq.~\ref{eq:crossover} accounts for the pattern with its terms measured separately.
-Table~\ref{tab:tb8} gives the collectives. At $d{=}2048$ B's all-reduce costs 0.93\,ms
-on the A100 and 2.01\,ms on the v5e; at $d{=}512$, 0.12\,ms on both; the fitness gather
-stays under 21\,$\mu$s even at $N{=}2^{18}$. In every full-rank configuration B's
-all-reduce is 0.2--6.8\% of the time B saves, so what decides the full-rank side is the
-sum, not the bytes. In the eleven configurations where A wins, all low-rank, the
-all-reduce is 57--155\% of B's deficit, so the low-rank side is the collective and little
-else. The platforms differ through the same term: the 96\,MiB all-reduce costs
-2.17$\times$ more on the v5e, and B's deficit for rank 1 at width 2048 grows from 4--15\%
-to 17--46\%. The bytes are identical on both.
-
-With ideal splitting ($C_B = C_A/D$) and the collective timed in isolation, the model
-misses two things, both measured. B's local share of a small sum takes much longer than
-$C_A/D$: for rank 1 on the A100, $C_A/(D\,C_B)$ is 0.18--0.46, against 0.60--1.01 for
-full-rank noise. And at width 2048 the same all-reduce runs 1.75--1.80$\times$ slower
-inside the lean low-rank program than in isolation. With the measured $C_B$ and the
-in-program all-reduce, the model gets the sign of 18 of 20 A100 configurations and 15 of
-16 v5e configurations, and the three misses are near-ties at width 512 (within
-0.02--0.09\,ms); Appendix~\ref{sec:timemodel} goes through them. That makes it a useful
-account of the measurements, not an exact decision rule.
+Using separately measured reconstruction and added communication costs, the model
+agrees with all 30 configurations whose repeat envelopes do not overlap. It agrees in
+33 of 36 overall; its three misses are among the six near-ties. This is a check of whether
+separately timed components account for complete generations, not a fit to their timing
+differences. It was developed after the sweeps. Assuming ideal $1/D$ reconstruction and
+using only the isolated collective benchmark misses two resolved A100 configurations.
+Appendix~\ref{sec:timemodel} gives the comparison and the remaining errors in magnitude.
 
 \subsection{Placement on a real model}
 
-\input{generated/tb7}
 
-On Qwen2.5-0.5B the signs carry over (Figure~\ref{fig:f9}). Three directional predictions
-were fixed before the run, and all three hold. The full-rank arm favours the all-reduce
-more with every device, down to $t_B/t_A = 0.69$--$0.73$ at $D{=}8$. The low-rank arms
-favour replicating at all 18 shapes that fit, by 1.01--1.68$\times$, more than on the
-block: the model is 494M parameters, so the all-reduce is large next to a small sum. By
-the repeat criterion of Section~\ref{subsec:block}, every one of the 18 lies above 1, though the smallest margin, rank 16 at $N{=}128$ and $D{=}8$, is only 1\%. The replicated
-placement's lead shrinks as the rank rises, because the sum grows with $r$ while the
-all-reduce does not: rank 16 is below rank 1 at every population they share (1.50
-against 1.68 at $N{=}32$, 1.01 against 1.16 at $N{=}128$). It shrinks with $N$ for the
-same reason.
 
-In absolute terms the full-rank update falls from 4.9\,s to 673\,ms between one and
-eight devices at $N{=}32$, and the low-rank arms take 71--272\,ms wherever they fit. They
-fit less often: the low-rank arms evaluate each device's whole population in one batch,
-which is where their speed comes from, and the batch's activations are what run out of
-memory, not the perturbation factors (Appendix~\ref{sec:memory}). A wall-clock
-comparison across arms therefore compares two ways of evaluating a population as well as
-two kinds of noise.
+The same preference holds on Qwen2.5-0.5B on the TPU (Figure~\ref{fig:f9}).
+We retain only records stamped with a clean worktree, leaving eight full-rank and twelve
+low-rank timing comparisons. All eight-device records pass this filter.
+Splitting helps full rank, with a larger advantage at eight than four devices.
+Replication helps low rank; the rank-16, $N=128$ comparison is nearly tied, with a ratio
+of 1.009 and a repeat envelope starting at 1.0006. Appendix~\ref{sec:memory} documents
+the excluded records rather than treating them as missing because of memory limits.
 
-\subsection{Across a host boundary}
+The update contains 494,032,768 float32 values, including the tied embedding once:
+1.84\,GiB. Scaling the isolated v5e communication time at 96\,MiB to this payload gives
+39.4\,ms. This is an extrapolation of the measured communication rate, with no parameter
+fit to Qwen's timing. The extra split cost for ranks 1 and 4 is 34--48\,ms in the
+retained four- and eight-device comparisons. The payload estimate therefore explains
+its scale, though it does not isolate the reconstruction contribution or test the
+collective at this larger payload directly.
+
+At eight devices, the rank-1 penalty stays roughly fixed as $N$ grows, while evaluation
+time grows and the ratio approaches 1. Conversely, adding devices shortens evaluation,
+so a nearly fixed penalty can produce a rising ratio. Rank 16 also reduces the absolute
+penalty, to 2.4\,ms at $N=128$. The rank trend is not monotone: at $N=64$, rank 4 has a
+ratio of 1.40, above rank 1's 1.31. The signs and a smaller rank-16 margin were expected
+before this grid, after an earlier two-variant study; the population trend was observed
+during the run.
+
+At eight devices, all low-rank variants run out of memory at $N=240$, while full rank
+fits. Low-rank evaluation batches candidates together; the full-rank variant regenerates
+and evaluates them one at a time. This trades activation and weight memory against
+throughput. Reduced-model compilation probes support the activation-memory explanation
+(Appendix~\ref{sec:memory}); they do not establish an identical memory boundary on Qwen
+with matched batching. Each placement comparison keeps batching fixed, whereas a timing
+comparison across perturbation types includes this evaluation difference.
+
+\subsection{Across a slow connection between hosts}
 \label{subsec:boundary}
 
-% F4 -- experiments/phase2/figures/f4-cost-bfloat16.png (plot_cost.py)
+\input{generated/tb7}
+
+Communication can reverse the full-rank preference. We repeated six configurations on
+two A100 nodes. NCCL could not use the provider's InfiniBand, so cross-host traffic
+ran over TCP sockets. The calibrated effective cross-host all-reduce bandwidth was
+0.6--0.8\,GiB/s.
+
+Keeping eight devices but splitting them between hosts adds 107--110\,ms to the
+split placement's relative cost at width 2048 (Table~\ref{tab:tb7}). This exceeds the
+21--51\,ms it saved on one host, so replication becomes faster for regenerated full-rank
+noise. At width 512, the update is only 6\,MiB and splitting remains faster for that
+variant. Replication's advantage for rank 1 grows across the slow connection.
+
+The rule also gives a useful threshold for another connection. Keeping eight devices
+and neglecting latency, the 96\,MiB all-reduce stops paying below about 4.1\,GiB/s at
+$N=128$ and 1.8\,GiB/s at $N=256$. These are effective all-reduce rates, not network
+line rates. They use the within-host savings plus the within-host communication being
+replaced; Appendix~\ref{sec:boundary-audit} gives the calculation and repeat bounds.
+
+Our prediction fixed before the sixteen-device run identified four of six faster
+placements. Its bandwidth calibration used an incorrectly labelled message size.
+Correcting that error after the runs gives all six preferences, but still overestimates
+the split penalty by up to 63\,ms. The original prediction and the
+retrospective correction remain side by side in Table~\ref{tab:tb7-audit}.
+This experiment establishes the effect of a slow connection, not the performance of a
+high-bandwidth multi-host cluster.
+
+\subsection{What low-rank perturbations save}
+
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\textwidth]{f4-cost-bfloat16.png}
-  \caption{Time per generation against the dense baseline at the same shape, one device,
-    bfloat16. Blue: faster than dense; red: slower. Hatched: the dense baseline does not
-    fit the device (``dense OOM''); blank: neither arm fits (``both OOM''). Ranks 4 and
-    16 behave like rank 1 (Table~\ref{tab:tb3}).}
+  \includegraphics[width=0.9\textwidth]{f4-cost-common-bfloat16.png}
+  \caption{Generation time relative to stored full-rank noise (dense), on one device
+    with bfloat16 storage and default matrix-multiplication precision. Every row uses
+    the same model width and population on both platforms, and all compared variants fit.
+    Values below 1 are faster than dense. Low-rank noise has a larger relative advantage
+    on the v5e at every common configuration. The full grid, including memory limits,
+    is in Figure~\ref{fig:f4-full}.}
   \label{fig:f4}
 \end{figure*}
 
-A single host is where an all-reduce is cheapest. We repeated six configurations on two
-8$\times$A100 nodes with both placement predictions fixed before the run. InfiniBand
-carried no NCCL traffic on any of five clusters we drew, so the nodes talk over TCP
-sockets; measured at the payload it moves, the all-reduce runs at 64\,GiB/s within a
-node and 0.6--0.8\,GiB/s across the two (Table~\ref{tab:tb7}; Table~\ref{tab:tb8}'s
-98\,GiB/s was measured inside a running program on another node).
+On the simplified block, low-rank noise saves more relative to dense noise on the TPU
+than on the GPU (Figure~\ref{fig:f4}). Across the same seven feasible configurations,
+\input{generated/cost-common}
+Regenerating full-rank noise instead trades speed for memory: the seed variant is slower
+than dense at every comparable configuration, but fits the complete cost grid.
+The full grid and precision comparisons are in Appendix~\ref{sec:systems-ablations}.
+The platform difference persists at matched precision: the single-device scaling sweeps
+use float32 storage and highest precision on both platforms, and give rank-1/dense time
+geometric-mean ratios of 0.43 on A100 and 0.17 on v5e over seven matched
+configuration/placement pairs.
+These ratios describe the tested workload and implementation; they do not isolate the
+hardware mechanism responsible for the difference.
 
-Splitting the same eight devices across the boundary (\texttt{1x8} to \texttt{2x4})
-adds 107--110\,ms to B's generation at width 2048, which is more than the 21--51\,ms B
-was saving there. So the seed arm, which wins with the all-reduce on one node, loses with
-it across two, at both populations and at sixteen devices. At width 512 the all-reduce is
-6\,MiB and the seed arm keeps it. Rank 1 favoured replicating already and does so by more.
-The dependence on the fabric is the $T_{\mathrm{ar}}$ term of Eq.~\ref{eq:crossover}.
-
-The prediction we fixed before the \texttt{2x8} run got 4 of 6 signs and a penalty of
-about 10\,ms instead of 110, because the calibration that fed it all-reduced $1/D$ of the
-payload it was labelled with and so reported a bandwidth $D$ times too high (515 and
-9.2\,GiB/s instead of 64 and 0.58). We found the error after the runs. Recomputed with
-the bandwidth at the payload actually moved, the model matches every \texttt{2x4}
-configuration within 6\,ms and gets all six \texttt{2x8} signs, but at \texttt{2x8} it
-overestimates B's deficit by 46--63\,ms for the seed arm at width 2048.
-Table~\ref{tab:tb7} shows the preregistered and the corrected numbers side by side; only
-the first is a prediction made before measuring.
-
-The fabric we measured is slow. If a cluster sustained an effective all-reduce bandwidth
-of 12--50\,GiB/s on this payload, a 96\,MiB all-reduce would take 2--8\,ms, and by
-Eq.~\ref{eq:crossover} the seed arm would keep the all-reduce there. Those bandwidths
-are an assumption, not a measurement of any cluster.
-
-\subsection{What low-rank noise saves}
-
-\input{generated/tb1}
-
-EGGROLL motivates low-rank noise by what dense perturbations cost on GPUs, so the TPU,
-whose matrix unit makes dense multiplies cheap, might narrow the gap. It widens it
-(Figure~\ref{fig:f4}). A rank-1 generation costs 0.05--0.16$\times$ the dense one on the
-v5e against 0.13--0.42$\times$ on the A100, and on the 16\,GB chip the dense baseline does
-not fit over most of the grid. Seed regeneration is the price side of Qiu et al.'s
-design: 5.1--5.9$\times$ the dense time on the v5e and 1.3--3.2$\times$ on the A100, for
-the only arm that never runs out of memory. Whether that cost is random-number throughput
-or the loss of the shared base multiply, we did not isolate.
-
-Forcing full-precision multiplies costs the low-rank arms 1.6--1.9$\times$ and the others
-at most 8\% (Table~\ref{tab:tb3}). Computing in bfloat16 rather than float32 is within
-7\% on the v5e and on the A100 is 8--12\% \emph{slower} for dense and seed noise: the
-datatype is a memory choice more than a speed one.
-
-\subsection{Against the reference code}
-
-On one device the rank-1 arm runs at 0.97--1.02$\times$ the throughput of EGGROLL's
-released code on the A100 and 0.68--0.85$\times$ on the v5e (Table~\ref{tab:tb1}), a
-general API against a specialized one; we did not isolate the TPU gap. The reference
-implementations do not shard, so on eight devices the library reaches 1.3--3.4$\times$
-the EGGROLL code's throughput on the A100 and 1.7--6.1$\times$ on the v5e. The seed arm
-runs at 0.13--0.77$\times$ the naive baseline at these shapes: regeneration costs
-throughput, and what it buys is memory. evosax does not fit $d{=}2048$ on the 16\,GB chip.
-The reference's rank-1 path also fails to compile on that chip at $d{=}512$,
-$N{=}16384$ (Appendix~\ref{sec:refimpl}). We did not benchmark Qiu et al.'s released code.
+As an implementation check, the library's single-device rank-1 throughput is within 3\% of
+EGGROLL's released code on the A100, and 0.68--0.85 times its throughput on the v5e.
+The TPU gap was not isolated. Appendix~\ref{sec:refimpl} separates these matched-device
+comparisons from the additional throughput available with eight devices.

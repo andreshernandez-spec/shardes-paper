@@ -1,0 +1,19 @@
+\begin{abstract}
+Evolution strategies (ES) lend themselves well to distributed workloads because most of
+the work is independent. However, the gradient estimation requires combining information from
+all devices, which leaves two strategies. After the devices share their scalar fitness
+scores, either every device rebuilds the same full update, repeating the computation
+(replication), or each device builds only its share and the devices exchange model-sized
+partial updates (splitting). The faster choice depends on
+whether the computation saved outweighs the communication added. Using one JAX implementation,
+we measure this tradeoff for full-rank and low-rank perturbations on A100 GPUs and TPU v5e
+chips. On a transformer-block benchmark with eight devices in one host, splitting gives
+1.5--5.6$\times$ speedups for the unpaired full-rank variants; for low-rank perturbations at the
+larger matrix width, it takes 4--46\% longer than replication. The placement preference
+carries over to Qwen2.5-0.5B on the TPU, while across a slow connection between two A100
+hosts, replication wins for both perturbation types at the larger matrix width, reversing
+the full-rank preference. In training experiments with Qwen2.5-0.5B, the tested
+perturbations align similarly with the true gradient and reach similar final accuracy on
+the Countdown arithmetic task, but full rank learns faster early on. Code, configurations,
+and results are released.
+\end{abstract}

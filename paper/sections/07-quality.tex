@@ -1,99 +1,87 @@
-% CLAIM: at equal population the cheap perturbation aligns with the descent direction
-% about as well, and on Countdown it ends at the same accuracy, with full rank ahead early.
-% Evidence: tb6_e16.py (E15, E16), phase0/plot.py (E1), plot_e13.py and plot_e19.py
-% (E13, E19).
-\section{Is the cheaper update as good?}
+\section{Do cheaper perturbations remain useful?}
 \label{sec:quality}
 
-A faster update is only worth having if it points in a useful direction. We compare the
-perturbations at the same population, on the same loss, two ways: the alignment of one
-update with the gradient-descent direction of a differentiable loss, and training on a
-task scored by a non-differentiable reward.
+A faster generation does not necessarily mean faster learning. We make two checks:
+one-update alignment with the gradient of a differentiable loss, and training on a
+task with a non-differentiable reward. Within each experiment the perturbation variants
+use the same population and objective; the two experiments use different objectives.
 
 \subsection{Alignment with the descent direction}
 
-% F7 -- experiments/countdown/figures/f7-e13-heldout.png (plot_e13.py)
+\input{generated/tb6}
+
+We measure $\cos(\Delta\theta,-\nabla L)$ for the next-token loss on a fixed prompt
+batch, using five perturbation seeds per configuration. At 0.5B we compare full-rank
+noise with ranks 1, 4 and 16; at 1.5B we check full rank against rank 1 (Table~\ref{tab:tb6}). Rank-1 median alignment is 0.92--0.98 times
+the full-rank median across these checks: 2--8\% lower in every case, with overlapping
+seed ranges. The other tested ranks have similar medians
+at 0.5B, with substantial seed variation at the smaller population. The ranges in the
+table make that variation explicit.
+
+The cosines are small, of order $10^{-4}$. Each generation tests very few directions
+in a space with hundreds of millions of parameters, so a useful update can still have
+a small cosine with the gradient. A locally linear, Gaussian-projection approximation
+predicts alignment proportional to $\sqrt{N/P}$. It describes the synthetic block well
+(Figure~\ref{fig:f5}); applying it to low-rank noise also depends on how the gradient is
+distributed across matrix directions. We did not measure that structure on Qwen.
+Appendix~\ref{sec:alignment} gives the derivation and the unpaired-sampling comparison.
+
+This is evidence about update direction at the tested settings. Cosine ignores update
+magnitude and does not measure progress over repeated updates. Earlier predictions,
+fixed before these experiments, overestimated low-rank alignment. The $N/P$ explanation
+was developed afterward. Evaluated at Qwen's $N/P$, the full-rank synthetic reference
+puts the measured mirrored medians at 0.87--0.99 times its prediction, except rank 4
+at $N=30$, whose
+median is 1.20 times the prediction and whose seed range is wide. Table~\ref{tab:tb6-audit} preserves both the original predictions
+and the later reference.
+
+\subsection{Training on Countdown}
+
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.84\textwidth]{f7-e13-heldout.png}
-  \caption{Countdown with Qwen2.5-0.5B: the share of 2000 held-out puzzles solved,
-    against scored training completions (left; 240 per update) and against cumulative
-    update time (right), mean over three seeds with a min--max band. The time axis is
-    each run's own seconds per update, as each arm was configured, without the first two
-    updates (which compile) and without held-out decoding. At 12k samples full rank
-    solves 4.4\% against 1.5--2.2\% for ranks 1, 4 and 16, with no overlap between
-    seeds; every arm ends near 6\%.}
+  \includegraphics[width=0.95\textwidth]{f7-e13-heldout.png}
+  \caption{Countdown solve rate with Qwen2.5-0.5B, mean and min--max range over three
+    seeds. Left: scored training completions; all variants use 240 per update. Right:
+    cumulative steady-state update time with the training runs' original batching.
+    Compilation and held-out evaluation are excluded. Full rank uses chunks of five
+    candidates; low rank uses one batch. Markers are measured
+    checkpoints; connecting lines do not establish when a solve rate was first reached.}
   \label{fig:f7}
 \end{figure*}
 
-We measure alignment as $\cos(\Delta\theta, -\nabla L)$, the cosine between one ES
-update and the negative gradient of the next-token loss of Section~\ref{sec:setup}, on
-Qwen2.5-0.5B with five perturbation seeds per configuration, and repeat two
-configurations on a second prompt batch and on Qwen2.5-1.5B (Table~\ref{tab:tb6}). At
-equal population the rank barely matters: rank 1 aligns 0.92--0.98 times as well as full
-rank at both model sizes and on both batches, rank 16 0.97--1.05, and rank 4 1.04--1.31
-(the 1.31 is at $N{=}30$, where five seeds spread widely: full rank measures 1.3--1.9
-and rank 4 0.7--2.0, Table~\ref{tab:tb6-audit}). Unpaired rank 1 is 1.36$\times$
-mirrored rank 1 at $N{=}240$, close to the $\sqrt2$ that $N$ against $N/2$ directions
-gives, and 1.17$\times$ at $N{=}30$; mirroring halves the directions and in exchange
-halves the stored factors.
+We train Qwen2.5-0.5B on Countdown arithmetic puzzles in the style of TinyZero
+\citep{tinyzero2025}. Each generation evaluates 30 candidates on the same eight puzzles,
+drawn from a training pool of 256, giving 240 scored completions per update. A completion
+scores 1 if it solves the puzzle, 0.1 if well formed but wrong, and 0 otherwise.
+Each variant runs 500 updates with three seeds on one A100. Thus the budget of 120,000
+completions counts repeated evaluations, not distinct puzzles. We measure greedy-decoding
+accuracy on 2000 disjoint held-out puzzles every 50 updates. The setup adapts
+\citet{qiu2025}, with different score normalization and puzzles per update; details are
+in Appendix~\ref{sec:countdown}.
 
-\input{generated/tb6}
+All tested ranks learn, but their early progress differs (Figure~\ref{fig:f7}). The
+base model solves 1.2\% of held-out puzzles. At the first checkpoint, after 12,000
+training completions, full rank solves 4.4\%, compared with 1.5--2.2\% for ranks 1, 4
+and 16, with non-overlapping seed ranges. By 36,000 completions every variant reaches
+5.3--5.9\%, and their final means are 6.0--6.2\%. Formatting exceeds 98.5\% for every
+rank by the first checkpoint; the solve rate carries the remaining differences.
 
-The cosines are of order $10^{-4}$, and that is expected. A Gaussian-projection
-approximation predicts alignment proportional to $\sqrt{N/P}$: $\sqrt{3/\pi}\,\sqrt{N/P}$
-for unpaired sampling and $1/\sqrt2$ of that for mirrored pairs, and with $P$ = 494M and
-$N$ = 30, $\sqrt{N/P}$ is $2.5\times10^{-4}$. The approximation closely describes the
-synthetic block, where every arm is within 0.91--1.02 of it at every rank
-(Figure~\ref{fig:f5}), and the mirrored arms here measure 0.80--0.92 of it (1.10 for
-rank 4 at $N{=}30$). Its applicability to low-rank perturbations depends on the
-gradient's structure (Appendix~\ref{sec:alignment}). Most of each update is not along the
-descent direction.
+All twelve main runs use the same learning rate. Their Euclidean distance from the
+initial weights is 4.47--4.62 after 50 updates and 11.25--11.75 after 500. This supports
+comparable overall movement across ranks; it does not show that this learning rate is
+optimal for each variant, or that individual update norms match.
 
-The predictions we committed before these runs overestimated low-rank alignment: the
-measurements came out at 0.43--0.67 of the prediction at 0.5B, and 23--26\% below it at
-1.5B even after a correction fixed in advance. They read each arm's synthetic fit against a
-different variable. The $N/P$ reading used here, and Table~\ref{tab:tb6}'s reference
-column, were developed afterward; Appendix~\ref{sec:alignment} gives both predictions and
-why the first missed.
+The timing comparison includes a batching difference. Full-rank candidates were
+evaluated in chunks of five and low-rank candidates in one batch. Their mean steady-state
+update times were 4.44\,s and 2.62\,s for full rank and rank 1. The right panel uses
+those runs, so its difference cannot be attributed to perturbation rank alone.
+Compilation and held-out decoding are excluded. A clean training comparison with
+matched evaluation batching remains unmeasured.
 
-\subsection{Training on a task}
-
-We trained on Countdown, arithmetic puzzles in the style of TinyZero \citep{tinyzero2025},
-with settings adapted from \citet{qiu2025}: their population of 30, noise scale
-$\sigma{=}10^{-3}$ and learning rate, converted to Eq.~\ref{eq:update}; centered ranks
-where they standardize rewards (the weights' standard deviation is 0.29 against 1, and
-we did not match the resulting update magnitudes); and 8 puzzles per update where their
-protocol uses 200 samples
-(Appendix~\ref{sec:countdown} has the full setup). Each arm runs 500 updates, 120,000
-scored training completions, with three seeds, on one A100. A completion scores 1 if it
-solves the puzzle and 0.1 if it is well formed but wrong. Held-out accuracy is measured
-on 2000 disjoint puzzles by greedy decoding every 50 updates.
-
-The base model solves 1.2\% of the held-out puzzles and formats 43\% of its answers.
-Formatting is learned at once: every arm formats 98.5\% or more by the first evaluation,
-so Figure~\ref{fig:f7} shows the solve rate, which carries everything that differs
-between arms. Training raises it to a plateau, 6.0--6.2\% for full rank and ranks 1, 4
-and 16 at the end, and 5.55\% with the embedding frozen (27\% of the parameters). The
-approach differs. At the first evaluation, 12k samples in, full rank solves 4.4\% of the
-puzzles and ranks 1, 4 and 16 solve 1.5--2.2\%, with the seed ranges apart; by 36k
-samples every arm is at 5.3--5.9\%. With one evaluation on the rising part of the curve
-we can say that full rank learns faster per sample early on, not by how much.
-
-Per update, rank 1 is faster. As configured, a steady-state update took 4.44\,s at full
-rank and 2.62\,s at rank 1, 1.69$\times$. Part of that is how the two arms evaluate: the
-full-rank arm scored its members in chunks of five, and the low-rank arm scores the whole
-population in one batch. With both batching every member, on one host, the times are
-3.62\,s and 2.52\,s: rank 1 updates 1.44$\times$ faster for the same evaluation. Against
-update time (Figure~\ref{fig:f7}, right) the early gap mostly closes: full rank solves
-4.4\% after 212\,s of updates and 5.5\% after 434\,s, rank 1 5.3\% after 257\,s. The
-evaluations are too sparse to say which reaches a given solve rate first, and that axis
-uses the arms as configured, not with matched batching.
-
-The task separates training from failure, not small differences in update quality. A
-population-16 run, fixed in advance as a positive control because by the square-root scaling
-it aligns 27\% worse per update, does not test that either: on about the same budget it
-takes 940 updates (120,320 completions) to population 30's 500 and reaches the plateau
-sooner (Figure~\ref{fig:f7c}). Among the runs that update all parameters, no rank breaks
-training or ends at a different accuracy, on one task at one model size with three
-seeds; the run with the embedding frozen ends lower.
+The observed final accuracies are similar, but this does not establish equivalent
+learning efficiency. There is only one early checkpoint before the curves approach the
+plateau, so we cannot reliably compare time to a target accuracy. The experiment uses
+one task, one model size and three seeds. An additional population-16 experiment reaches
+the plateau sooner per scored completion, but also takes more updates, so it does not
+isolate the effect of per-update alignment. That experiment and the frozen-embedding
+variant are reported in Appendix~\ref{sec:countdown}.

@@ -10,10 +10,17 @@ regenerated from seeds and cheap low-rank noise. \citet{cho2026reward} show that
 normalization changes how large a population must be. Neither \citet{qiu2025} nor EGGROLL
 compares update placements, or both designs in one implementation.
 
-\paragraph{Zeroth-order optimization for language models.} MeZO \citep{malladi2023} also
+\paragraph{Tuning language models.} MeZO \citep{malladi2023} also
 estimates gradients from forward passes, with the goal of training in inference-sized
 memory rather than evaluating a population in parallel. It is a close relative with a
-different bottleneck.
+different bottleneck. FedKSeed also reconstructs updates from shared random seeds and
+communicates scalar coefficients in federated full-parameter tuning \citep{qin2024fedkseed}.
+Ferret uses shared randomness to communicate projected first-order updates
+\citep{shu2025ferret}. Both make the cost of reconstruction relevant, although their
+optimization and communication schedules differ from a synchronous ES population.
+ESSA reports alignment on models up to 72B by searching a compact subspace of LoRA
+singular values \citep{korotyshova2025essa}; it does not test full-parameter update
+placement at those sizes.
 
 \paragraph{Estimators.} Gaussian-smoothing and zeroth-order analyses make the dependence
 on dimension explicit \citep{nesterov2017,duchi2015,berahas2022}. Natural ES, CMA-ES and
@@ -24,7 +31,10 @@ vary the perturbation. Orthogonal and coupled samples
 (Appendix~\ref{sec:alignment}).
 
 \paragraph{Distributed systems.} JAX and GSPMD provide the compiler and sharding we build
-on \citep{jax2018,gspmd2021}. evosax \citep{lange2022evosax} is the standard JAX ES
+on \citep{jax2018,gspmd2021}. Trading local resources for less communication is a
+classical systems choice; replicated-data matrix multiplication is one example
+\citep{solomonik2011}. Our contribution is to measure how perturbation design changes
+that choice for ES update reconstruction. evosax \citep{lange2022evosax} is a JAX ES
 library. \citet{sheng2020tpu} run distributed ES on TPUs for meta-learning, without
 comparing placements. ZeRO \citep{rajbhandari2020zero} removes repeated optimizer
 work and memory in data-parallel training by splitting the optimizer step across
@@ -33,4 +43,6 @@ replace. BOOST \citep{wang2026boost} places the tensor-parallel collective of a
 factorized layer at its narrow activation bottleneck, of width $r$ rather than the hidden
 size. Our all-reduce placement instead forms and communicates dense partial parameter
 updates; communicating their factors would be a different placement, which we do not
-study.
+study. PowerSGD explicitly reduces communication using low-rank gradient approximations
+\citep{vogels2019}; low-rank perturbations in our experiments instead produce a dense
+update payload. These are different uses of low rank.

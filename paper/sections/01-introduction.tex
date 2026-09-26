@@ -1,62 +1,52 @@
-% CLAIM: "ES only communicates scalars" is true for one placement of the update and
-% incomplete as a systems model; a timing model accounts for the placement, and we measure it.
+% Main claim: update placement trades repeated computation for communication.
 \section{Introduction}
 
-Evolution strategies train a network without gradients: perturb the weights with
-random noise, score each perturbed copy, and move the weights toward the copies that
-scored well. Two recent papers made the method credible for language models, with
-opposite designs. \citet{qiu2025} perturb every weight and avoid storing the noise by
-regenerating it from a random seed whenever it is needed. EGGROLL
-\citep{eggroll2025} perturbs each weight matrix with the product of two thin
-matrices, a rank-$r$ perturbation, so the per-copy work becomes a small correction on
-top of one shared matrix multiply.
+Evolution strategies (ES) train a network without backpropagation: perturb the weights
+with random noise, score each perturbed model, and move the weights toward the candidates
+that scored well. The candidates form a \emph{population}. Their evaluations can run
+independently, making ES attractive when many devices are available.
 
-ES is usually described as cheap to distribute because workers exchange scalar
-fitnesses, not gradients \citep{salimans2017}. That describes one way of computing the
-update, the weighted sum $\sum_i w_i\epsilon_i$ over the population. If every device
-gathers all $N$ fitnesses and recomputes the whole sum, only scalars move. The other
-way is for each device to sum its own share of the population and all-reduce the
-partial sums, a buffer the size of the model. The second moves far more bytes, but
-does $1/D$ of the work on $D$ devices. Which is faster depends on how long the sum
-takes against how long the all-reduce takes (Section~\ref{sec:placement}). The two published designs sit at opposite ends of that
-trade: regenerating full-rank noise makes the sum expensive, and low-rank noise makes
-it cheap. GPUs and TPUs sit at different points on the other side, the cost of the
-all-reduce. As far as we know, neither side has been measured.
+Distributed ES is often described as cheap to communicate because devices exchange only
+scalar fitness scores \citep{salimans2017}. Those scores are enough to reconstruct the
+update when every device can regenerate the perturbations. But each device must then
+repeat the entire reconstruction. An alternative is to reconstruct a partial update on
+each device and add the partial updates with an \emph{all-reduce}, an operation that
+returns their sum to every device. This sends a model-sized array, but divides the
+reconstruction work across devices.
 
-Measuring it needs both designs in one implementation, so that the comparison is
-between the placements and not between codebases. The standard JAX ES library,
-evosax \citep{lange2022evosax}, stores the population as one dense (population,
-parameters) matrix, which has no place for low-rank noise kept as factors and does not fit
-full-rank noise for large models. We therefore built \textbf{shardes}
-\citep{shardes}, a JAX \citep{jax2018} library that splits the population across
-devices and takes the
-perturbation scheme as a plug-in. The paper is about what it measures.
+For example, with four devices and 100 candidates, each device evaluates 25 candidates.
+After collecting the scores, every device can reconstruct the update from all 100
+perturbations, or reconstruct its own 25 contributions and combine the partial updates.
+The choice is whether the saved computation is worth the added communication.
 
-We also check that the cheaper perturbation is worth having: whether low-rank updates
-point in useful directions (their cosine with the gradient-descent direction of a real
-model's loss), and
-whether they train as well on a task.
+The perturbation design changes this balance. \citet{qiu2025} use full-rank Gaussian
+noise, regenerated from a seed whenever needed, which saves memory but makes update
+reconstruction expensive. EGGROLL \citep{eggroll2025} uses products of thin matrices as
+low-rank perturbations. These permit efficient batched evaluation with a shared base
+weight matrix and make the update cheap to reconstruct. Neither paper compares update placements, and they do not compare both perturbation
+designs in one implementation. Existing systems illustrate two ways of keeping the
+complete reconstruction together: Algorithm 2 of \citet{salimans2017} repeats it on
+every worker, while EGGROLL's vLLM setup reconstructs on a primary rank and broadcasts
+the updated model \citep[Appendix L.2]{eggroll2025}. We test whether dividing that
+reconstruction work is worth its communication cost.
 
-\paragraph{Contributions.}
+We built a JAX \citep{jax2018} library\ifanonymous\else, \textbf{shardes} \citep{shardes},\fi{} to make that
+comparison. Every device holds the complete model; the population is what is split
+across devices. The library supports both perturbation designs under both placements,
+so their costs can be compared with the same model and evaluation code. We ask three
+questions:
 \begin{itemize}
-  \item \textbf{Where to compute the update.} At eight devices on one A100 node and one
-    v5e host, the all-reduce wins every full-rank configuration and replicating wins for
-    rank 1 at width 2048; the signs hold on Qwen2.5-0.5B, and across two TCP-connected
-    nodes full-rank noise at width 2048 is faster replicated too. A timing model from
-    separately measured terms (Eq.~\ref{eq:crossover}) gets the sign of 33 of 36
-    single-host configurations, missing only near-ties, and, with a calibration error
-    corrected, the sign of every host-boundary configuration.
-  \item \textbf{What low-rank noise saves, per accelerator.} The low-rank advantage
-    over dense noise is larger on the TPU than on the GPU, not smaller.
-  \item \textbf{One library for both designs.} The rank-1 path runs within 3\% of
-    EGGROLL's released code on one A100 (0.68--0.85$\times$ on one v5e chip), and
-    scales across devices, which none of the reference implementations does.
-  \item \textbf{Cheaper noise, similar alignment and final accuracy.} At equal
-    population, low-rank updates align with the gradient-descent direction 0.92 to 1.31
-    times as well as full-rank ones at 0.5B and 1.5B parameters. On Countdown, among runs
-    that update all parameters, every rank ends at similar held-out accuracy; full rank is
-    ahead at the first checkpoint, and rank 1 updates 1.44$\times$ faster with the
-    evaluation batched alike.
+  \item \textbf{When does splitting the update pay?} A timing model explains the balance
+    between repeated computation and communication. On the block benchmark, splitting
+    wins for full-rank noise on a single host, while replication wins for rank-1 noise
+    at the larger matrix width.
+  \item \textbf{Does the result carry over?} The placement preference holds on
+    Qwen2.5-0.5B on the TPU. Across a slow connection between hosts, replication wins
+    for large full-rank updates too.
+  \item \textbf{Do cheaper perturbations remain useful?} On matched block configurations,
+    rank-1 generation time is 0.22 times the dense time on the A100 and 0.08 times on
+    the v5e. The tested ranks have close one-update alignment and reach similar observed
+    final Countdown accuracy, but differ early in training.
 \end{itemize}
-Every figure and table regenerates from a committed script and committed result
-records.
+The placement measurements are the main result. The learning experiments check the
+practical relevance of the cheaper perturbations within one model family and one task.
