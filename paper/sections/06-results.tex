@@ -13,7 +13,7 @@
     fastest split / slowest replicated repeat to slowest split / fastest replicated
     repeat, across five repeats per placement; these are not confidence intervals.
     The three main variants measured on both platforms are shown; the complete grids,
-    including pairing variants, are in Appendix~\ref{sec:grids}.}
+    including the other variants of Table~\ref{tab:arms}, are in Appendix~\ref{sec:grids}.}
   \label{fig:f2}
 \end{figure*}
 
@@ -24,7 +24,7 @@ is 1.45--5.62$\times$. Dense alone gains 1.8--2.4$\times$ on the A100 and
 evaluation path. Replication is faster for rank-1 perturbations at width 2048
 (Figure~\ref{fig:f2}). For those low-rank configurations, splitting takes 4--15\% longer
 on the A100 and 17--46\% longer on the v5e. These low-rank ranges include both mirrored (drawn) and
-unpaired sampling; Appendix~\ref{sec:grids} gives all variants and absolute times.
+non-mirrored sampling; Appendix~\ref{sec:grids} gives all variants and absolute times.
 
 At width 512 the rank-1 placements are close. We treat a comparison as unresolved when
 its repeat range contains 1, using the range defined in the figure caption. At eight
