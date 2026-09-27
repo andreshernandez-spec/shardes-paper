@@ -33,9 +33,9 @@ sum in Eq.~\ref{eq:update} can then be formed in two ways (Figure~\ref{fig:place
   \end{tikzpicture}
   \caption{The two update placements. Shaded boxes communicate between devices. $C_A$
     and $C_B$ are the times to reconstruct the whole update and one device's share. In
-    the measured implementation, replication also gathers the coefficients a second time
-    before reconstructing; this small second gather is included in
-    Eq.~\ref{eq:crossover}.}
+    the measured implementation, replication performs a second all-gather of the
+    coefficients before reconstructing (not shown); this small second gather is included
+    in Eq.~\ref{eq:crossover}.}
   \label{fig:placements}
 \end{figure}
 
@@ -43,18 +43,17 @@ sum in Eq.~\ref{eq:update} can then be formed in two ways (Figure~\ref{fig:place
 $N$ candidates and forms the complete sum. Only arrays of $N$ scalars are communicated:
 no device receives another device's noise, because every variant regenerates its noise
 from seeds. Our implementation shares one code path between the placements, and that
-path keeps each device's coefficients only for its own candidates, as splitting needs,
-so replication gathers them a second time. The second gather follows from sharing the
-code path, not from replication itself. Each gather carries $4N$ bytes for float32
-values.
+path keeps each device's coefficients only for its own candidates, as splitting needs.
+Replication therefore performs a second all-gather, this time of the coefficients. The
+second gather follows from sharing the code path, not from replication itself. Each
+gather produces an array of $4N$ bytes for float32 values.
 
 \paragraph{Split update (B).} Each device regenerates the noise of its own $N/D$
 candidates and reconstructs only their contributions. An all-reduce adds these partial
-updates and returns the sum to every device. Splitting therefore communicates the
-$4N$-byte score array, in the shared all-gather, and the $4P$-byte update, in the
-all-reduce. These are the array sizes passed to the collective operations; the bytes each
-device actually sends depend on the algorithm, and a ring all-reduce, for example, sends
-$2(D-1)/D$ times the array size per device \citep{thakur2005,patarasuk2009}.
+updates and returns the sum to every device. For float32 scores, each device contributes
+$4N/D$ bytes to the shared all-gather, producing the complete $4N$-byte score array. Each
+partial update contains $P$ float32 values, so its array size is $4P$ bytes. The bytes each
+device actually sends depend on the collective algorithm (Appendix~\ref{sec:timemodel}).
 
 \paragraph{The decision rule.} Splitting is faster when the computation it saves outweighs
 the communication it adds. Write $t_A$ and $t_B$ for the generation times under replication
@@ -67,25 +66,29 @@ placements, so approximately
 \end{equation}
 where $T_{\mathrm{ag}}$ and $T_{\mathrm{ar}}$ are the times of an all-gather and an
 all-reduce at the given array sizes. $T_{\mathrm{ag}}(4N)$ is replication's second gather;
-the score gather both placements share cancels. At the populations measured here that
-gather adds about 10\,$\mu$s (Appendix~\ref{sec:barrier}), so splitting is faster when
-$C_A-C_B > T_{\mathrm{ar}}(4P)$. Ideal splitting would give $C_B=C_A/D$; we measure $C_B$
-directly, because a small computation does not necessarily run $D$ times faster on $1/D$
-of the work.
+the score gather both placements share cancels. The single-host communication benchmark
+puts this gather at only a few microseconds (Appendix~\ref{sec:timemodel}). Neglecting
+this small term, the rule simplifies to $C_A-C_B > T_{\mathrm{ar}}(4P)$. Ideal splitting
+would give $C_B=C_A/D$, but smaller computations can use the device less efficiently,
+so we measure $C_B$ directly.
 
-\paragraph{Why perturbation type matters.} Full-rank reconstruction generates $NP$ noise
-values under replication, $NP/D$ per device under splitting, before weighting and summing
-them. Low-rank reconstruction generates only the factors, $r(m+n)$ values per candidate
-for each $m\times n$ matrix, and combines them with one matrix multiplication per weight
-matrix:
+\paragraph{Why perturbation type matters.} Without mirrored sampling, full-rank
+reconstruction generates $NP$ noise values per device under replication and $NP/D$ under
+splitting, before weighting and summing them. Low-rank reconstruction generates only the
+factors, $r(m+n)$ values per candidate for each $m\times n$ matrix. Combining mirrored
+pairs halves the number of noise arrays or factor sets regenerated. The low-rank factors
+can be combined with one matrix multiplication per weight matrix:
 \[
   \textstyle\sum_i w_i U_iV_i^\top
   =[w_1U_1,\dots,w_NU_N]\,[V_1,\dots,V_N]^\top .
 \]
-The update is still a full $m\times n$ array under either placement; with mirrored
-sampling its rank is at most $\min(m,n,Nr/2)$. Splitting therefore adds the same
-model-sized communication for low-rank noise while saving less reconstruction work. Both
-reconstruction and communication grow with model size, and their balance also depends on
+The brackets join the factors side by side. Their product forms the weighted sum
+without constructing each candidate's full noise matrix; the common $1/\sqrt r$ factor
+is omitted here. The update is still a full $m\times n$ array under either placement;
+with mirrored sampling its rank is at most $\min(m,n,Nr/2)$. When low-rank reconstruction
+is cheaper, splitting has less computation to save while adding the same model-sized
+communication. Both reconstruction and communication grow with model size, and their
+balance also depends on
 population, rank, matrix shapes and the connection between devices.
 Appendix~\ref{sec:size} derives a conditional scaling rule and explains why it is not a
 prediction for a larger model.
