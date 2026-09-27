@@ -20,7 +20,13 @@ What each call does, in shardes' terms (`ShardedES` with `SeedRegenerated`, one 
   member `i` (or the view, for `None`), through the same fused layouts.
 
 JAX arrays reach torch by DLPack into buffers the engine then copies from; nothing
-mutates a JAX-owned buffer from torch.
+mutates a JAX-owned buffer from torch. The handoff crosses two streams and two allocators,
+and the Tulu pilot showed what happens when that is left implicit: after `es_tell` queued
+seconds of JAX work, torch copied some restored leaves before JAX had written them or
+after it had reused their memory, and 4 to 7 of 30 center evaluations per arm ran on
+wrong weights (`race_check.py` reproduced it: 4 of 20 restores wrong). So each leaf is
+finished in JAX (`block_until_ready`) before torch sees it, and kept alive until torch's
+copy of it has completed (one leaf per `load_weights` call, then a synchronize).
 """
 
 import hashlib
@@ -88,17 +94,20 @@ class ESWorker:
 
     def _member(self, i):
         for k, name in enumerate(self._es_names):
-            leaf = stream.member_leaf(self._es_master[name], self._es_streams[k], i,
-                                      self._es_sigma)
-            yield name, _torch(leaf)
+            yield name, stream.member_leaf(self._es_master[name], self._es_streams[k], i,
+                                           self._es_sigma)
 
     def _view(self):
         for name in self._es_names:
-            yield name, _torch(self._es_master[name].astype(stream.COMPUTE))
+            yield name, self._es_master[name].astype(stream.COMPUTE)
 
-    def _load(self, weights) -> None:
-        self.model_runner.model.load_weights(weights=weights)
-        torch.cuda.synchronize()
+    def _load(self, leaves) -> None:
+        """Write JAX leaves into the engine, one at a time, each fully handed over."""
+        for name, leaf in leaves:
+            leaf.block_until_ready()          # JAX has written it
+            self.model_runner.model.load_weights(weights=[(name, _torch(leaf))])
+            torch.cuda.synchronize()          # torch has copied it; now JAX may free it
+            del leaf
 
     def es_perturb(self, i: int) -> None:
         self._load(self._member(jnp.int32(i)))
@@ -125,10 +134,14 @@ class ESWorker:
     def _expected(self, i, name):
         """The bf16 array the engine should hold for HF leaf `name`, one leaf at a time."""
         if i is None:
-            return _torch(self._es_master[name].astype(stream.COMPUTE))
-        k = self._es_index[name]
-        return _torch(stream.member_leaf(self._es_master[name], self._es_streams[k],
-                                         jnp.int32(i), self._es_sigma))
+            leaf = self._es_master[name].astype(stream.COMPUTE)
+        else:
+            k = self._es_index[name]
+            leaf = stream.member_leaf(self._es_master[name], self._es_streams[k],
+                                      jnp.int32(i), self._es_sigma)
+        leaf.block_until_ready()
+        self._es_keep = leaf  # alive until the comparison that reads it has run
+        return _torch(leaf)
 
     def es_check(self, i=None) -> dict:
         """Bit-for-bit comparison of the engine's weights with member `i` or the view."""

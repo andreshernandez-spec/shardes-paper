@@ -225,7 +225,7 @@ def main(argv=None) -> int:
             fitness, lengths, capped, all_rewards = [], [], 0, []
             for m in range(N):
                 llm.collective_rpc("es_perturb", args=(m,))
-                if g == 0 and m in cfg.get("check_members", [0]):
+                if (g % 10 == 0) and m in cfg.get("check_members", [0]):
                     check = llm.collective_rpc("es_check", args=(m,))[0]
                     record.setdefault("checks", []).append({"member": m, **check})
                     if not check["ok"]:
@@ -246,11 +246,12 @@ def main(argv=None) -> int:
             })
         tell = llm.collective_rpc("es_tell", args=(fitness,))[0]
         llm.collective_rpc("es_restore")
-        if g == 0 and not random_control:
-            check = llm.collective_rpc("es_check", args=(None,))[0]
-            record.setdefault("checks", []).append({"member": None, **check})
-            if not check["ok"]:
-                raise SystemExit(f"engine weights are not the view after restore: {check}")
+        # Every restore is checked: the next iteration's center evaluation runs on these
+        # weights, and the first pilot showed a silent fault here (worker.py docstring).
+        check = llm.collective_rpc("es_check", args=(None,))[0]
+        record.setdefault("checks", []).append({"member": None, **check})
+        if not check["ok"]:
+            raise SystemExit(f"engine weights are not the view after restore: {check}")
         record.update({"fitness": fitness, "mean_fitness": float(np.mean(fitness)),
                        "tell": tell, "seconds": time.perf_counter() - t0})
         if (g + 1) % cfg.get("digest_every", 5) == 0 or g + 1 == cfg["iterations"]:

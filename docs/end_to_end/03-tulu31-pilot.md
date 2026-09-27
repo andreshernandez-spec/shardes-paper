@@ -82,3 +82,22 @@ its first iteration, since the arms are compared pairwise and must share a GPU t
 Price: $3.59/h against the $3.49 the H100 has cost us on Secure Cloud; the H200 decodes
 faster (4.8 against 3.35 TB/s), so per result it should cost no more. The configs are
 unchanged: `gpu_memory_utilization` is a fraction of the card.
+
+## Amendment 2, 2026-09-27: the first run is invalid; the pilot is rerun as preregistered
+
+The first complete run (commit 2eb8506, all four arms on H200) is recorded in
+`experiments/end_to_end/runs/pilot1-invalid/` and not used for the gate. Its primary
+metric was corrupted: at 4 to 7 of 30 iterations per arm, the random control included,
+`center_reward` collapsed to 0.3-0.8 with center responses of 900-1,600 tokens, then
+recovered, while no member evaluation ever collapsed. Cause, reproduced on the laptop by
+`es_vllm/race_check.py` (4 of 20 restores wrong): the JAX to torch weight handoff after
+`es_tell` did not wait for JAX to finish each leaf or keep it alive until torch had
+copied it. Fixed in `worker.py` (0 of 40 restores wrong after the fix), and the driver
+now checks the engine bit for bit after every restore and one member every ten
+iterations, aborting on a mismatch.
+
+The gate applied to the invalid run as it stands (`gate-as-computed.json`: no arm
+passes) is kept beside it. It is not the pilot's result, because the measurement was
+wrong at known iterations; dropping those iterations after seeing them would be a rule
+chosen from the data. The rerun uses the same configs, the same gate and the same GPU
+type, from the commit that carries this amendment.
