@@ -1,4 +1,4 @@
-\section{One implementation for \mbox{every} variant}
+\section{A shared implementation}
 \label{sec:instrument}
 
 The library is written in JAX. The computation is written once for all devices, with
@@ -9,17 +9,19 @@ reconstructs the update, for every perturbation design under both placements. Ev
 device holds a complete copy of the model. Two properties of the implementation matter
 for the measurements.
 
-\paragraph{The population stays fixed.} A candidate's random seed depends only on its index
-in the population, not on the device that evaluates it. Every device count therefore
-evaluates the same perturbations, and both placements reconstruct the same update. With the
-fitness scores held fixed, the updates computed for Qwen2.5-0.5B on one and on eight A100s
-differ by $6.3\times10^{-6}$ relative to their size, measured over all parameters
+\paragraph{The population stays fixed.} For a fixed run seed and generation, a
+candidate's perturbation depends on its population index, independently of the device
+that evaluates it. Changing device count preserves the perturbations. Given the same
+fitness scores, both placements compute the same mathematical update, with possible
+differences from floating-point rounding. As a check across device counts, we computed
+Qwen2.5-0.5B updates on one and eight A100s with the fitness scores held fixed. The updates
+have a relative error of $6.3\times10^{-6}$, measured over all parameters together
 (Appendix~\ref{sec:implementation}).
 
-\paragraph{Low-rank perturbations stay factored.} A layer computes
-$x(W+\sigma UV^\top/\sqrt r)^\top$ as
-$xW^\top+((xV)U^\top)\sigma/\sqrt r$. The first term is one matrix multiplication of all
-candidates' inputs with the shared weights $W$; each candidate then adds its own low-rank
-correction and keeps its own activations. No candidate's full noise matrix is ever formed.
-A model must route its matrix multiplications and embedding lookups through the library's
-layers, so an existing model has to be adapted.
+\paragraph{Low-rank perturbations stay factored.} For inputs $x$ and a weight matrix
+$W$, a layer computes $x(W+\sigma UV^\top/\sqrt r)^\top$ as
+$xW^\top+((xV)U^\top)\sigma/\sqrt r$. On each device, the local candidates' inputs are
+batched against the shared weights $W$; each candidate adds its own low-rank correction
+and retains its own activations. No candidate's full noise matrix is ever formed. To use
+low-rank perturbations, matrix multiplications and embedding lookups involving perturbed
+weights must go through the library's layers, so existing model code needs adaptation.

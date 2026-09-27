@@ -3,8 +3,15 @@
 \label{sec:implementation}
 
 \paragraph{Repeatability.} With fitness scores held fixed, one- and eight-device
-Qwen2.5-0.5B updates agree to $6.3\times10^{-6}$ relative error in the norm of the whole parameter tree on the A100. The committed log reports this aggregate; it does not bound every leaf. Two
-20-generation runs of the same eight-device program agree byte for byte. Separately
+Qwen2.5-0.5B updates on the A100 have a relative error of $6.3\times10^{-6}$, measured as
+\[
+  \frac{\lVert\Delta\theta_1-\Delta\theta_8\rVert_2}
+       {\lVert\Delta\theta_8\rVert_2},
+\]
+where $\Delta\theta_D$ is the update computed on $D$ devices and the norms treat all
+parameters as one vector. The committed log reports this aggregate; it does not bound
+every parameter array. Two 20-generation runs of the same eight-device program agree
+byte for byte. Separately
 compiled programs need not follow the same training trajectory: changes in floating-point
 arithmetic can change the selected token when greedy-decoding logits are nearly tied.
 
