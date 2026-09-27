@@ -1,5 +1,25 @@
 # E17b: the real-model contraction crossover as a figure. TPU v5e-8, 2026-08-25 to 08-31
 
+## Provenance audit, 2026-09-26
+
+The manuscript now uses only records whose `env.dirty_worktree` is false. Of the
+128 records, 63 are dirty (25 timings, 38 OOMs), leaving 65 clean records
+(43 timings, 22 OOMs). A placement comparison requires both A and B to be clean:
+20 timed comparisons remain, 8 full-rank and 12 low-rank. Every D=8 record is clean.
+`../e17_data.py` enforces this in the figure and table generators;
+`../../phase2/paper_evidence.py` prints the counts from the records.
+
+The launch script at 94fae65 runs the collective ladder before E17b; the script at
+82ab1ec runs regeneration and reconstruction probes first. Those jobs write other
+result directories, while E17b's historical environment capture excludes only its
+own output directory. This is a plausible cause of the dirty flags, but the records
+contain no changed-path list or patch. The scripts alone cannot certify what changed
+in the running worktree, so the flagged records are not treated as clean results.
+No result stamps have been rewritten. The historical account below describes the
+full original grid, including the excluded records; its counts are not the current
+paper's evidence set. Restoring the excluded comparisons requires clean reruns or
+contemporaneous evidence identifying the changed files.
+
 All 128 cells of `e17b.yaml` (predictions frozen in its header before any run), five
 free Kaggle TPU v5e-8 sessions, kernel `shardes-e17b-tpu` (`kaggle/e17btpu/`). One complete
 production update per cell (ask, teacher-forced NLL on E15's frozen batch, tell) on
@@ -117,17 +137,17 @@ runs it in repeated slices and stops when the grid is done or a slice adds nothi
 
 | session | SHA | cells added | total |
 |---|---|---|---|
-| 1 | 82ab1ec | 10 | 10 |
-| 2 | fd60079 | 30 | 40 |
-| 3 | 94fae65 | 53 | 93 |
+| 1 | 94fae65 | 53 | 53 |
+| 2 | fd60079 | 30 | 83 |
+| 3 | 82ab1ec | 10 | 93 |
 | 4 | 9ab378b | 25 | 118 |
 | 5 | c90021c | 10 | 128 |
 
 Session 2 was killed mid-cell with no traceback after a run of recorded OOMs, host
 memory rather than HBM. Session 4 spent all four of its slices and stopped with three
-hours of the session unused, which is why the kernel now takes six. Sessions 1 and 2
-also ran the phase-2 regeneration decomposition and contraction isolation as a prelude;
-those results live in `../../phase2/`.
+hours of the session unused, which is why the kernel now takes six. Session 1 also ran the collective ladder; session 3 ran the phase-2 regeneration
+decomposition and contraction isolation as a prelude. Those results live in
+`../../phase2/`.
 
 Cells carry the SHA they were measured at, and two library files moved across the five.
 Both are inert here, checked rather than assumed:

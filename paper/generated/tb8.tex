@@ -3,21 +3,17 @@
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\caption{What one more collective costs inside a running program ($\mu$s; the slope of a dependent chain), $D{=}8$. The rows are what the placements issue: B's all-reduce of the $4P$-byte update and the $4N$-byte fitness gather. A program holding only the collective also pays a one-op floor (0.32\,ms on the A100, 0.60\,ms on the v5e) that a generation pays once. $\beta$ is payload over time.}
+\caption{Isolated communication benchmark on eight devices, in microseconds. The model-sized all-reduce costs much more than gathering scores. Times exclude fixed launch and synchronization overhead; Appendix~\ref{sec:timemodel} explains the measurement and its distinction from communication added to a reconstruction probe.}
 \label{tab:tb8}
 \begin{tabular}{llrr}
 \toprule
 collective & payload & A100 & v5e \\
 \midrule
-all-reduce, latency floor & 8\,B & 27.2 & 5.7 \\
 all-reduce (B), $d{=}512$ & 6\,MiB & 117.3 & 122.5 \\
 all-reduce (B), $d{=}2048$ & 96\,MiB & 925.2 & 2006.0 \\
 fitness gather, $N{=}256$ & 1\,KiB & 8.1 & 3.8 \\
 fitness gather, $N{=}1024$ & 4\,KiB & 8.0 & 5.0 \\
 fitness gather, $N{=}262144$ & 1\,MiB & 20.7 & 19.8 \\
-\midrule
-$\alpha$ ($\mu$s) & & 27 & 6 \\
-$\beta$ (GiB/s) & & 98 & 47 \\
 \bottomrule
 \end{tabular}
 \end{table}

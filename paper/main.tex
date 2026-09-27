@@ -4,30 +4,51 @@
 % - Figures are included straight from experiments/*/figures; each script is named in
 %   the comment above its figure and in the appendix.
 % - `make` builds main.pdf; `make anon` builds main-anon.pdf for double-blind review,
-%   without the author, the acknowledgements and the repository URLs.
+%   without author details, acknowledgements, identifying library names or repository URLs.
 %
-% CLASS: neutral article for now. When the MLSys 2027 style is in, replace the next line
-% with its class file and delete the geometry package.
+% Keep a neutral reading copy; the submission target uses the official style.
+\ifdefined\submissionbuild
+\documentclass{article}
+\else
 \documentclass[10pt,twocolumn]{article}
 \usepackage[margin=1in]{geometry}
+\fi
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{natbib}
-% No float barrier at section boundaries: with the full-width tables of Section 6 it
-% left half of a page empty. Every float sits at the top of a page ([t]).
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+% Allow full-width figures and tables near the discussion they support.
+\ifdefined\submissionbuild\usepackage{float}\fi
+\ifdefined\submissionpart\usepackage{xr-hyper}\fi
 \usepackage[hidelinks]{hyperref}
+\ifdefined\submissionbuild
+\usepackage{mlsys2025}
+\mlsystitlerunning{Update Placement in Distributed Evolution Strategies}
+\fi
+\ifdefined\submissionpart
+  \ifdefined\appendixonly
+    \externaldocument{submission-main-refs}[main-submission.pdf]
+  \else
+    \externaldocument{submission-appendix-refs}[appendix-anon.pdf]
+  \fi
+\fi
 
-\graphicspath{{../experiments/phase2/figures/}{../experiments/phase0/figures/}{../experiments/countdown/figures/}}
+\renewcommand{\dbltopfraction}{0.85}
+\renewcommand{\topfraction}{0.85}
+
+\graphicspath{{../experiments/phase2/figures/}{../experiments/countdown/figures/}}
 
 \newif\ifanonymous
 \ifdefined\anonymousbuild\anonymoustrue\fi
-% Repository links, or a neutral phrase in the anonymous build.
-\newcommand{\libraryurl}{\ifanonymous the library's repository (withheld for review)\else\url{https://github.com/andreshernandez-spec/shardes}\fi}
+% The experiments' repository, or a neutral phrase in the anonymous build.
 \newcommand{\paperurl}{\ifanonymous the experiments' repository (withheld for review)\else\url{https://github.com/andreshernandez-spec/shardes-paper}\fi}
 
-\title{Scalars or all-reduce? Placing the update in sharded evolution strategies on GPUs and TPUs}
+\newcommand{\librarycite}{\ifanonymous\else\citep{shardes}\fi}
+
+\title{Update Placement in Distributed Evolution Strategies}
 \ifanonymous
 \author{Anonymous authors}
 \else
@@ -36,29 +57,36 @@
 \fi
 \date{}
 
-\begin{document}
-\maketitle
+% Appendix citations are plain text; its bibliography is in the main upload.
+\ifdefined\appendixonly
+\makeatletter
+\def\hyper@natlinkstart#1{}
+\let\hyper@natlinkend\relax
+\def\hyper@natlinkbreak#1#2{#1}
+\makeatother
+\fi
 
-\begin{abstract}
-Evolution strategies (ES) are often called cheap to distribute because workers exchange
-scalar fitnesses rather than gradients. That holds for one way of computing the update:
-gather the fitnesses and let every device recompute the weighted sum of all
-perturbations. The other way splits the sum across devices and all-reduces a
-model-sized partial update. We measure both in one JAX library that runs full-rank
-perturbations regenerated from seeds and low-rank perturbations that are never
-materialized, on a single 8$\times$A100 node, a single TPU v5e-8 host, and
-Qwen2.5-0.5B. The winner follows one inequality: all-reduce wins when the share of the
-sum it saves takes longer than the all-reduce. On a single host it wins every
-full-rank configuration measured, by 1.4 to 5.6$\times$, and repeating the sum wins for low-rank
-perturbations at large width, by 4 to 46\%. Across two A100 nodes joined by TCP
-sockets the full-rank arm flips too, and the same inequality predicts the boundary's
-cost within 6\,ms per cell. Low-rank perturbations cost 0.05--0.16$\times$ the dense
-baseline on the TPU against 0.13--0.42$\times$ on the A100. At equal population their
-updates align with the true gradient about as well as full-rank ones at 0.5B and 1.5B
-parameters, and on Countdown every rank reaches the same held-out accuracy, full rank
-in fewer samples, while rank 1 updates 1.44$\times$ faster. Code, configurations and
-results are released.
-\end{abstract}
+\begin{document}
+\ifdefined\appendixonly
+  \twocolumn[\mlsystitle{Appendix: Update Placement in Distributed Evolution Strategies}\vskip 0.2in]
+  \input{submission-counters}
+  \appendix
+  \input{sections/appendix}
+\else
+  \ifdefined\submissionbuild
+    \twocolumn[
+      \mlsystitle{Update Placement in Distributed Evolution Strategies}
+      \begin{mlsysauthorlist}\mlsysauthor{Anonymous authors}{anon}\end{mlsysauthorlist}
+      \mlsysaffiliation{anon}{Anonymous institution}
+      \mlsyscorrespondingauthor{Anonymous author}{anonymous@example.com}
+      \vskip 0.3in
+      \input{sections/abstract}
+    ]
+    \begin{NoHyper}\printAffiliationsAndNotice{}\end{NoHyper}
+  \else
+    \maketitle
+    \input{sections/abstract}
+  \fi
 
 \input{sections/01-introduction}
 \input{sections/02-background}
@@ -66,7 +94,6 @@ results are released.
 \input{sections/04-instrument}
 \input{sections/05-setup}
 \input{sections/06-results}
-\input{sections/07-quality}
 \input{sections/08-related}
 \input{sections/09-conclusion}
 
@@ -76,10 +103,26 @@ The TPU measurements ran on Kaggle's free TPU v5e-8 tier; the GPU measurements r
 rented A100 nodes. No grant or employer resources were used.
 \fi
 
-\bibliographystyle{plainnat}
-\bibliography{references}
-
-\appendix
-\input{sections/appendix}
-
+\label{sec:body-end}
+\ifdefined\submissionpart
+  % Include references cited in the separately uploaded appendix too.
+  \input{submission-all.bbl}
+\else
+  \ifdefined\submissionbuild\bibliographystyle{mlsys2025}\else\bibliographystyle{plainnat}\fi
+  \bibliography{references}
+  \clearpage
+  \ifdefined\submissionbuild
+    % Continue figure/table/equation numbering in the separate appendix.
+    \newwrite\counterfile
+    \immediate\openout\counterfile=submission-counters.tex
+    \immediate\write\counterfile{\string\setcounter{figure}{\arabic{figure}}}
+    \immediate\write\counterfile{\string\setcounter{table}{\arabic{table}}}
+    \immediate\write\counterfile{\string\setcounter{equation}{\arabic{equation}}}
+    \immediate\closeout\counterfile
+  \fi
+  \appendix
+  \label{sec:appendix-start}
+  \input{sections/appendix}
+\fi
+\fi
 \end{document}

@@ -191,6 +191,8 @@ def main(argv=None) -> int:
             rec = {"config": {"strategy": strategy, "population": n,
                               "sigma": cfg["sigma"],
                               "n_prompts": cfg["n_prompts"],
+                              "puzzle_seed": cfg["puzzle_seed"],
+                              "perturbation_seed_base": 1000,
                               "member_chunk": chunk,
                               "objective": "teacher-forced NLL",
                               "smoke": bool(args.smoke)},

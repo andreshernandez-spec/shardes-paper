@@ -1,64 +1,89 @@
-% CLAIM: two placements of the sum, the byte counts fixed before measurement, and the one
-% inequality (docs/11-cost-model.md) that decides between them.
-\section{Where to compute the sum}
+\section{Computing the update}
 \label{sec:placement}
 
-Each of $D$ devices holds the full weights and evaluates $N/D$ members. After
-evaluation every device has the fitnesses of its own members, and the sum of
-Eq.~\ref{eq:update} has to be formed somewhere. There are two natural places.
+Each of $D$ devices holds the full model and evaluates $N/D$ candidates. An
+\emph{all-gather} collects their scalar scores and makes the complete list available on
+every device. Every device ranks that list to obtain the weights $w_i$. The weighted
+sum can then be formed in two ways (Figure~\ref{fig:placements}).
 
-\begin{itemize}
-  \item \textbf{Replicated (A).} Every device gathers all $N$ fitnesses, regenerates all
-    $N$ perturbations, and computes the whole sum itself. Only scalars move: $8N$ bytes,
-    two gathers of $4N$ (the raw fitnesses, and the shaped weights, which the
-    implementation gathers a second time). This is the arrangement behind ``ES only
-    communicates scalars'' \citep{salimans2017}.
-  \item \textbf{All-reduce (B).} Every device sums its own $N/D$ members, and the partial
-    sums are added with an all-reduce of a model-sized buffer: $4P+4N$ bytes for $P$
-    float32 parameters. Each device does $1/D$ of the sum.
-\end{itemize}
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[font=\scriptsize,
+      comp/.style={draw, rounded corners=1pt, align=center, text width=3.25cm, minimum height=0.55cm,
+                   inner sep=3pt},
+      comm/.style={comp, fill=black!9},
+      wide/.style={comp, text width=7.2cm},
+      arr/.style={->, >=latex, thin}]
+    \node[wide] (eval) at (0, 0) {each device evaluates $N/D$ candidates};
+    \node[wide, fill=black!9] (scores) at (0, -0.65)
+      {gather all $N$ scores; rank on every device};
+    \node[comp] (a) at (-1.9, -1.8)
+      {\textbf{replicated (A)}\\whole update\\$N$ candidates: $C_A$};
+    \node[comp] (b) at (1.9, -1.8)
+      {\textbf{split (B)}\\partial update\\$N/D$ candidates: $C_B$};
+    \node[comm] (sum) at (1.9, -2.85)
+      {add partial updates\\all-reduce: $4P$ bytes};
+    \node[wide] (upd) at (0, -3.7) {apply the same update on every device};
+    \draw[arr] (eval) -- (scores);
+    \draw[arr] (scores.south -| a.north) -- (a);
+    \draw[arr] (scores.south -| b.north) -- (b);
+    \draw[arr] (b) -- (sum);
+    \draw[arr] (a) -- (a |- upd.north);
+    \draw[arr] (sum) -- (sum |- upd.north);
+  \end{tikzpicture}
+  \caption{Replicate the reconstruction or split it and communicate the result.
+    Shaded boxes communicate between devices. In the measured implementation,
+    replication also gathers the rank-derived weights before reconstructing the update;
+    that small additional gather is included in Eq.~\ref{eq:crossover}.}
+  \label{fig:placements}
+\end{figure}
 
-Evaluation and the parameter update are the same in both, so the difference in time per
-generation is the sum and the collectives:
+\paragraph{Replicated update (A).} Every device reconstructs the contributions from all
+$N$ candidates and forms the complete sum. Only scalar arrays are communicated. Our
+shared implementation places the rank-derived weights back on the population axis
+for B's local reconstruction; A then gathers them again. This second gather is a
+consequence of sharing a code path, not a requirement of replication. The two gathers
+each carry $4N$ bytes for float32 values. Even the dense variant regenerates the noise
+from seeds for reconstruction; it does not gather stored noise arrays.
+
+\paragraph{Split update (B).} Each device reconstructs only its $N/D$ contributions.
+An all-reduce adds the partial sums and returns the result to every device. It
+communicates the $4N$-byte score array and a $4P$-byte update array. These are the
+sizes passed to the communication operations; bytes sent over the connection also
+depend on the collective algorithm \citep{thakur2005,patarasuk2009}.
+
+\paragraph{The decision rule.} Splitting helps when the computation it saves takes
+longer than the communication it adds. Write $C_A$ for the time to reconstruct the
+whole sum and $C_B$ for the time to reconstruct one device's share. Since evaluation
+and applying the update are common to both placements, the generation times satisfy
+approximately
 \begin{equation}
-  t_A - t_B \;=\; \Bigl(1-\frac{1}{D}\Bigr)\,C \;+\; T_{\mathrm{ag}}(4N) \;-\; T_{\mathrm{ar}}(4P),
+  t_A-t_B \;\approx\; (C_A-C_B)+T_{\mathrm{ag}}(4N)-T_{\mathrm{ar}}(4P),
   \label{eq:crossover}
 \end{equation}
-where $C$ is the time to form the whole sum on one device and $T_{\mathrm{ag}}$,
-$T_{\mathrm{ar}}$ are the times of an all-gather and an all-reduce of the given sizes.
-All-reduce wins when the right-hand side is positive: when the share of the sum it saves
-takes longer than the model-sized all-reduce. The gather is microseconds
-(Table~\ref{tab:tb8}), so in practice
+where $T_{\mathrm{ag}}$ and $T_{\mathrm{ar}}$ are the times of an all-gather and an
+all-reduce at the stated array sizes. The positive gather term is A's additional gather;
+the common score gather cancels. It costs only microseconds in these experiments, so
+the practical comparison is $C_A-C_B > T_{\mathrm{ar}}(4P)$. Ideal splitting would
+make $C_B=C_A/D$, but small computations need not scale that well.
+
+\paragraph{Why perturbation type matters.} Full-rank reconstruction generates or reads
+$NP$ noise values before summing them. Low-rank reconstruction can combine the factors
+with one matrix multiplication per weight matrix:
 \[
-  \text{all-reduce (B) wins} \iff \Bigl(1-\frac{1}{D}\Bigr)\,C > T_{\mathrm{ar}}(4P).
+  \textstyle\sum_i w_i U_iV_i^\top
+  =[w_1U_1,\dots,w_NU_N]\,[V_1,\dots,V_N]^\top .
 \]
-$C$ is large when every member carries full-rank noise that has to be read or
-regenerated, and small for low-rank noise. $T_{\mathrm{ar}}$ grows with the model and
-depends on the interconnect. So the answer should differ by perturbation, by model
-size, by device count and by fabric, and there is no single winner to predict.
+This avoids a full noise array for every candidate. The resulting update is dense in
+storage under either placement; with mirrored sampling its matrix rank is at most
+$\min(m,n,Nr/2)$. Splitting therefore adds the same model-sized communication for
+low-rank noise while saving less reconstruction work. Both reconstruction and communication grow with model size. Their balance also depends
+on population, rank, matrix shapes and the connection between devices; Appendix~\ref{sec:size}
+derives a conditional scaling rule and explains why it is not a prediction for a larger model.
 
-\paragraph{What was fixed before measuring.} The byte counts and the direction were
-committed before the single-node runs: B should win where $C$ is large (dense and seed
-noise) and A where it is small (low-rank). The byte model then needed one correction,
-from $4N$ to $8N$ for A (the second gather) and from $4P$ to $4P+4N$ for B, measured from
-the compiled program at every cell; it changes nothing, since the comparison is still
-kilobytes against 100\,MB. Eq.~\ref{eq:crossover} was written after the single-node
-runs, with both terms measured separately (Table~\ref{tab:tb8} for the collectives,
-Appendix~\ref{sec:timemodel} for $C$), and used once as a prediction, for the host
-boundary of Section~\ref{subsec:boundary}.
-
-\paragraph{The endpoints.} A moves the fewest bytes any placement can and repeats the
-whole sum; B splits the sum as far as $D$ devices allow and moves a model-sized buffer.
-Other placements trade between the two: a reduce-scatter and all-gather with a sharded
-update, as in ZeRO \citep{rajbhandari2020zero}, halves B's bytes; compressed collectives
-shrink them further; a hierarchical scheme is A within a host and B across hosts. We
-measure the two endpoints.
-
-\paragraph{Overlap.} Hiding B's all-reduce behind the next generation's evaluation is not
-free: that evaluation needs the updated weights, so it would run at weights one step
-stale, which is a different algorithm. The overlap that keeps the algorithm hides the
-all-reduce behind B's own local sum, as data-parallel training does behind the backward
-pass, and at best replaces $C/D + T_{\mathrm{ar}}$ by $\max(C/D, T_{\mathrm{ar}})$. With
-the measured terms, that still leaves A ahead by 0.40 to 1.98\,ms at every low-rank cell
-where A wins at width 2048 (0.77 to 2.29\,ms without overlap). This is a bound from
-measured terms; we did not build an overlapped implementation.
+Eq.~\ref{eq:crossover} is an approximate accounting model: separately timed components
+can have different costs when combined by the compiler. We measure that difference in
+Section~\ref{subsec:block}. The equation was developed after the single-host sweeps;
+its original host-boundary prediction and subsequent correction are reported separately
+in Section~\ref{subsec:boundary}. Other placements and the possible overlap of
+computation with communication are discussed in Appendix~\ref{sec:timemodel}.

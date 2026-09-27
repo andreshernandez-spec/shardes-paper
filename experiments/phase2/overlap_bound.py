@@ -4,7 +4,7 @@
     python overlap_bound.py
 
 Reads only `results-contraction/` (contraction_isolation.py: the replicated contraction
-C, B's local share C_local, and B's all-reduce timed inside the program, per cell at D=8).
+C including A's weight gather, B's local share C_local, and the added communication cost, per cell at D=8).
 
 Overlapping B's all-reduce with the NEXT generation's evaluation is not free: that
 evaluation needs the updated weights, so hiding the transfer behind it evaluates at
@@ -13,7 +13,8 @@ within the generation, bucketing the all-reduce behind B's own local contraction
 DDP does behind backward. That changes B's contraction-plus-collective time from
 C_local + AR to at best max(C_local, AR). Evaluation is the same in both placements and
 cancels. For each cell this prints t_B - t_A from the measured terms, without overlap
-and with perfect in-generation overlap. It is a bound from measured terms, not a
+and with perfect in-generation overlap. A's recorded C already includes its additional gather, so it is subtracted only once.
+It is a bound from measured terms, not a
 measurement of an overlapped implementation.
 """
 from __future__ import annotations
@@ -39,7 +40,7 @@ def main() -> int:
                                           "allreduce_insitu_seconds"))
         rows.append((r["device_kind"], NAMES[s], d, n, c, cl, ar, cl + ar - c,
                      max(cl, ar) - c))
-    print("| device | arm | d | N | C | C_local | AR in situ | t_B - t_A | with overlap |")
+    print("| device | arm | d | N | A including gather | C_local | added communication | t_B - t_A | with overlap |")
     print("|---|---|---|---|---|---|---|---|---|")
     for kind, name, d, n, c, cl, ar, plain, over in rows:
         print(f"| {kind} | {name} | {d} | {n} | {c:.2f} | {cl:.2f} | {ar:.2f} | "

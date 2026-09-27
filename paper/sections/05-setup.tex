@@ -15,34 +15,34 @@ error. So $P = 6d^2$: at $d{=}2048$ that is 25.2M parameters and a 96\,MiB float
 update. Each generation evaluates the whole population on one batch of 8 sequences of
 length 32. The placement grid is $d\in\{512,2048\}$, two populations per width (256 and
 1024 at $d{=}512$, 128 and 256 at $d{=}2048$), and $D\in\{1,2,4,8\}$; the cost grid of
-Figure~\ref{fig:f4} is wider. The simplifications change arithmetic intensity and
-memory, so absolute ratios belong to this workload; what should carry to real models is
-the sign of a comparison and how it moves with $N$, $d$ and $D$.
+Appendix~\ref{sec:systems-ablations} is wider. The simplifications change arithmetic intensity and
+memory, so absolute ratios belong to this workload, and we test whether the placement
+preference carries over to a real model.
 
-\paragraph{The real model.} Qwen2.5-0.5B \citep{qwen25}, for three things: timing one
-full update (ask, teacher-forced negative log-likelihood on a fixed batch of prompts,
-tell) under both placements on the v5e (Figure~\ref{fig:f9}); the alignment of that
-update with the exact gradient, also at 1.5B (Section~\ref{sec:quality}); and training
-on Countdown on one A100.
+\paragraph{The real model.} We time one full update of Qwen2.5-0.5B \citep{qwen25}
+under both placements on the v5e (Figure~\ref{fig:f9}). The real-model placement grid used the available
+free TPU allocation; an equivalent A100 grid was not run. The timing comparison evaluates candidates in a single batch for low-rank
+noise and one at a time for regenerated full-rank noise, which avoids holding separate
+full weight arrays for many candidates. Master weights, reconstruction and all-reduce
+use float32; model evaluation uses a bfloat16 view. This changes activation memory
+and throughput across perturbation types; each placement comparison keeps the evaluation
+procedure fixed. The fitness is the model's next-token loss on a fixed batch of eight
+prompts from the Countdown arithmetic task (the mean negative log-likelihood of each token
+given the ones before it).
 
-\paragraph{Protocol.} Per cell, 3 warm-up generations (the first compiles), then 5 timed
+\paragraph{Protocol.} Per configuration, 3 warm-up generations (the first compiles), then 5 timed
 repeats (7 for the host boundary and the ranking step); we report the median, and every timed call waits for
 the device to finish. Matmul precision is fixed per experiment and recorded: the scaling
-and placement sweeps use full precision so that it is the same at every device count;
-the cost grid uses the default, which is what a practitioner runs
-(Appendix~\ref{sec:systems-ablations} prices the difference). Both platforms run the
-same (model size, population, arm, datatype) cells. A cell that does not fit a device is
-recorded as out of memory, not resized, because where each device runs out is part of
-the comparison.
+and placement sweeps on the block, and their reconstruction probes, use float32 storage
+and JAX's highest matrix-multiplication precision on both platforms. The cost grid uses
+the default setting
+(Appendix~\ref{sec:systems-ablations} reports the timing comparison). Both platforms run the
+same (model size, population, perturbation type, datatype) configurations. We record configurations that do not fit as out of memory (OOM), keeping the
+model and population fixed so memory limits remain part of the comparison.
 
 \paragraph{Scope.} One host per platform, where an all-reduce is cheapest, plus one
-socket-connected pair of hosts; a simplified block and one real model family; one task
+TCP-connected pair of hosts; a simplified block and one real model family; one task
 at one model size with three seeds. Results are stated within those limits.
 
-\paragraph{Provenance.} Every result record stamps the commit and environment it was
-measured with, configurations were committed before their runs, and every figure and
-table regenerates from a script (Appendix~\ref{sec:repro}). The library is at
-\libraryurl{}; the experiments, results and this manuscript are at \paperurl{}, which
-installs the library at one pinned commit. The Countdown campaign was rerun once from a
-clean tree and reproduced the first run's held-out results within seed noise; the curves
-here are the rerun's.
+\paragraph{Provenance.} Configurations and result records include their code versions and environments.
+Every figure and table is generated from those records (Appendix~\ref{sec:repro}).

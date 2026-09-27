@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """F4: where the low-rank rewrite pays, per platform.
 
-    python plot_cost.py                                 # GPU panel row from results-cost
-    python plot_cost.py --results results-cost results-cost-tpu-v5e8   # both rows
+    python plot_cost.py                                 # GPU panels from results-cost
+    python plot_cost.py --results results-cost results-cost-tpu-v5e8   # both platforms
 
-One row of panels per platform, one panel per strategy (seed and rank 1; ranks 4
+One row of panels: per platform, one panel per strategy (seed and rank 1; ranks 4
 and 16 are the ablation table's geometric means), each a heatmap over (N, d) of
 log10(t_strategy / t_iid_gaussian) at the same shape and dtype. Blue where the
 strategy beats the dense baseline, red where the baseline wins, grey at parity.
@@ -136,6 +136,53 @@ def panel(ax, cells: dict, strategy: str, dtype: str, dims, pops, norm) -> None:
         spine.set_visible(False)
 
 
+def common_comparison(platforms: dict, dtype: str, out: pathlib.Path) -> None:
+    """Matched feasible configurations, separated from the full memory grid."""
+    if len(platforms) != 2:
+        return
+    kinds = sorted(platforms)
+    comparable = []
+    for kind in kinds:
+        cs = platforms[kind]
+        comparable.append({(d, n) for d, n, strategy, dt in cs
+                           if strategy == BASELINE and dt == dtype
+                           and all(cs.get((d, n, st, dt)) not in (None, OOM)
+                                   for st in [BASELINE, *STRATEGIES])})
+    configs = sorted(set.intersection(*comparable))
+    if not configs:
+        raise ValueError("no common feasible configurations")
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.5), sharey=True)
+    for ax, strategy in zip(axes, STRATEGIES):
+        for kind, color, marker in zip(kinds, ("#256abf", "#eb6834"), ("o", "^")):
+            cs = platforms[kind]
+            vals = [cs[d, n, strategy, dtype] / cs[d, n, BASELINE, dtype] for d, n in configs]
+            ax.plot(vals, range(len(configs)), linestyle="none", marker=marker, ms=7,
+                    color=color, label="A100" if "A100" in kind else "TPU v5e")
+        ax.axvline(1, color=MUTED, lw=1)
+        ax.set_xscale("log")
+        ax.set_xlabel("generation time / stored full-rank time")
+        ax.set_title("Regenerated full rank (seed)" if strategy == "seed_regenerated"
+                     else "Rank-1 perturbations", fontsize=11, loc="left")
+        ax.grid(axis="x", color="#e6e6e3")
+        ax.set_axisbelow(True)
+        ax.spines[["top", "right"]].set_visible(False)
+    axes[0].set_yticks(range(len(configs)), labels=[f"d={d}, N={n}" for d, n in configs])
+    axes[0].invert_yaxis()
+    axes[0].set_xticks([1, 2, 5, 10], labels=["1", "2", "5", "10"])
+    axes[0].set_xlim(0.85, 10)
+    axes[1].set_xticks([0.05, 0.1, 0.2, 0.5, 1], labels=["0.05", "0.1", "0.2", "0.5", "1"])
+    axes[1].set_xlim(0.035, 1.15)
+    for ax in axes:
+        ax.xaxis.set_minor_locator(NullLocator())
+    fig.legend(*axes[0].get_legend_handles_labels(), loc="lower center", ncol=2,
+               frameon=False, fontsize=10)
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    dest = out / f"f4-cost-common-{dtype}.png"
+    fig.savefig(dest, dpi=200, metadata={"Date": None, "Software": None})
+    plt.close(fig)
+    print(dest)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", type=pathlib.Path, nargs="+",
@@ -162,25 +209,31 @@ def main(argv=None) -> int:
     lim = float(np.max(np.abs(finite)))
     norm = TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim)
 
-    nrows = len(platforms)
-    fig, axes = plt.subplots(nrows, len(STRATEGIES),
-                             figsize=(4.3 * len(STRATEGIES), 3.3 * nrows),
-                             squeeze=False, sharex=True, sharey=True)
-    for i, (kind, cells) in enumerate(sorted(platforms.items())):
-        for j, s in enumerate(STRATEGIES):
-            panel(axes[i][j], cells, s, args.dtype, dims, pops, norm)
-            if i == 0:
-                axes[i][j].set_title(TITLES[s], color=INK, fontsize=10)
-            if j == 0:
-                axes[i][j].set_ylabel(f"{PLATFORM.get(kind, kind)}\nmodel dimension d",
-                                      color=INK)
+    # One row, platform after platform: the paper prints it full width, and two rows
+    # of two took twice the height for the same cells.
+    panels = [(kind, cells, st) for kind, cells in sorted(platforms.items())
+              for st in STRATEGIES]
+    fig, axes = plt.subplots(1, len(panels), figsize=(2.75 * len(panels), 3.0),
+                             squeeze=False, sharey=True)
+    for j, (kind, cells, st) in enumerate(panels):
+        ax = axes[0][j]
+        panel(ax, cells, st, args.dtype, dims, pops, norm)
+        ax.set_title(f"{TITLES[st]}\n{PLATFORM.get(kind, kind)}", color=INK, fontsize=9)
+        if j == 0:
+            ax.set_ylabel("model dimension d", color=INK)
 
     sm = plt.cm.ScalarMappable(cmap=CMAP, norm=norm)
-    fig.colorbar(sm, ax=axes.ravel().tolist(),
-                 label="$\\log_{10}(t / t_\\mathrm{dense})$:  below 0, faster than dense")
+    bar = fig.colorbar(sm, ax=axes.ravel().tolist(), fraction=0.02, pad=0.01,
+                       label="time relative to dense")
+    # Log-scaled colour, labelled in ratios, so nobody has to exponentiate.
+    ticks = [t for t in (0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20) if abs(np.log10(t)) <= lim]
+    bar.set_ticks([np.log10(t) for t in ticks])
+    bar.set_ticklabels([f"{t:g}x" for t in ticks])
     out = args.out / f"f4-cost-{args.dtype}.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight")
+    fig.savefig(out, dpi=150, bbox_inches="tight", metadata={"Date": None, "Software": None})
     print(out)
+    plt.close(fig)
+    common_comparison(platforms, args.dtype, args.out)
     return 0
 
 

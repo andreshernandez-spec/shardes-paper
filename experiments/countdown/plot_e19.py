@@ -6,10 +6,10 @@
 Share of held-out puzzles solved against training sample evaluations for full
 rank and rank 1 at N=30 (E13, solid) and N=16 (E19, dashed), mean over three
 seeds with a min-max band. Units differ per arm and are applied per arm: an E13
-update scores 30 x 8 = 240 completions, an E19 update 16 x 8 = 128, so at the
-same 120,000 samples N=16 takes 937 updates to N=30's 500. E19 was frozen as a
-positive control (27% lower alignment per update at N=16); on this axis it is not
-one, since N=16 also gets 1.9x the updates. Prints, per arm, the final reward and
+update scores 30 x 8 = 240 completions, an E19 update 16 x 8 = 128, so on about
+the same budget N=16 runs 940 updates (120,320 samples) to N=30's 500 (120,000).
+E19 was frozen as a positive control (27% lower alignment per update at N=16); on
+this axis it is not one, since N=16 also gets 1.9x the updates. Prints, per arm, the final reward and
 solve rate and the first evaluation whose mean reward reaches 0.15.
 """
 from __future__ import annotations

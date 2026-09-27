@@ -3,8 +3,7 @@
 The papers built on [shardes](https://github.com/andreshernandez-spec/shardes), every
 experiment behind them, and their results:
 
-- *Update-contraction placement in sharded evolution strategies on GPUs and TPUs*,
-  in `paper/`;
+- *Update Placement in Distributed Evolution Strategies*, in `paper/`;
 - an end-to-end comparison of ES fine-tuning against released RL checkpoints, in
   `papers/end_to_end/` (in progress, no manuscript yet).
 
@@ -50,11 +49,16 @@ against a dirty or unpushed library.
 
 ```sh
 pip install -r requirements.txt
-make -C paper            # re-emits every generated table from its script, then the PDF
+make -C paper            # combined reading copy: paper/main.pdf
+make -C paper anon       # anonymous combined reading copy
+make -C paper submission # MLSys main-submission.pdf and appendix-anon.pdf
 ```
 
 The generated tables reproduce byte for byte and the figures pixel for pixel from the
-committed results. Nothing here needs an accelerator.
+committed results. Nothing here needs an accelerator. The submission build uses the
+official style linked by the 2027 CFP, checks the ten-page body limit and visible
+anonymity, and keeps appendix numbering and cross-references consistent. See
+[the paper build notes](paper/README.md) for dependencies and artifact details.
 
 ## Rerun an experiment
 

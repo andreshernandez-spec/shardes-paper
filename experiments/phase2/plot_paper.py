@@ -9,8 +9,8 @@ only an assembly, so any number can be checked against the per-platform figures.
 
 F2b is the paper's placement figure: t_B / t_A against device count, one line per
 (strategy, d, N) cell. It replaced F2, a D=8 heatmap whose four cells per panel
-left most of each panel empty. Only the four strategies present on BOTH platforms
-are drawn (`mirrored_seed` exists only in the GPU sweep, results-qiu).
+left most of each panel empty. The main figure shows dense, seed and mirrored rank 1 on both platforms.
+Pairing variants remain in the appendix scaling grids.
 
 F1 is the opener, so it shows one representative cell per mode rather than
 M1/M2's full grid: the largest cell both platforms ran (d=2048: strong
@@ -52,58 +52,68 @@ STRATEGIES = ["iid_gaussian", "seed_regenerated", "mirrored_lr1", "lowrank_r1"]
 
 
 def f2b(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
-    """The placement result on the block: t_B / t_A against device count, per platform.
-
-    One line per (strategy, d, N) cell of the strong-scaling sweep, solid at d=2048 and
-    dashed at d=512, from D=2 (at D=1 the two placements are the same program). Plotted
-    as the ratio on a log axis, so 0.5 and 2 are the same distance from a tie. Prints every
-    plotted value, which is where the text's ranges come from.
-    """
-    fig, axes = plt.subplots(1, len(platform_rows), figsize=(4.4 * len(platform_rows), 3.5),
-                             sharey=True, squeeze=False)
+    """Main variants by hardware and width, with per-configuration repeat ranges."""
+    main_strategies = ("iid_gaussian", "seed_regenerated", "mirrored_lr1")
+    names = {"iid_gaussian": "stored full rank (dense)",
+             "seed_regenerated": "regenerated full rank (seed)", "mirrored_lr1": "rank 1"}
+    fig, axes = plt.subplots(2, len(platform_rows), figsize=(8.6, 5.6), sharex=True, sharey=True)
     for j, (name, rows) in enumerate(platform_rows):
-        ax = axes[0][j]
-        cells: dict = collections.defaultdict(dict)
-        for r in rows:
-            c = r["config"]
-            if c["mode"] != "strong" or c["strategy"] not in STRATEGIES:
+        cells = collections.defaultdict(dict)
+        repeats = collections.defaultdict(dict)
+        for row in rows:
+            c = row["config"]
+            if c["mode"] == "strong":
+                key = (c["strategy"], c["d_model"], c["population"])
+                cells[key][c["devices"], c["how"]] = row["seconds_median"]
+                repeats[key][c["devices"], c["how"]] = row["seconds_all"]
+        for i, width in enumerate((512, 2048)):
+            ax = axes[i, j]
+            pops = sorted({n for _, d, n in cells if d == width})
+            for (strategy, d, n), by in sorted(cells.items()):
+                if d != width or strategy not in main_strategies:
+                    continue
+                ds = [dev for dev in (2, 4, 8) if (dev, "A") in by and (dev, "B") in by]
+                vals = [by[dev, "B"] / by[dev, "A"] for dev in ds]
+                lows, highs = [], []
+                for dev, val in zip(ds, vals):
+                    a, b = (repeats[strategy, d, n][dev, h] for h in "AB")
+                    lows.append(val - min(b) / max(a))
+                    highs.append(max(b) / min(a) - val)
+                ax.errorbar(ds, vals, yerr=[lows, highs], color=HUES[strategy],
+                            marker="o" if n == pops[0] else "s", ms=4.5,
+                            mfc="white" if n == pops[0] else HUES[strategy],
+                            lw=1.5, elinewidth=0.7, capsize=2)
+            ax.axhline(1, color=MUTED, lw=1)
+            ax.set(xscale="log", yscale="log", ylim=(0.16, 2.05))
+            ax.set_xticks([2, 4, 8], labels=["2", "4", "8"])
+            ax.set_yticks([0.2, 0.5, 1, 2], labels=["0.2", "0.5", "1", "2"])
+            ax.xaxis.set_minor_locator(NullLocator())
+            ax.yaxis.set_minor_locator(NullLocator())
+            ax.set_title(f"{name}, width {width}\nN = {pops[0]} (circles), {pops[-1]} (squares)",
+                         fontsize=10, loc="left")
+            ax.text(0.03, 0.94, "replication faster", transform=ax.transAxes, fontsize=8,
+                    color=MUTED, va="top")
+            ax.text(0.03, 0.04, "splitting faster", transform=ax.transAxes, fontsize=8, color=MUTED)
+            _style(ax)
+            if i == 1:
+                ax.set_xlabel("devices")
+            if j == 0:
+                ax.set_ylabel("split / replicated time")
+        unresolved = collections.defaultdict(list)
+        for (strategy, d, n), by in repeats.items():
+            if strategy not in STRATEGIES or (8, "A") not in by or (8, "B") not in by:
                 continue
-            cells[(c["strategy"], c["d_model"], c["population"])][
-                (c["devices"], c["how"])] = r["seconds_median"]
-        for (s, d, n), by in sorted(cells.items()):
-            pts = [(dev, by[(dev, "B")] / by[(dev, "A")])
-                   for dev in sorted({dev for dev, _ in by})
-                   if dev > 1 and (dev, "A") in by and (dev, "B") in by]
-            if len(pts) < 2:
-                continue
-            ax.plot([p[0] for p in pts], [p[1] for p in pts], marker="o", ms=3.5, lw=1.4,
-                    ls="-" if d == 2048 else "--", color=HUES[s], alpha=0.9)
-            print(f"  {name:10s} {LABELS[s]:17s} d={d:<5d} N={n:<5d} "
-                  + " ".join(f"D={dev}:{v:.3f}" for dev, v in pts))
-        ax.axhline(1.0, color=MUTED, lw=1.0)
-        ax.text(2.05, 1.9, "replicated (A) faster", color=MUTED, fontsize=7, va="top")
-        ax.text(2.05, 0.19, "all-reduce (B) faster", color=MUTED, fontsize=7, va="bottom")
-        ax.set(xscale="log", yscale="log", xlabel="devices D", ylim=(0.17, 2.0))
-        ax.set_xticks([2, 4, 8])
-        ax.set_xticklabels(["2", "4", "8"])
-        ax.set_yticks([0.2, 0.3, 0.5, 0.7, 1.0, 1.5])
-        ax.set_yticklabels(["0.2", "0.3", "0.5", "0.7", "1", "1.5"])
-        ax.xaxis.set_minor_locator(NullLocator())
-        ax.yaxis.set_minor_locator(NullLocator())
-        _style(ax)
-        ax.set_title(name, color=INK, fontsize=10, loc="left")
-        if j == 0:
-            ax.set_ylabel("$t_B / t_A$")
-    handles = [plt.Line2D([], [], color=HUES[s], marker="o", ms=3.5, lw=1.4)
-               for s in STRATEGIES]
-    handles += [plt.Line2D([], [], color=MUTED, lw=1.4, ls=ls) for ls in ("-", "--")]
-    fig.legend(handles, [LABELS[s] for s in STRATEGIES] + ["d = 2048", "d = 512"],
-               frameon=False, fontsize=8, labelcolor=INK, ncol=6, loc="lower center",
-               bbox_to_anchor=(0.5, -0.06))
+            a, b = by[8, "A"], by[8, "B"]
+            family = "rank 1" if strategy in ("mirrored_lr1", "lowrank_r1") else "full rank"
+            unresolved[family, d].append(min(b) / max(a) <= 1 <= max(b) / min(a))
+        for (family, d), flags in sorted(unresolved.items()):
+            print(f"{name} D=8 {family} d={d}: {sum(flags)} of {len(flags)} unresolved")
+    handles = [plt.Line2D([], [], color=HUES[s], lw=1.5) for s in main_strategies]
+    fig.legend(handles, [names[s] for s in main_strategies], frameon=False, ncol=3,
+               loc="lower center", fontsize=9)
     fig.tight_layout(rect=(0, 0.05, 1, 1))
-    fig.savefig(out / "f2b-crossover-vs-d.png", dpi=200, bbox_inches="tight")
+    fig.savefig(out / "f2b-crossover-vs-d.png", dpi=200, metadata={"Date": None, "Software": None})
     plt.close(fig)
-    print(out / "f2b-crossover-vs-d.png")
 
 
 def f1(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
@@ -173,7 +183,7 @@ def f1(platform_rows: list[tuple[str, list[dict]]], out: pathlib.Path) -> None:
                labelcolor=MUTED, loc="center left", bbox_to_anchor=(0.99, 0.5))
     fig.suptitle("F1  scaling by platform", color=INK, x=0.02, ha="left", y=1.0)
     fig.tight_layout()
-    fig.savefig(out / "f1-scaling.png", dpi=200, bbox_inches="tight")
+    fig.savefig(out / "f1-scaling.png", dpi=200, bbox_inches="tight", metadata={"Date": None, "Software": None})
     plt.close(fig)
     print(out / "f1-scaling.png")
 
