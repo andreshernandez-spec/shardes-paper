@@ -1,27 +1,27 @@
-\section{A common implementation}
+\section{A shared implementation}
 \label{sec:instrument}
 
-The library uses JAX and compiler-driven sharding \citep{jax2018,gspmd2021}. It generates
-perturbations, evaluates candidates, and reconstructs an update. The model is replicated
-and the population is split across devices. Three controls make the comparisons useful.
+The library is written in JAX. The computation is written once for all devices, with
+annotations that divide the population among them, and the compiler turns it into a
+program for each device, including the communication between them
+\citep{jax2018,gspmd2021}. It generates the perturbations, evaluates the candidates and
+reconstructs the update, for every perturbation design under both placements. Every
+device holds a complete copy of the model. Two properties of the implementation matter
+for the measurements.
 
-\paragraph{The population stays fixed.} A candidate's random seed depends on its
-identity, not its device. Changing device count therefore evaluates the same
-perturbations. With scores held fixed, Qwen2.5-0.5B updates on one and eight A100s agree
-to $6.3\times10^{-6}$ relative error in the norm of the whole parameter tree. Floating-point and compilation differences can
-still change training trajectories; Appendix~\ref{sec:implementation} describes the checks.
+\paragraph{The population stays fixed.} For a fixed run seed and generation, a
+candidate's perturbation depends on its population index, independently of the device
+that evaluates it. Changing device count preserves the perturbations. Given the same
+fitness scores, both placements compute the same mathematical update, with possible
+differences from floating-point rounding. As a check across device counts, we computed
+Qwen2.5-0.5B updates on one and eight A100s with the fitness scores held fixed. The updates
+have a relative error of $6.3\times10^{-6}$, measured over all parameters together
+(Appendix~\ref{sec:implementation}).
 
-\paragraph{Low-rank perturbations stay factored.} A layer computes
-$x(W+\sigma UV^\top/\sqrt r)^\top$ as
-$xW^\top+((xV)U^\top)\sigma/\sqrt r$. Inputs from different candidates are batched
-against the same base weight matrix $W$; each candidate still has its own activations
-and low-rank correction. The individual full noise matrices are never formed. Models
-must route matrix multiplies and embedding lookups through the library's layers, so
-an existing model needs adaptation.
-
-\paragraph{Scores retain enough precision to rank.} The library requires float32 or
-wider fitness scores even when model evaluation uses bfloat16. On a synthetic block,
-casting 256 losses to bfloat16 left only two distinct values, losing distinctions needed
-to rank the candidates. Casting those rounded values back to float32 cannot recover
-the lost information. Ranking and reproducibility details are in
-Appendix~\ref{sec:implementation}.
+\paragraph{Low-rank perturbations stay factored.} For inputs $x$ and a weight matrix
+$W$, a layer computes $x(W+\sigma UV^\top/\sqrt r)^\top$ as
+$xW^\top+((xV)U^\top)\sigma/\sqrt r$. On each device, the local candidates' inputs are
+batched against the shared weights $W$; each candidate adds its own low-rank correction
+and retains its own activations. No candidate's full noise matrix is ever formed. To use
+low-rank perturbations, matrix multiplications and embedding lookups involving perturbed
+weights must go through the library's layers, so existing model code needs adaptation.
