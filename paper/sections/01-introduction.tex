@@ -28,24 +28,26 @@ The perturbation design changes this balance. \citet{qiu2025} perturb every weig
 independently (full-rank noise) and regenerate the noise from a seed instead of storing
 it, so reconstructing the update means generating a model-sized noise array again for
 every candidate. EGGROLL \citep{eggroll2025} perturbs each weight matrix by the product
-of two thin matrices (low-rank noise), so reconstructing the update needs only those
-thin factors. Existing systems reconstruct the complete update without dividing it:
+of two thin matrices (low-rank noise), so the update can be reconstructed directly
+from those factors. Existing systems reconstruct the complete update without dividing it:
 Algorithm 2 of \citet{salimans2017} uses replication, while EGGROLL's vLLM setup
 reconstructs the update on one primary device and broadcasts the updated model
 \citep[Appendix L.2]{eggroll2025}. None of these papers compares the two \emph{update
-placements}, replication and splitting, or tests both perturbation designs in one
-implementation. We measure when splitting is faster than replication.
+placements}, replication and splitting, or compares the wall-clock costs of both
+perturbation designs under both placements in one implementation. We measure when
+splitting is faster than replication.
 
 We built a JAX \citep{jax2018} library\ifanonymous\else, \textbf{shardes}
 \citep{shardes},\fi{} to make this measurement. Every device holds a complete copy of
 the model, and the population is divided among the devices. The library supports both
-perturbation designs under both placements, so all four combinations share the same
-model and evaluation code and their costs can be compared directly. We ask three
-questions:\begin{itemize}
+perturbation designs under both placements. Within each perturbation design,
+comparisons between placements keep the model and evaluation procedure fixed. We ask
+three questions:\begin{itemize}
   \item \textbf{When is splitting faster than replication?} We first measure eight
-    devices in one host, linked by a fast interconnect (NVLink on the A100s, ICI on the
-    TPU). There, splitting is faster for every full-rank configuration of a single
-    transformer block, and replication is faster for rank-1 noise at width 2048. A timing
+    devices in one host, linked by a fast interconnect (NVLink on the A100s, the TPU
+    interconnect on the v5e). There, splitting is faster for every full-rank configuration
+    of a single transformer block, and replication is faster for rank-1 noise at width 2048.
+    A timing
     model that compares the reconstruction time saved with the communication time added
     agrees with all 30 configurations in which the two placements are clearly separated
     by repeated measurements.
@@ -54,7 +56,9 @@ questions:\begin{itemize}
     for full rank, replication for low rank. Across a slow connection between two A100
     hosts, replication is faster for both perturbation types at width 2048, reversing
     the full-rank result.
-  \item \textbf{What do low-rank perturbations save?} On the block, a rank-1 generation
-    takes 0.22 times as long as one with stored full-rank noise on the A100, and 0.08 times
-    as long on the v5e.
+  \item \textbf{What do low-rank perturbations save?} On the block benchmark with one
+    device, a rank-1 generation takes 0.22 times as long as one with stored full-rank noise
+    on the A100,
+    and 0.08 times as long on the v5e. These are geometric means of the time ratios over
+    matched configurations.
 \end{itemize}
