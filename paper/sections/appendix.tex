@@ -26,6 +26,11 @@ should therefore budget for sorting even when gathering the scores is cheap.
 
 \input{generated/tb8}
 
+The byte counts in Section~\ref{sec:placement} describe complete array sizes. The bytes
+each device sends also depend on the collective algorithm. For example, a ring all-reduce
+with equal-sized chunks sends $2(D-1)/D$ times the array size per device
+\citep{thakur2005,patarasuk2009}.
+
 Table~\ref{tab:tb8} uses a communication-only probe with a dependent chain of operations.
 The increase in run time per additional operation estimates the collective's marginal
 cost, excluding the fixed launch and synchronization cost of the compiled call. That

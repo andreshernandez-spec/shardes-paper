@@ -42,7 +42,7 @@ standard Gaussian entries; the factor $1/\sqrt r$ gives each entry of the produc
 variance, as in full-rank noise. The factors store $r(m+n)$ values instead of $mn$, and
 the full perturbation matrix is never formed \citep{eggroll2025}. Each perturbation has
 rank at most $r$, and the weighted sum over candidates can have higher rank. Our
-implementation forms the update as a dense $m\times n$ array, regardless of its rank.
+implementation forms the update as a full $m\times n$ array, regardless of its rank.
 Table~\ref{tab:arms} lists the names used below; unless stated otherwise, \emph{rank $r$}
 refers to mirrored sampling.
 
