@@ -153,10 +153,12 @@ def main(argv=None) -> int:
               f"matches log {rep['matches_log']}", flush=True)
 
     names = rpc("rc_names")[0]
-    good = next((r for r in replays if r["matches_log"]), None)
+    # Compare with a replay that reached the log's digest, else with replay 0.
+    good = next((r for r in replays if r["matches_log"]), replays[0])
+    reference = replays.index(good)
     summary = []
     for k, rep in enumerate(replays):
-        if good is None or rep is good:
+        if rep is good:
             continue
         first_w = next((g for g in range(len(log))
                         if rep["shaping"][g] != good["shaping"][g]), None)
@@ -168,11 +170,11 @@ def main(argv=None) -> int:
                    "max_delta_good": good["max_delta"][first][j]} for j in diff]
         per_g = [sum(a != b for a, b in zip(rep["checksum"][g], good["checksum"][g]))
                  for g in range(len(log))]
-        s = {"replay": k, "first_shaping_difference": first_w, "first_iteration": first,
+        s = {"replay": k, "reference": reference, "first_shaping_difference": first_w, "first_iteration": first,
              "leaves_differing": len(diff), "leaves": leaves[:20],
              "leaves_differing_per_iteration": per_g}
         summary.append(s)
-        print(f"replay {k} vs a matching replay: shaping first differs at {first_w}; "
+        print(f"replay {k} vs replay {reference}: shaping first differs at {first_w}; "
               f"master first differs at iteration {first} in {len(diff)} leaves "
               f"{[(x['leaf'], x['max_delta'], x['max_delta_good']) for x in leaves[:5]]}",
               flush=True)
