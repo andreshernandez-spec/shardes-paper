@@ -1,56 +1,70 @@
 \section{Background}
 \label{sec:background}
 
-\paragraph{The update.} Let $\theta$ contain the model's $P$ parameters. A generation
-(one training update) evaluates $N$ perturbed candidates,
-$f_i=f(\theta+\sigma\epsilon_i)$, where $\sigma$ sets the noise scale. It then updates
+\paragraph{The update.} Let $\theta$ denote the model's $P$ parameters and $f$ the loss to
+be minimized, which ES calls the fitness. Each generation evaluates the fitness of $N$
+candidates, $f_i=f(\theta+\sigma\epsilon_i)$, where $\epsilon_i$ is candidate $i$'s random
+perturbation, an array with the shape of $\theta$, and $\sigma$ sets the noise scale. It
+then changes the parameters by
 \begin{equation}
   \Delta\theta = -\frac{\eta}{N\sigma}\sum_{i=1}^{N} w_i\,\epsilon_i ,
   \label{eq:update}
 \end{equation}
-where $\eta$ is the learning rate and $w_i$ is computed from candidate $i$'s score
-\citep{wierstra2014,nesterov2017}. Here a fitness score is a loss to minimize; rewards
-enter negated. We use \emph{centered ranks}: scores are ranked and scaled to
-$[-\tfrac12,\tfrac12]$ \citep{salimans2017}. The update moves toward perturbations
-with lower losses and away from those with higher losses. Ranking makes the update
-insensitive to strictly increasing transformations of the scores.
+where $\eta$ is the learning rate and $w_i$ is a coefficient computed from the fitness
+scores \citep{wierstra2014,nesterov2017}. A reward to be maximized enters negated. We use
+\emph{centered ranks}: each score is replaced by its rank among the $N$ scores, scaled
+linearly to $[-\tfrac12,\tfrac12]$ \citep{salimans2017}. The update therefore moves toward
+perturbations with lower losses and away from those with higher losses. Because ranks
+depend on the complete set of scores, our implementation begins both placements by
+sharing all $N$ scores and computing the coefficients on every device.
 
 \emph{Mirrored} sampling evaluates each perturbation $\epsilon$ together with
-$-\epsilon$, so $N$ candidates use $N/2$ independent directions.
+$-\epsilon$, so $N$ candidates use $N/2$ independent directions. The terms for $\epsilon$
+and $-\epsilon$ in Eq.~\ref{eq:update} combine into one, weighted by the difference of their
+coefficients, so reconstruction processes $N/2$ perturbations instead of $N$.
 
-\paragraph{Two separate choices.} The perturbation design determines how candidates
-are represented and evaluated. The update placement determines where the weighted sum
-in Eq.~\ref{eq:update} is computed. We vary both choices independently.
+\paragraph{Two separate choices.} The perturbation design determines how perturbations
+are generated, stored and evaluated, and so how much work reconstruction takes. The
+update placement determines where the weighted sum in Eq.~\ref{eq:update} is computed:
+in full on every device (replication), or in parts that an all-reduce adds (splitting).
+We vary the two choices independently.
 
-Full-rank Gaussian noise perturbs every weight independently. It can be stored as a
-full array for every candidate (\emph{dense}) or regenerated from a seed when needed
-(\emph{seed}) \citep{qiu2025}. The latter avoids persistent model-sized noise arrays
-per candidate, at the cost of generating the noise for evaluation and again for the update.
+Full-rank Gaussian noise perturbs every weight independently. During evaluation it can
+be held as a full array for every candidate (\emph{dense}) or regenerated from a seed as
+each candidate is evaluated (\emph{seed}) \citep{qiu2025}. In our benchmarks, seed
+evaluates candidates one at a time and holds only one candidate's noise array. Seed
+regeneration also supports batches of candidates, at the cost of more memory. Both
+variants generate the noise a second time, from seeds, for reconstruction.
 
 Low-rank noise represents the perturbation of an $m\times n$ weight matrix as
-$UV^\top/\sqrt r$, where $U$ is $m\times r$ and $V$ is $n\times r$. Rank 1 uses
-one column in each factor. The factors store $r(m+n)$ values instead of $mn$, and the
-full perturbation matrix need not be formed \citep{eggroll2025}. Each perturbation has
-rank at most $r$; the weighted sum over candidates can have higher rank.
-Table~\ref{tab:arms} fixes the names used below. Unless qualified, \emph{rank $r$}
-means mirrored sampling.
+$UV^\top/\sqrt r$, where $U$ ($m\times r$) and $V$ ($n\times r$) have independent
+standard Gaussian entries; the factor $1/\sqrt r$ gives each entry of the product unit
+variance, as in full-rank noise. The factors store $r(m+n)$ values instead of $mn$, and
+the full perturbation matrix is never formed \citep{eggroll2025}. Each perturbation has
+rank at most $r$, and the weighted sum over candidates can have higher rank. Our
+implementation forms the update as a dense $m\times n$ array, regardless of its rank.
+Table~\ref{tab:arms} lists the names used below; unless stated otherwise, \emph{rank $r$}
+refers to mirrored sampling.
 
 \begin{table}[t]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\caption{Perturbation variants. Dense and seed use the same full-rank noise distribution;
-  their storage differs. Pairing is a separate choice.}
+\setlength{\tabcolsep}{3pt}
+\caption{Perturbation variants used in our benchmarks. Dense and seed draw the same
+  full-rank noise. During evaluation, each device holds all its local candidates' noise
+  arrays at once for dense, or one at a time for seed. Every variant regenerates its
+  noise from seeds for reconstruction. Mirrored sampling is chosen independently.}
 \label{tab:arms}
 \begin{tabular}{llll}
 \toprule
-name & noise & storage & paired? \\
+name & noise & noise held & mirrored? \\
+ & & per device & \\
 \midrule
-dense & full rank & full arrays & no \\
-seed & full rank & regenerated & no \\
-seed, mirrored & full rank & regenerated & yes \\
+dense & full rank & local arrays & no \\
+seed & full rank & one array & no \\
+seed, mirrored & full rank & one array & yes \\
 rank $r$ & low rank & thin factors & yes \\
-rank $r$, unpaired & low rank & thin factors & no \\
+rank $r$, non-mirrored & low rank & thin factors & no \\
 \bottomrule
 \end{tabular}
 \end{table}

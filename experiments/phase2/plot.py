@@ -44,8 +44,8 @@ HUES = {"iid_gaussian": "#2a78d6", "seed_regenerated": "#eb6834", "mirrored_lr1"
 MARKERS = {"A": "o", "B": "s"}
 #: The names the paper uses. Figures print these, never the code identifiers.
 LABELS = {"iid_gaussian": "dense", "seed_regenerated": "seed", "mirrored_seed": "seed, mirrored",
-          "mirrored_lr1": "rank 1", "lowrank_r1": "rank 1, unpaired"}
-PLACEMENT = {"A": "replicated", "B": "all-reduce"}
+          "mirrored_lr1": "rank 1", "lowrank_r1": "rank 1, non-mirrored"}
+PLACEMENT = {"A": "replicated", "B": "split"}
 INK, MUTED = "#0b0b0b", "#52514e"
 
 #: Two hues plus a neutral grey midpoint. A rainbow here would imply an ordering the data

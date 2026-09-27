@@ -58,7 +58,7 @@ The measured-components model agrees with all 18 resolved A100 and all 12 resolv
 comparisons. The counts differ between platforms because the mirrored full-rank variant
 was run only on A100. Replacing $C_B$ by $C_A/D$ and using the isolated collective
 benchmark gives 17/20 and 16/16 sign agreements, including two resolved A100 misses:
-mirrored rank 1 at $(d,N)=(512,256)$ and unpaired rank 1 at $(2048,256)$. For A100
+mirrored rank 1 at $(d,N)=(512,256)$ and non-mirrored rank 1 at $(2048,256)$. For A100
 low-rank noise at width 2048, this simple model predicts $t_A-t_B$ between $-0.49$
 and $+0.18$\,ms, against $-1.63$ to $-0.84$\,ms measured. Keeping ideal splitting but
 using the communication added to the reconstruction probe improves the counts to 19/20
@@ -121,7 +121,7 @@ lead at every low-rank width-2048 configuration. This is a conditional bound fro
 
 A conditional scaling argument helps separate parameter count from implementation
 constants. Suppose the leading low-rank reconstruction cost is $C_A=kPNr$, with $k$ absorbing
-pairing and arithmetic efficiency, and $C_B=qC_A$. Write the collective time
+mirrored sampling and arithmetic efficiency, and $C_B=qC_A$. Write the collective time
 as $\alpha+4P/\beta$. Equation~\ref{eq:crossover} then favors splitting when
 \[
   (1-q)kNr > \frac{4}{\beta}
@@ -225,9 +225,9 @@ figures add time per generation, and the weak-scaling figures peak memory per de
 0.86--0.93 efficiency at eight devices on the A100 and 0.71--0.91 on the v5e. What
 degrades is a placement: under replication the dense and seed variants fall to 0.39 and 0.50
 on the A100 (0.18 and 0.54 on the v5e), because they have the most work to repeat, and
-under all-reduce the same variants hold 0.79--1.00. The v5e grid has efficiencies above one,
+under splitting the same variants hold 0.79--1.00. The v5e grid has efficiencies above one,
 all at $d{=}512$ (rank 1 at $N{=}1024$ reaches 1.22 at $D{=}2$): there the single chip is
-memory-bound, and splitting the population relieves it. The dense variant with all-reduce has
+memory-bound, and dividing the population among chips relieves it. The split dense variant has
 no one-device point at $d{=}2048$, $N{=}256$ on the v5e (out of memory), so its efficiency
 is normalized at $D{=}2$.
 
