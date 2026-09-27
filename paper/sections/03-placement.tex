@@ -3,8 +3,8 @@
 
 Each of $D$ devices holds the full model and evaluates $N/D$ candidates. An
 \emph{all-gather} collects their scalar scores and makes the complete list available on
-every device. Every device ranks that list to obtain the weights $w_i$. The weighted
-sum can then be formed in two ways (Figure~\ref{fig:placements}).
+every device. Every device ranks that list to obtain the coefficients $w_i$. The weighted
+sum in Eq.~\ref{eq:update} can then be formed in two ways (Figure~\ref{fig:placements}).
 
 \begin{figure}[t]
   \centering
@@ -31,59 +31,68 @@ sum can then be formed in two ways (Figure~\ref{fig:placements}).
     \draw[arr] (a) -- (a |- upd.north);
     \draw[arr] (sum) -- (sum |- upd.north);
   \end{tikzpicture}
-  \caption{Replicate the reconstruction or split it and communicate the result.
-    Shaded boxes communicate between devices. In the measured implementation,
-    replication also gathers the rank-derived weights before reconstructing the update;
-    that small additional gather is included in Eq.~\ref{eq:crossover}.}
+  \caption{The two update placements. Shaded boxes communicate between devices. $C_A$
+    and $C_B$ are the times to reconstruct the whole update and one device's share. In
+    the measured implementation, replication also gathers the coefficients a second time
+    before reconstructing; this small second gather is included in
+    Eq.~\ref{eq:crossover}.}
   \label{fig:placements}
 \end{figure}
 
-\paragraph{Replicated update (A).} Every device reconstructs the contributions from all
-$N$ candidates and forms the complete sum. Only scalar arrays are communicated. Our
-shared implementation places the rank-derived weights back on the population axis
-for B's local reconstruction; A then gathers them again. This second gather is a
-consequence of sharing a code path, not a requirement of replication. The two gathers
-each carry $4N$ bytes for float32 values. Even the dense variant regenerates the noise
-from seeds for reconstruction; it does not gather stored noise arrays.
+\paragraph{Replicated update (A).} Every device reconstructs the contributions of all
+$N$ candidates and forms the complete sum. Only arrays of $N$ scalars are communicated:
+no device receives another device's noise, because every variant regenerates its noise
+from seeds. Our implementation shares one code path between the placements, and that
+path keeps each device's coefficients only for its own candidates, as splitting needs,
+so replication gathers them a second time. The second gather follows from sharing the
+code path, not from replication itself. Each gather carries $4N$ bytes for float32
+values.
 
-\paragraph{Split update (B).} Each device reconstructs only its $N/D$ contributions.
-An all-reduce adds the partial sums and returns the result to every device. It
-communicates the $4N$-byte score array and a $4P$-byte update array. These are the
-sizes passed to the communication operations; bytes sent over the connection also
-depend on the collective algorithm \citep{thakur2005,patarasuk2009}.
+\paragraph{Split update (B).} Each device regenerates the noise of its own $N/D$
+candidates and reconstructs only their contributions. An all-reduce adds these partial
+updates and returns the sum to every device. Splitting therefore communicates the
+$4N$-byte score array, in the shared all-gather, and the $4P$-byte update, in the
+all-reduce. These are the array sizes passed to the collective operations; the bytes each
+device actually sends depend on the algorithm, and a ring all-reduce, for example, sends
+$2(D-1)/D$ times the array size per device \citep{thakur2005,patarasuk2009}.
 
-\paragraph{The decision rule.} Splitting helps when the computation it saves takes
-longer than the communication it adds. Write $C_A$ for the time to reconstruct the
-whole sum and $C_B$ for the time to reconstruct one device's share. Since evaluation
-and applying the update are common to both placements, the generation times satisfy
-approximately
+\paragraph{The decision rule.} Splitting is faster when the computation it saves outweighs
+the communication it adds. Write $t_A$ and $t_B$ for the generation times under replication
+and splitting, $C_A$ for the time to reconstruct the whole update, and $C_B$ for the time to
+reconstruct one device's share. Evaluation and applying the update are the same under both
+placements, so approximately
 \begin{equation}
   t_A-t_B \;\approx\; (C_A-C_B)+T_{\mathrm{ag}}(4N)-T_{\mathrm{ar}}(4P),
   \label{eq:crossover}
 \end{equation}
 where $T_{\mathrm{ag}}$ and $T_{\mathrm{ar}}$ are the times of an all-gather and an
-all-reduce at the stated array sizes. The positive gather term is A's additional gather;
-the common score gather cancels. It costs only microseconds in these experiments, so
-the practical comparison is $C_A-C_B > T_{\mathrm{ar}}(4P)$. Ideal splitting would
-make $C_B=C_A/D$, but small computations need not scale that well.
+all-reduce at the given array sizes. $T_{\mathrm{ag}}(4N)$ is replication's second gather;
+the score gather both placements share cancels. At the populations measured here that
+gather adds about 10\,$\mu$s (Appendix~\ref{sec:barrier}), so splitting is faster when
+$C_A-C_B > T_{\mathrm{ar}}(4P)$. Ideal splitting would give $C_B=C_A/D$; we measure $C_B$
+directly, because a small computation does not necessarily run $D$ times faster on $1/D$
+of the work.
 
-\paragraph{Why perturbation type matters.} Full-rank reconstruction generates or reads
-$NP$ noise values before summing them. Low-rank reconstruction can combine the factors
-with one matrix multiplication per weight matrix:
+\paragraph{Why perturbation type matters.} Full-rank reconstruction generates $NP$ noise
+values under replication, $NP/D$ per device under splitting, before weighting and summing
+them. Low-rank reconstruction generates only the factors, $r(m+n)$ values per candidate
+for each $m\times n$ matrix, and combines them with one matrix multiplication per weight
+matrix:
 \[
   \textstyle\sum_i w_i U_iV_i^\top
   =[w_1U_1,\dots,w_NU_N]\,[V_1,\dots,V_N]^\top .
 \]
-This avoids a full noise array for every candidate. The resulting update is dense in
-storage under either placement; with mirrored sampling its matrix rank is at most
-$\min(m,n,Nr/2)$. Splitting therefore adds the same model-sized communication for
-low-rank noise while saving less reconstruction work. Both reconstruction and communication grow with model size. Their balance also depends
-on population, rank, matrix shapes and the connection between devices; Appendix~\ref{sec:size}
-derives a conditional scaling rule and explains why it is not a prediction for a larger model.
+The update is still a full $m\times n$ array under either placement; with mirrored
+sampling its rank is at most $\min(m,n,Nr/2)$. Splitting therefore adds the same
+model-sized communication for low-rank noise while saving less reconstruction work. Both
+reconstruction and communication grow with model size, and their balance also depends on
+population, rank, matrix shapes and the connection between devices.
+Appendix~\ref{sec:size} derives a conditional scaling rule and explains why it is not a
+prediction for a larger model.
 
 Eq.~\ref{eq:crossover} is an approximate accounting model: separately timed components
 can have different costs when combined by the compiler. We measure that difference in
 Section~\ref{subsec:block}. The equation was developed after the single-host sweeps;
-its original host-boundary prediction and subsequent correction are reported separately
-in Section~\ref{subsec:boundary}. Other placements and the possible overlap of
+its original host-boundary prediction and subsequent correction are reported in
+Section~\ref{subsec:boundary}. Other placements and the possible overlap of
 computation with communication are discussed in Appendix~\ref{sec:timemodel}.
