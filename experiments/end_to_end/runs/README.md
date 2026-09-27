@@ -43,3 +43,9 @@ Held-out reward of the current weights, mean over iterations 0-9 / 10-19 / 20-29
   is deterministic here.
 - An iteration took about 255 s on an H200 (17 decodes of 192 prompts, 16 member writes,
   the update, the checks).
+
+## Later finding
+
+Scoring the arms' final weights on held-out prompts (`heldout-121-160/README.md`) found
+the per-leaf ES update intermittently nondeterministic in this setup. The live runs
+above had it too; s1e-3 and s2e-3 cannot be rebuilt from their fitness logs.
