@@ -8,6 +8,11 @@ Qwen2.5-0.5B updates agree to $6.3\times10^{-6}$ relative error in the norm of t
 compiled programs need not follow the same training trajectory: changes in floating-point
 arithmetic can change the selected token when greedy-decoding logits are nearly tied.
 
+\paragraph{Score precision.} The library requires fitness scores in float32 or wider,
+even when the model is evaluated in bfloat16, and rejects narrower ones. On the synthetic
+block, casting 256 losses to bfloat16 left only two distinct values, too few to rank the
+candidates.
+
 \subsection{The cost of ranking}
 \label{sec:barrier}
 
