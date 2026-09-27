@@ -101,3 +101,11 @@ passes) is kept beside it. It is not the pilot's result, because the measurement
 wrong at known iterations; dropping those iterations after seeing them would be a rule
 chosen from the data. The rerun uses the same configs, the same gate and the same GPU
 type, from the commit that carries this amendment.
+
+## Result, 2026-09-27
+
+The rerun completed all four arms with every weight check passing. **Gate G3: no arm
+passes** (slopes +0.0084, +0.0040 and +0.0057 per iteration at 1.7, 0.9 and 0.9 standard
+errors; late mean differences +0.13, +0.10, +0.18). Preregistered outcome: no detectable
+learning within 30 iterations of RL steps 1 to 120's data. The next step is decided with
+Andres. Details and the other numbers: `experiments/end_to_end/runs/README.md`.
