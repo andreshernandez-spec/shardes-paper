@@ -169,7 +169,17 @@ def qwen_values(qwen):
               for h in 'AB'), 'every low-rank variant runs out of memory at eight devices and N = 240')
     check(all(cell.get(('mirrored_seed', 240, 8, h)) == 'timed' for h in 'AB'),
           'full rank fits at eight devices and N = 240')
+    # Appendix B's record counts: every record is a timing or a memory failure.
+    known = qwen['record_outcomes']['clean']
+    unknown = qwen['record_outcomes']['dirty']
+    check(sum(known.values()) + sum(unknown.values()) == qwen['records_total'],
+          'every record is either a timing or a memory failure')
     return {
+        'QwenRecords': spelled(qwen['records_total']),
+        'QwenUnknownRecords': spelled(sum(unknown.values())),
+        'QwenKnownRecords': spelled(sum(known.values())),
+        'QwenKnownTimings': spelled(known['timings']),
+        'QwenKnownOOM': spelled(known['oom']),
         'QwenRankOnePenaltyMin': rounded(min(p['B_minus_A_ms'] for p in one8.values()), 0),
         'QwenRankOnePenaltyMax': rounded(max(p['B_minus_A_ms'] for p in one8.values()), 0),
         'QwenRankOneRatioSmallN': rounded(one8[32]['ratio'], 2),
@@ -308,6 +318,7 @@ def qwen_checks():
                                         for outcome in ('timings', 'oom')}
                                 for state in ('clean', 'dirty')},
             'clean_comparisons':pairs,
+            'records_total':len(records),
             'outcomes':[[r['config'][k] for k in ('strategy','population','devices','how')]
                         + ['timed' if 'seconds_median' in r else r.get('status')] for r in records],
             'dirty_records_by_devices':dict(collections.Counter(

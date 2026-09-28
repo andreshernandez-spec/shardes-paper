@@ -61,7 +61,7 @@ $T_{\mathrm{add}}$ in Table~\ref{tab:worked} includes.
   \caption{Generation time under splitting divided by generation time under replication for
     Qwen2.5-0.5B on the TPU v5e, next-token loss evaluation included. Below 1, splitting is
     faster. The strips below the plots mark configurations that ran, ran out of memory
-    (OOM), or were excluded; gaps are not connected. Only records made from committed code
+    (OOM), or were excluded; gaps are not connected. Only records with a fully known code version
     are used, and one-device records are excluded. Table~\ref{tab:tb5} gives the absolute
     times.}
   \label{fig:f9}
@@ -80,13 +80,14 @@ Appendix~\ref{sec:timemodel} gives both comparisons and the size of the remainin
 
 
 On Qwen2.5-0.5B on the TPU, the faster placement is the same as on the block
-(Figure~\ref{fig:f9}). We use only records made from committed code with no local changes,
-which leaves \QwenFullComparisons{} full-rank and \QwenLowComparisons{} low-rank
+(Figure~\ref{fig:f9}). Only records whose exact code version is known are used, which
+leaves \QwenFullComparisons{} full-rank and \QwenLowComparisons{} low-rank
 comparisons; every eight-device record qualifies. Splitting is faster for full rank, by more
 at eight devices than at four. Replication is faster in every low-rank comparison. The
 closest, rank 16 at $N=128$, has a ratio of \QwenNearTieRatio{} and a bar starting at
 \QwenNearTieBar{}, so it is resolved, but only just. Appendix~\ref{sec:memory} lists the
-excluded records; they were excluded for provenance, not because they ran out of memory.
+excluded records; they were excluded because their code version is not fully known, not
+because they ran out of memory.
 
 The update has \QwenParams{} float32 values (the embedding, which the output layer shares,
 counted once), or \QwenUpdateGiB\,GiB. The all-reduce rate measured on the v5e at 96\,MiB,

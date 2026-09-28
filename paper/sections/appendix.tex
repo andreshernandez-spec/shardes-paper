@@ -9,7 +9,7 @@ Qwen2.5-0.5B updates on the A100 have a relative error of $6.3\times10^{-6}$, me
        {\lVert\Delta\theta_8\rVert_2},
 \]
 where $\Delta\theta_D$ is the update computed on $D$ devices and the norms treat all
-parameters as one vector. The committed log reports this aggregate; it does not bound
+parameters as one vector. The log reports this aggregate; it does not bound
 every parameter array. Two 20-generation runs of the same eight-device program agree
 byte for byte. Separately
 compiled programs need not follow the same training trajectory: changes in floating-point
@@ -211,14 +211,13 @@ of the tested code versions, not limitations of the algorithms.
 \input{generated/tb5}
 
 Table~\ref{tab:tb5} gives absolute generation times behind Figure~\ref{fig:f9}.
-The original grid has 128 records; 63 carry a dirty-worktree flag. Historical launch
-scripts ran other probes first, which could dirty result files, but no per-run diff
-was saved to certify that only outputs changed. We therefore exclude those records.
-The remaining 65 include 43 timings and 22 memory failures; only configurations with
-two clean records enter a placement comparison. This leaves twelve low-rank and eight
-full-rank timing comparisons. All eight-device records are clean. Excluded comparisons
-are dashes, distinct from observed memory failures; historical records remain available
-for audit in the experiment directory.
+The grid has \QwenRecords{} records. For \QwenUnknownRecords{} of them the exact code version
+cannot be confirmed, so they are excluded; the remaining \QwenKnownRecords{} include
+\QwenKnownTimings{} timings and \QwenKnownOOM{} memory failures. Only configurations with two
+such records, one per placement, enter a placement comparison, which leaves
+\QwenLowComparisons{} low-rank and \QwenFullComparisons{} full-rank comparisons; every
+eight-device record qualifies. Excluded comparisons are shown as dashes, distinct from observed
+memory failures, and the excluded records remain in the experiment directory.
 
 At eight devices, ranks 1, 4 and 16 fit populations up to 128 and all fail at 240; the
 regenerated full-rank variant fits all four populations. The evaluation schedules differ:
@@ -307,6 +306,6 @@ are reproduced by \texttt{phase2/paper\_evidence.py}.
 The timing ranges are printed by \texttt{phase2/timemodel.py}, the overlap bound by
 \texttt{phase2/overlap\_bound.py}, and the compiled-program byte counts by
 \texttt{phase2/comms.py} and \texttt{phase2/tb2.py}. The library's device-count
-invariance test runs on CPU with eight simulated devices. Continuous integration checks
-that regenerating tables changes no bytes and that every commit cited by a result record
-remains available.
+invariance test runs on CPU with eight simulated devices. An automated check verifies
+that regenerating the tables changes no bytes and that the code version each result record
+cites remains available.

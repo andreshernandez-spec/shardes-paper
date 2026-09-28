@@ -238,7 +238,7 @@ def main() -> int:
         # The validation rows stay in the markdown only: they point at files and
         # tests, which is what a README is for, and the rewards are Figure 5's.
         emit(systems,
-             "Systems ablations, assembled from committed results. Each ratio is the "
+             "Systems ablations, assembled from the saved results. Each ratio is the "
              "time of the first variant over the second (below one: the first is "
              "faster), as a geometric mean over the configurations where both were "
              "measured (n: how many).",
