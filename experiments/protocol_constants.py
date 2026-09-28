@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+from decimal import ROUND_HALF_UP, Decimal
 import json
 import pathlib
 import sys
@@ -58,6 +59,11 @@ class ProtocolError(ValueError):
 def spelled(n: int) -> str:
     """Numbers up to ten as words, as the prose writes them; larger ones as digits."""
     return WORDS[n] if 0 <= n < len(WORDS) else str(n)
+
+
+def rounded(x: float, places: int) -> str:
+    """Half up from the exact value, as a reader would round it; `round` rounds half to even."""
+    return str(Decimal(repr(x)).quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP))
 
 
 def configs_by_dir(root: pathlib.Path = HERE) -> dict[pathlib.Path, list[dict]]:

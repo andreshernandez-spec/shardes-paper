@@ -7,162 +7,177 @@
 \begin{figure*}[t]
   \centering
   \includegraphics[width=0.88\textwidth]{f2b-crossover-vs-d.png}
-  \caption{Split-update time divided by replicated-update time on the block benchmark.
-    Below 1, splitting is faster; above 1, replication is faster. Panels separate hardware
-    and matrix width. Marker shape identifies population size. Bars show the range from
-    fastest split / slowest replicated repeat to slowest split / fastest replicated
-    repeat, across \BlockRepeats{} repeats per placement; these are not confidence intervals.
-    The three main variants measured on both platforms are shown; the complete grids,
-    including the other variants of Table~\ref{tab:arms}, are in Appendix~\ref{sec:grids}.}
+  \caption{Generation time under splitting divided by generation time under replication on
+    the block benchmark, against the number of devices. Below 1, splitting is faster; above
+    1, replication is faster. Panels separate platform and matrix width; marker shape gives
+    the population. Each bar spans the smallest and largest ratio that any pair of repeats
+    gives (the fastest split repeat over the slowest replicated one, up to the slowest split
+    over the fastest replicated), across \BlockRepeats{} repeats per placement; the bars are
+    not confidence intervals. Shown are dense, seed and rank 1;
+    Appendix~\ref{sec:grids} has the complete grids with every variant of
+    Table~\ref{tab:arms}.}
   \label{fig:f2}
 \end{figure*}
 
-At eight devices in one host, splitting the update is faster for every full-rank
-configuration. For the dense and seed variants drawn in Figure~\ref{fig:f2}, the speedup
-is 1.45--5.62$\times$. Dense alone gains 1.8--2.4$\times$ on the A100 and
-5.0--5.6$\times$ on the v5e, so this result does not depend on the slower seed-regeneration
-evaluation path. Replication is faster for rank-1 perturbations at width 2048
-(Figure~\ref{fig:f2}). For those low-rank configurations, splitting takes 4--15\% longer
-on the A100 and 17--46\% longer on the v5e. These low-rank ranges include both mirrored (drawn) and
-non-mirrored sampling; Appendix~\ref{sec:grids} gives all variants and absolute times.
+At eight devices in one host, splitting is faster for every full-rank configuration. For
+dense and seed, the variants in Figure~\ref{fig:f2}, splitting makes a generation
+\FullRankSpeedup$\times$ faster. Dense alone gains \DenseSpeedupGPU$\times$ on the A100 and
+\DenseSpeedupTPU$\times$ on the v5e, so the advantage does not come from seed's slower,
+one-at-a-time evaluation. For rank-1 perturbations at width 2048, replication is faster:
+splitting takes \LowRankSlowdownGPU\% longer on the A100 and \LowRankSlowdownTPU\% longer on
+the v5e. These low-rank ranges cover both mirrored sampling, which Figure~\ref{fig:f2}
+shows, and non-mirrored sampling; Appendix~\ref{sec:grids} gives every variant and the
+absolute times.
 
-At width 512 the rank-1 placements are close. We treat a comparison as unresolved when
-its repeat range contains 1, using the range defined in the figure caption. At eight
-devices this occurs in six of the eight low-rank configurations at width 512. Every
-full-rank configuration and every low-rank configuration at width 2048 has a repeat
-range entirely on one side of 1. These repeats measure variation within a compiled run,
-not variation across hardware sessions.
+We call a comparison unresolved when its bar in Figure~\ref{fig:f2} contains 1. At eight
+devices, \NarrowLowRankUnresolved{} of the \NarrowLowRank{} low-rank configurations at width
+512 are unresolved: the two placements take about the same time. Every full-rank
+configuration, and every low-rank configuration at width 2048, is resolved. The repeats come
+from one compiled program in one session, so they show variation within a run, not between
+sessions or machines.
 
 \input{generated/worked-example}
 
 Table~\ref{tab:worked} evaluates Eq.~\ref{eq:crossover} at one configuration on each
-platform. Full-rank reconstruction costs 61--233\,ms, so splitting it easily pays for
-1--2\,ms of communication. Rank-1 reconstruction costs less than 1\,ms; the communication
-is then more expensive than the work saved. On the A100, the model gives a 1.19\,ms
-penalty for splitting rank 1, against 1.40\,ms measured. On the v5e the measured penalty
-is 2.04\,ms on a shorter replicated generation: 9.73\,ms against 19.88\,ms on the A100.
-That makes the relative penalties 21\% and 7\% respectively.
+platform. For seed, splitting saves \ExSeedSaving\,ms of reconstruction and adds
+\ExSeedComm\,ms of communication, so it is faster. For rank 1, reconstruction takes under
+1\,ms under either placement, and the added communication outweighs the saving:
+By Eq.~\ref{eq:crossover}, splitting is expected to be \ExRankPredGPU\,ms slower on the A100
+and \ExRankPredTPU\,ms slower on the v5e, against \ExRankMeasGPU\,ms and \ExRankMeasTPU\,ms
+measured. Relative to the replicated generation, the measured penalty is
+\ExRankPenaltyGPU\% on the A100 and \ExRankPenaltyTPU\% on the v5e, where the generation is
+shorter (\ExRankGenTPU\,ms against \ExRankGenGPU\,ms).
 
-The ratio plots and the timing equation describe the same difference:
-$t_B/t_A=1-(t_A-t_B)/t_A$. Thus a fixed communication penalty can look larger as a ratio
-when evaluation becomes faster. Table~\ref{tab:tb8} in the appendix reports the isolated communication
-cost; Table~\ref{tab:worked} instead uses the cost added to a reconstruction probe,
-which also includes any scheduling changes that operation causes.
+Figure~\ref{fig:f2}'s ratio and Eq.~\ref{eq:crossover}'s difference describe the same
+quantity: $t_B/t_A=1-(t_A-t_B)/t_A$. A penalty of the same size in milliseconds is therefore
+a larger ratio when the generation is shorter. Table~\ref{tab:tb8} in
+Appendix~\ref{sec:timemodel} gives the all-reduce times measured in isolation; those exclude
+any scheduling changes the all-reduce causes inside the compiled program, which
+$T_{\mathrm{add}}$ in Table~\ref{tab:worked} includes.
 
 \begin{figure*}[t]
   \centering
   \includegraphics[width=\textwidth]{f9-e17-crossover.png}
-  \caption{Placement on Qwen2.5-0.5B, TPU v5e: split / replicated time for a complete
-    generation, including next-token loss evaluation. Splitting is faster for full-rank
-    noise; replication is faster at every retained low-rank configuration. The strips
-    below the plots distinguish fits, memory failures (OOM), and excluded comparisons.
-    Only records stamped with a clean worktree are used; gaps are not connected.
-    All one-device records are excluded. Absolute times are in Table~\ref{tab:tb5}.}
+  \caption{Generation time under splitting divided by generation time under replication for
+    Qwen2.5-0.5B on the TPU v5e, next-token loss evaluation included. Below 1, splitting is
+    faster. The strips below the plots mark configurations that ran, ran out of memory
+    (OOM), or were excluded; gaps are not connected. Only records made from committed code
+    are used, and one-device records are excluded. Table~\ref{tab:tb5} gives the absolute
+    times.}
   \label{fig:f9}
 \end{figure*}
 
-Using separately measured reconstruction and added communication costs, the model
-agrees with all 30 configurations whose repeat envelopes do not overlap. It agrees in
-33 of 36 overall; its three misses are among the six near-ties. This is a check of whether
-separately timed components account for complete generations, not a fit to their timing
-differences. It was developed after the sweeps. Assuming ideal $1/D$ reconstruction and
-using only the isolated collective benchmark misses two resolved A100 configurations.
-Appendix~\ref{sec:timemodel} gives the comparison and the remaining errors in magnitude.
+With separately measured reconstruction and communication times, Eq.~\ref{eq:crossover}
+gives the faster placement in all \ModelResolved{} resolved configurations and in
+\ModelCorrect{} of all \ModelConfigs{}; its \ModelMisses{} misses are all unresolved. This
+tests whether separately timed components account for complete generations; nothing is
+fitted to the measured differences. A simpler version that assumes $C_B=C_A/D$ and uses the
+isolated all-reduce times misses \IdealMissesGPU{} resolved A100 configurations.
+Appendix~\ref{sec:timemodel} gives both comparisons and the size of the remaining errors.
 
 \subsection{Placement on a real model}
 
 
 
-The same preference holds on Qwen2.5-0.5B on the TPU (Figure~\ref{fig:f9}).
-We retain only records stamped with a clean worktree, leaving eight full-rank and twelve
-low-rank timing comparisons. All eight-device records pass this filter.
-Splitting helps full rank, with a larger advantage at eight than four devices.
-Replication helps low rank; the rank-16, $N=128$ comparison is nearly tied, with a ratio
-of 1.009 and a repeat envelope starting at 1.0006. Appendix~\ref{sec:memory} documents
-the excluded records rather than treating them as missing because of memory limits.
+On Qwen2.5-0.5B on the TPU, the faster placement is the same as on the block
+(Figure~\ref{fig:f9}). We use only records made from committed code with no local changes,
+which leaves \QwenFullComparisons{} full-rank and \QwenLowComparisons{} low-rank
+comparisons; every eight-device record qualifies. Splitting is faster for full rank, by more
+at eight devices than at four. Replication is faster in every low-rank comparison. The
+closest, rank 16 at $N=128$, has a ratio of \QwenNearTieRatio{} and a bar starting at
+\QwenNearTieBar{}, so it is resolved, but only just. Appendix~\ref{sec:memory} lists the
+excluded records; they were excluded for provenance, not because they ran out of memory.
 
-The update contains 494,032,768 float32 values, including the tied embedding once:
-1.84\,GiB. Scaling the isolated v5e communication time at 96\,MiB to this payload gives
-39.4\,ms. This is an extrapolation of the measured communication rate, with no parameter
-fit to Qwen's timing. The extra split cost for ranks 1 and 4 is 34--48\,ms in the
-retained four- and eight-device comparisons. The payload estimate therefore explains
-its scale, though it does not isolate the reconstruction contribution or test the
-collective at this larger payload directly.
+The update has \QwenParams{} float32 values (the embedding, which the output layer shares,
+counted once), or \QwenUpdateGiB\,GiB. The all-reduce rate measured on the v5e at 96\,MiB,
+scaled linearly to that size, gives \QwenCommEstimate\,ms; this extrapolates the measured
+rate and fits nothing to Qwen's timings. In the four- and eight-device comparisons,
+splitting adds \QwenLowPenalty\,ms for ranks 1 and 4. The all-reduce of the larger update
+therefore accounts for the size of the penalty, although this neither separates the
+reconstruction's share nor measures the all-reduce at \QwenUpdateGiB\,GiB directly.
 
-At eight devices, the rank-1 penalty stays roughly fixed as $N$ grows, while evaluation
-time grows and the ratio approaches 1. Conversely, adding devices shortens evaluation,
-so a nearly fixed penalty can produce a rising ratio. Rank 16 also reduces the absolute
-penalty, to 2.4\,ms at $N=128$. The rank trend is not monotone: at $N=64$, rank 4 has a
-ratio of 1.40, above rank 1's 1.31. The signs and a smaller rank-16 margin were expected
-before this grid, after an earlier two-variant study; the population trend was observed
-during the run.
+At eight devices, rank 1's penalty stays between \QwenRankOnePenaltyMin{} and
+\QwenRankOnePenaltyMax\,ms as the population grows from 32 to 128, while evaluation takes
+longer, so its ratio falls from \QwenRankOneRatioSmallN{} to \QwenRankOneRatioLargeN{}. Adding
+devices works the other way: evaluation gets shorter, so the same penalty gives a larger
+ratio, and at $N=32$ rank 1's ratio rises from \QwenRankOneRatioFourDevices{} on four devices
+to \QwenRankOneRatioSmallN{} on eight. Rank 16's penalty falls as the population grows, to
+\QwenRankSixteenPenalty\,ms at $N=128$. Before running this grid, predictions were made based
+on an earlier study of two variants. Two held: which placement is faster for each variant,
+and a smaller margin for rank 16 than for rank 1. The third did not: the margin was
+predicted to shrink as rank grows, but at $N=64$ rank 4's ratio is
+\QwenRankFourRatioMidN{}, above rank 1's \QwenRankOneRatioMidN{}. The population trend was
+not predicted.
 
-At eight devices, all low-rank variants run out of memory at $N=240$, while full rank
-fits. Low-rank evaluation batches candidates together; the full-rank variant regenerates
-and evaluates them one at a time. This trades activation and weight memory against
-throughput. Reduced-model compilation probes support the activation-memory explanation
-(Appendix~\ref{sec:memory}); they do not establish an identical memory boundary on Qwen
-with matched batching. Each placement comparison keeps batching fixed, whereas a timing
-comparison across perturbation types includes this evaluation difference.
+At eight devices and $N=240$, every low-rank variant runs out of memory under both
+placements, while full rank fits. Low-rank candidates are evaluated together in one batch,
+which is faster but holds every candidate's activations at once; seed evaluates candidates
+one at a time and holds only one candidate's activations and noise. Compilation probes on a
+reduced model support this explanation (Appendix~\ref{sec:memory}), but they do not show
+where Qwen's memory limit would fall if both perturbation types were evaluated the same
+way.
 
 \subsection{Across a slow connection between hosts}
 \label{subsec:boundary}
 
 \input{generated/tb7}
 
-Communication can reverse the full-rank preference. We repeated six configurations on
-two A100 nodes. NCCL could not use the provider's InfiniBand, so cross-host traffic
-ran over TCP sockets. The calibrated effective cross-host all-reduce bandwidth was
-0.6--0.8\,GiB/s.
+Communication can reverse the full-rank preference. \HostConfigsCap{} of the block
+configurations were measured again on two A100 nodes connected by TCP sockets, where the
+effective cross-host all-reduce rate was \HostRate\,GiB/s.
 
-Keeping eight devices but splitting them between hosts adds 107--110\,ms to the
-split placement's relative cost at width 2048 (Table~\ref{tab:tb7}). This exceeds the
-21--51\,ms it saved on one host, so replication becomes faster for regenerated full-rank
-noise. At width 512, the update is only 6\,MiB and splitting remains faster for that
-variant. Replication's advantage for rank 1 grows across the slow connection.
+With the same eight devices divided between two hosts (the $1\times8$ and $2\times4$ columns
+of Table~\ref{tab:tb7}), $t_A-t_B$ falls by \HostBoundaryDrop\,ms at width 2048 for both
+variants. For seed, that exceeds the \HostSeedSaving\,ms that splitting saved on one host, so
+replication becomes faster. At width 512 the update is 6\,MiB, and splitting remains faster
+for seed. For rank 1, replication was already faster, and its advantage grows across the slow
+connection.
 
-The rule also gives a useful threshold for another connection. Keeping eight devices
-and neglecting latency, the 96\,MiB all-reduce stops paying below about 4.1\,GiB/s at
-$N=128$ and 1.8\,GiB/s at $N=256$. These are effective all-reduce rates, not network
-line rates. They use the within-host savings plus the within-host communication being
-replaced; Appendix~\ref{sec:boundary-audit} gives the calculation and repeat bounds.
+Eq.~\ref{eq:crossover} also gives the connection speed below which splitting stops being
+faster. For seed at width 2048 on eight devices, and ignoring latency, the 96\,MiB all-reduce
+must run at \HostBreakEvenSmallN\,GiB/s or more at $N=128$, and at \HostBreakEvenLargeN\,GiB/s
+or more at $N=256$, for splitting to remain faster. At those rates the all-reduce takes
+exactly as long as the one-host saving plus the one-host all-reduce it replaces. These are
+effective all-reduce rates, not network line rates; Appendix~\ref{sec:boundary-audit} gives
+the calculation and the bounds from the repeats.
 
-Our prediction fixed before the sixteen-device run identified four of six faster
-placements. Its bandwidth calibration used an incorrectly labelled message size.
-Correcting that error after the runs gives all six preferences, but still overestimates
-the split penalty by up to 63\,ms. The original prediction and the
-retrospective correction remain side by side in Table~\ref{tab:tb7-audit}.
-This experiment establishes the effect of a slow connection, not the performance of a
-high-bandwidth multi-host cluster.
+With the all-reduce rates measured on these hosts, the values Eq.~\ref{eq:crossover} gives
+(expected, in Table~\ref{tab:tb7-audit}) match the faster placement in all
+\HostExpectedMatches{} configurations, in both two-host layouts. On eight devices they differ
+from the measurements by at most \HostExpectedErrorEight\,ms; on sixteen they overestimate the
+penalty for splitting by up to \HostExpectedOverSixteen\,ms. This experiment shows what a slow
+connection does to the choice of placement; it does not measure a high-bandwidth multi-host
+cluster.
 
 \subsection{What low-rank perturbations save}
 
 \begin{figure*}[t]
   \centering
   \includegraphics[width=0.9\textwidth]{f4-cost-common-bfloat16.png}
-  \caption{Generation time relative to stored full-rank noise (dense), on one device
-    with bfloat16 storage and default matrix-multiplication precision. Every row uses
-    the same model width and population on both platforms, and all compared variants fit.
-    Values below 1 are faster than dense. Low-rank noise has a larger relative advantage
-    on the v5e at every common configuration. The full grid, including memory limits,
-    is in Figure~\ref{fig:f4-full}.}
+  \caption{Generation time relative to dense (stored full-rank noise) for seed (left) and
+    rank 1 (right), on one device with bfloat16 storage and default matrix-multiplication
+    precision. Each row is one model width and population, measured on both platforms, at
+    which every compared variant fits. Values below 1 are faster than dense.
+    Figure~\ref{fig:f4-full} has the full grid, including memory limits.}
   \label{fig:f4}
 \end{figure*}
 
-On the simplified block, low-rank noise saves more relative to dense noise on the TPU
-than on the GPU (Figure~\ref{fig:f4}). Across the same seven feasible configurations,
-\input{generated/cost-common}
-Regenerating full-rank noise instead trades speed for memory: the seed variant is slower
-than dense at every comparable configuration, but fits the complete cost grid.
-The full grid and precision comparisons are in Appendix~\ref{sec:systems-ablations}.
-The platform difference persists at matched precision: the single-device scaling sweeps
-use float32 storage and highest precision on both platforms, and give rank-1/dense time
-geometric-mean ratios of 0.43 on A100 and 0.17 on v5e over seven matched
-configuration/placement pairs.
-These ratios describe the tested workload and implementation; they do not isolate the
-hardware mechanism responsible for the difference.
+On the block, rank 1 saves more time relative to dense on the v5e than on the A100
+(Figure~\ref{fig:f4}). Across the \CostCommonConfigs{} configurations at which every compared
+variant fits on both platforms, rank-1 generation time is \RankOneOverDenseGPU{} times the
+dense time on the A100 and \RankOneOverDenseTPU{} times on the v5e (geometric means).
+Regenerating full-rank noise trades speed for memory: seed is slower than dense at every
+configuration where both were measured, but it fits every configuration of the cost grid,
+unlike dense and rank 1. Appendix~\ref{sec:systems-ablations} has the full grid and the
+precision comparisons. The difference between the platforms is not an effect of precision: in
+the single-device scaling sweeps, which use float32 storage and the highest precision on both
+platforms, rank 1 takes \MatchedRankOneGPU{} times the dense time on the A100 and
+\MatchedRankOneTPU{} times on the v5e, as geometric means over \MatchedPairs{} matched
+configuration--placement pairs. These ratios describe the tested workload and implementation;
+they do not identify the hardware mechanism behind the difference.
 
-As an implementation check, the library's single-device rank-1 throughput is within 3\% of
-EGGROLL's released code on the A100, and 0.68--0.85 times its throughput on the v5e.
-The TPU gap was not isolated. Appendix~\ref{sec:refimpl} separates these matched-device
-comparisons from the additional throughput available with eight devices.
+To check that these timings do not reflect a slow implementation, the library's
+single-device rank-1 throughput was compared with EGGROLL's released code: it is
+\RefRatioGPU{} times EGGROLL's on the A100 and \RefRatioTPU{} times on the v5e. The cause
+of the v5e gap was not found. Appendix~\ref{sec:refimpl} also gives the library's throughput
+on eight devices, for which the single-device reference code has no counterpart.

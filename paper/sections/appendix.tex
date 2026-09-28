@@ -80,7 +80,7 @@ comparisons. The counts differ between platforms because the mirrored full-rank 
 was run only on A100. Replacing $C_B$ by $C_A/D$ and using the isolated collective
 benchmark gives 17/20 and 16/16 sign agreements, including two resolved A100 misses:
 mirrored rank 1 at $(d,N)=(512,256)$ and non-mirrored rank 1 at $(2048,256)$. For A100
-low-rank noise at width 2048, this simple model predicts $t_A-t_B$ between $-0.49$
+low-rank noise at width 2048, this simple model gives $t_A-t_B$ between $-0.49$
 and $+0.18$\,ms, against $-1.63$ to $-0.84$\,ms measured. Keeping ideal splitting but
 using the communication added to the reconstruction probe improves the counts to 19/20
 and 16/16. Thus measured local reconstruction does not improve every near-tie; the added
@@ -90,22 +90,17 @@ communication cost is the important refinement for the resolved A100 cases.
 \paragraph{What was fixed before measuring.} Before the single-host sweeps we expected
 splitting to favor full-rank noise and replication to favor low-rank noise. The original
 byte counts were subsequently corrected from compiled programs to include both score
-and weight gathers. The timing equation was developed after these sweeps. It was used
-prospectively at the host boundary, where the original prediction and the correction
-below must be distinguished.
+and coefficient gathers. The timing equation was developed after these sweeps.
 
-\subsection{Host-boundary prediction audit}
+\subsection{Host-boundary check of Eq.~\ref{eq:crossover}}
 \label{sec:boundary-audit}
 
 \input{generated/tb7-audit}
 
-The calibration used for the sixteen-device prediction all-reduced $1/D$ of its labelled
-payload, overstating bandwidth by a factor of $D$. This was discovered after the runs.
-Table~\ref{tab:tb7-audit} retains the prediction made with that calibration and the
-retrospective correction at the actual payload size. The latter identifies all six
-preferences, but overestimates the split penalty by up to 63\,ms. The calibration
-and isolated ladder use different payloads and timing methods; their bandwidth numbers
-are not evidence of a difference between hardware sessions.
+Table~\ref{tab:tb7-audit} evaluates Eq.~\ref{eq:crossover} with the all-reduce rate
+measured on the two hosts, taken at the payload each calibration measurement moved. The
+calibration and the isolated ladder use different payloads and timing methods; their
+bandwidth numbers are not evidence of a difference between hardware sessions.
 
 For the fixed-eight-device comparison, let $S=t_A-t_B$ be the within-host saving and
 $T_{\mathrm{intra}}$ the communication being replaced. Neglecting latency and holding
@@ -114,9 +109,7 @@ $\beta_*=4P/(S+T_{\mathrm{intra}})$. At width 2048, $S$ is 21.4 or 50.8\,ms at
 $N=128$ or 256; the within-host bandwidth term at 96\,MiB is 1.46\,ms. This gives
 4.1 and 1.8\,GiB/s. Using repeat extremes gives 2.9--4.2 and 1.5--2.1\,GiB/s.
 These are approximate effective collective rates, including algorithmic traffic in the
-measured bandwidth, not line rates. The earlier sixteen-device prediction had the same
-ordering, with thresholds of 4.12 and 1.70\,GB/s (decimal units); it also assumed extra
-compute savings from using sixteen devices. The two calculations are not identical tests.
+measured bandwidth, not line rates.
 
 \paragraph{Other placements and overlap.} The two placements are not exhaustive.
 One primary device can reconstruct the whole update and broadcast the model, as in

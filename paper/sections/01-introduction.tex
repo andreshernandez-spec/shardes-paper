@@ -57,8 +57,7 @@ three questions:\begin{itemize}
     hosts, replication is faster for both perturbation types at width 2048, reversing
     the full-rank result.
   \item \textbf{What do low-rank perturbations save?} On the block benchmark with one
-    device, a rank-1 generation takes 0.22 times as long as one with stored full-rank noise
-    on the A100,
-    and 0.08 times as long on the v5e. These are geometric means of the time ratios over
+    device, a rank-1 generation takes \RankOneOverDenseGPU{} times as long as one with stored
+    full-rank noise on the A100, and \RankOneOverDenseTPU{} times as long on the v5e. These are geometric means of the time ratios over
     matched configurations.
 \end{itemize}
