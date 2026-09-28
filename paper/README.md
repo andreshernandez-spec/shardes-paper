@@ -25,6 +25,8 @@ retrieved 2026-09-26. Their original license and attribution notices are retaine
 
 `main.tex` holds the section order; `sections/` contains the abstract and body files.
 Tables in `generated/` are written by the committed generators, never edited by hand;
+`generated/protocol.tex` holds the protocol counts the prose cites (warm-ups, repeats),
+read from the records by `experiments/protocol_constants.py`;
 CI checks that `make tables` reproduces them byte for byte. Figures are included directly
 from `experiments/*/figures`.
 

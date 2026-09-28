@@ -24,6 +24,7 @@ submission: tables figures
 	$(PYTHON) check_submission.py
 
 tables:
+	cd ../experiments && $(PYTHON) protocol_constants.py --latex >/dev/null
 	cd ../experiments/phase2 && $(PYTHON) tb1.py --latex >/dev/null
 	cd ../experiments/phase2 && $(PYTHON) tb3.py --latex >/dev/null
 	cd ../experiments/phase2 && $(PYTHON) tb8.py --latex >/dev/null

@@ -24,9 +24,9 @@ candidates.
 \label{sec:barrier}
 
 Centered ranks require the scores of all candidates. Each device gathers and sorts
-the same list. Each configuration is timed by repeating a chain of operations five times
+the same list. Each configuration is timed by repeating a chain of operations \RankBenchRepeats{} times
 and dividing the median duration by the chain length. In an isolated v5e benchmark over
-84 configurations, the ranking step
+\RankBenchConfigs{} configurations, the ranking step
 takes at most 60\,$\mu$s for populations up to a thousand and about 0.2\,ms at 4096.
 At $N=2^{18}$, sorting takes 12.1\,ms and does not become faster with more devices,
 because every device repeats it. Going from one to eight devices adds 9--10\,$\mu$s
@@ -46,7 +46,7 @@ with equal-sized chunks sends $2(D-1)/D$ times the array size per device
 \citep{thakur2005,patarasuk2009}.
 
 Table~\ref{tab:tb8} uses a communication-only probe with a dependent chain of operations.
-Each chain length is timed ten times after warm-up, and its median duration is used.
+Each chain length is timed \LadderRepeats{} times after warm-up, and its median duration is used.
 The increase in run time per additional operation estimates the collective's marginal
 cost, excluding the fixed launch and synchronization cost of the compiled call. That
 fixed cost is 0.32\,ms on the A100 and 0.60\,ms on the v5e. These are isolated
@@ -54,7 +54,7 @@ communication measurements, not timings extracted from a training trace.
 
 \texttt{contraction\_isolation.py} similarly times three reconstruction probes: the
 replicated path, the split path with its all-reduce, and the local split computation
-with the all-reduce removed. These probes also use ten timed repeats per chain length.
+with the all-reduce removed. These probes use \ProbeRepeats{} timed repeats per chain length.
 The last two give $C_B$ and an estimate of the added cost
 of communication. That difference can include scheduling changes caused by the
 collective. It is not a directly isolated kernel duration.

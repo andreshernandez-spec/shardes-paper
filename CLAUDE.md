@@ -31,6 +31,13 @@ a package.
    library commit.
 6. **Generated tables are never edited by hand.** `make -C paper tables` rewrites them, and
    CI fails if that changes a byte.
+7. **A count or setting a record can supply is never typed into prose.** It comes from a
+   generated macro, one macro per measurement family: `experiments/protocol_constants.py`
+   reads the records, writes `paper/generated/protocol.tex`, and stops if a family's
+   records disagree with each other or with their config. A sentence that needs a new
+   constant gets a new family or macro there, and a sentence may not merge two families.
+   Added 2026-09-28, after the setup said the ranking step was timed with seven repeats:
+   the in-context ranking records were, the 84-configuration benchmark used five.
 
 ## Records from before the split
 
