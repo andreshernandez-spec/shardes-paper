@@ -15,7 +15,7 @@ that evaluates it. Changing device count preserves the perturbations. Given the 
 fitness scores, both placements compute the same mathematical update, with possible
 differences from floating-point rounding. As a check across device counts, we computed
 Qwen2.5-0.5B updates on one and eight A100s with the fitness scores held fixed. The updates
-have a relative error of $6.3\times10^{-6}$, measured over all parameters together
+have a relative error of $\UpdateRelErr$, measured over all parameters together
 (Appendix~\ref{sec:implementation}).
 
 \paragraph{Low-rank perturbations stay factored.} For inputs $x$ and a weight matrix

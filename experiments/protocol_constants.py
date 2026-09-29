@@ -163,6 +163,16 @@ def warmup(family: str, root: pathlib.Path = HERE, configs=None) -> int:
     return one(per_dir, f"warm-up of {family}")
 
 
+def field(family: str, key: str, root: pathlib.Path = HERE) -> int:
+    """A per-record setting that must be the same across a family (e.g. a chain length)."""
+    dirs, where = FAMILIES[family]
+    per_dir = {rel: collections.Counter(r[key] for _, r in records((root / rel).resolve())
+                                        if timings(r, where) and key in r) for rel in dirs}
+    if not any(per_dir.values()):
+        raise ProtocolError(f"no {family} record holds {key}")
+    return one(per_dir, f"{key} of {family}")
+
+
 def timed_records(family: str, root: pathlib.Path = HERE) -> int:
     dirs, where = FAMILIES[family]
     return sum(1 for rel in dirs for _, r in records((root / rel).resolve()) if timings(r, where))
@@ -186,6 +196,7 @@ def macros(root: pathlib.Path = HERE) -> dict[str, str]:
         # Appendix A: the ranking benchmark, the collective ladder, the reconstruction probes.
         "RankBenchRepeats": spelled(repeats("rankbench", root, configs)),
         "RankBenchConfigs": spelled(timed_records("rankbench", root)),
+        "RankBenchChain": spelled(field("rankbench", "chain_length", root)),
         "LadderRepeats": spelled(repeats("ladder", root, configs)),
         "ProbeRepeats": spelled(repeats("probes", root, configs)),
     }
