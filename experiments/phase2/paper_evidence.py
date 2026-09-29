@@ -156,6 +156,8 @@ def qwen_values(qwen):
           "rank 1's ratio at eight devices falls as the population grows")
     check(at['mirrored_lr1', 32, 8]['ratio'] > at['mirrored_lr1', 32, 4]['ratio'],
           "rank 1's ratio at N = 32 rises from four devices to eight")
+    check(at['mirrored_lr1', 32, 8]['B_minus_A_ms'] > at['mirrored_lr1', 32, 4]['B_minus_A_ms'],
+          "rank 1's absolute penalty at N = 32 rises from four devices to eight")
     sixteen = [at['mirrored_lr16', n, 8]['B_minus_A_ms'] for n in (32, 64, 128)]
     check(sixteen[0] > sixteen[1] > sixteen[2], "rank 16's penalty falls as the population grows")
     check(all(at['mirrored_lr16', n, 8]['ratio'] < one8[n]['ratio'] for n in one8),
@@ -373,8 +375,16 @@ def host_checks():
     claim(all(m[s, d, n, '1x8'] >= 0 and m[s, d, n, '2x4'] > m[s, d, n, '1x8'] and m[s, d, n, '2x8'] > m[s, d, n, '1x8']
               for _, s, d, n in two_host if s == 'mirrored_lr1' and d == 2048),
           "replication was already faster for rank 1 at width 2048, and its advantage grows on two hosts")
-    claim(all(m[s, d, n, '2x4'] > m[s, d, n, '1x8'] for _, s, d, n in two_host if s == 'mirrored_lr1'),
-          "replication's advantage for rank 1 grows across the slow connection")
+    for _, s, d, n in two_host:
+        if s != 'mirrored_lr1' or d != 512:
+            continue
+        for topo in ('1x8', '2x4', '2x8'):
+            a, b = [read(folder/f'arm={s}__how={h}__d={d}__N={n}__topo={topo}.json')['seconds_all']
+                    for h in 'AB']
+            if topo == '1x8':
+                claim(not resolved(a, b), 'rank 1 at width 512 is a near-tie on one host')
+            else:
+                claim(max(a) < min(b), 'rank 1 at width 512 clearly favors replication on two hosts')
     out['cross_host_rate_GiB_s'] = [min(rates), max(rates)]
     return out
 

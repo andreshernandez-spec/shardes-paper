@@ -29,8 +29,8 @@ the v5e. These low-rank ranges cover both mirrored sampling, which Figure~\ref{f
 shows, and non-mirrored sampling; Appendix~\ref{sec:grids} gives every variant and the
 absolute times.
 
-We call a comparison unresolved when its bar in Figure~\ref{fig:f2} contains 1. At eight
-devices, \NarrowLowRankUnresolved{} of the \NarrowLowRank{} low-rank configurations at width
+We call a comparison unresolved when its repeat range, calculated as in
+Figure~\ref{fig:f2}, contains 1. At eight devices, \NarrowLowRankUnresolved{} of the \NarrowLowRank{} low-rank configurations at width
 512 are unresolved: the two placements take about the same time. Every full-rank
 configuration, and every low-rank configuration at width 2048, is resolved. The repeats come
 from one compiled program in one session, so they show variation within a run, not between
@@ -84,7 +84,7 @@ On Qwen2.5-0.5B on the TPU, the faster placement is the same as on the block
 leaves \QwenFullComparisons{} full-rank and \QwenLowComparisons{} low-rank
 comparisons; every eight-device record qualifies. Splitting is faster for full rank, by more
 at eight devices than at four. Replication is faster in every low-rank comparison. The
-closest, rank 16 at $N=128$, has a ratio of \QwenNearTieRatio{} and a bar starting at
+closest, rank 16 at $N=128$, has a ratio of \QwenNearTieRatio{} and a repeat range starting at
 \QwenNearTieBar{}, so it is resolved, but only just. Appendix~\ref{sec:memory} lists the
 excluded records; they were excluded because their code version is not fully known, not
 because they ran out of memory.
@@ -100,9 +100,9 @@ reconstruction's share nor measures the all-reduce at \QwenUpdateGiB\,GiB direct
 At eight devices, rank 1's penalty stays between \QwenRankOnePenaltyMin{} and
 \QwenRankOnePenaltyMax\,ms as the population grows from 32 to 128, while evaluation takes
 longer, so its ratio falls from \QwenRankOneRatioSmallN{} to \QwenRankOneRatioLargeN{}. Adding
-devices works the other way: evaluation gets shorter, so the same penalty gives a larger
-ratio, and at $N=32$ rank 1's ratio rises from \QwenRankOneRatioFourDevices{} on four devices
-to \QwenRankOneRatioSmallN{} on eight. Rank 16's penalty falls as the population grows, to
+devices shortens evaluation and, in this comparison, also increases the absolute penalty:
+at $N=32$, rank 1's ratio rises from \QwenRankOneRatioFourDevices{} on four devices to
+\QwenRankOneRatioSmallN{} on eight. Rank 16's penalty falls as the population grows, to
 \QwenRankSixteenPenalty\,ms at $N=128$. Before running this grid, predictions were made based
 on an earlier study of two variants. Two held: which placement is faster for each variant,
 and a smaller margin for rank 16 than for rank 1. The third did not: the margin was
@@ -131,8 +131,8 @@ With the same eight devices divided between two hosts (the $1\times8$ and $2\tim
 of Table~\ref{tab:tb7}), $t_A-t_B$ falls by \HostBoundaryDrop\,ms at width 2048 for both
 variants. For seed, that exceeds the \HostSeedSaving\,ms that splitting saved on one host, so
 replication becomes faster. At width 512 the update is 6\,MiB, and splitting remains faster
-for seed. For rank 1, replication was already faster, and its advantage grows across the slow
-connection.
+for seed. For rank 1 at width 2048, replication's existing advantage grows across the
+slow connection; at width 512, the near-tie becomes a clear advantage for replication.
 
 Eq.~\ref{eq:crossover} also gives the connection speed below which splitting stops being
 faster. For seed at width 2048 on eight devices, and ignoring latency, the 96\,MiB all-reduce
@@ -170,15 +170,15 @@ dense time on the A100 and \RankOneOverDenseTPU{} times on the v5e (geometric me
 Regenerating full-rank noise trades speed for memory: seed is slower than dense at every
 configuration where both were measured, but it fits every configuration of the cost grid,
 unlike dense and rank 1. Appendix~\ref{sec:systems-ablations} has the full grid and the
-precision comparisons. The difference between the platforms is not an effect of precision: in
+precision comparisons. The difference between the platforms persists with matched precision: in
 the single-device scaling sweeps, which use float32 storage and the highest precision on both
 platforms, rank 1 takes \MatchedRankOneGPU{} times the dense time on the A100 and
 \MatchedRankOneTPU{} times on the v5e, as geometric means over \MatchedPairs{} matched
 configuration--placement pairs. These ratios describe the tested workload and implementation;
 they do not identify the hardware mechanism behind the difference.
 
-To check that these timings do not reflect a slow implementation, the library's
-single-device rank-1 throughput was compared with EGGROLL's released code: it is
+As an implementation check, we compared the library's single-device rank-1 throughput
+with EGGROLL's released code: it is
 \RefRatioGPU{} times EGGROLL's on the A100 and \RefRatioTPU{} times on the v5e. The cause
 of the v5e gap was not found. Appendix~\ref{sec:refimpl} also gives the library's throughput
 on eight devices, for which the single-device reference code has no counterpart.
