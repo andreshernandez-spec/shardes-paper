@@ -2,7 +2,7 @@
 \begin{table*}[t]
 \centering
 \small
-\caption{What one real-model update costs, in ms (Qwen2.5-0.5B, one generation (evaluate, then update) on the fixed prompt batch, TPU v5e-8, median of five repeats). Each entry is the faster placement (split for full rank at multiple devices, replicated for low rank); Figure~\ref{fig:f9} gives the ratio between them. OOM: neither placement fits a 16\,GB chip at that shape. Dashes mean a comparison lacks two clean records, not a memory failure. All one-device records are excluded.}
+\caption{What one real-model update costs, in ms (Qwen2.5-0.5B, one generation (evaluate, then update) on the fixed prompt batch, TPU v5e-8, median of \RealModelRepeats{} repeats). Each entry is the faster placement (split for full rank at multiple devices, replicated for low rank); Figure~\ref{fig:f9} gives the ratio between them. OOM: neither placement fits a 16\,GB chip at that shape. Dashes mean a comparison lacks two clean records, not a memory failure. All one-device records are excluded.}
 \label{tab:tb5}
 \begin{tabular}{llrrr}
 \toprule

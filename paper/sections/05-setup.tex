@@ -30,8 +30,8 @@ between perturbation types, but never between the two placements being compared.
 fitness is the mean next-token negative log-likelihood on eight fixed Countdown prompts,
 padded to 128 tokens, with padding excluded from the loss.
 
-\paragraph{Protocol.} Complete-generation benchmarks use three warm-up generations
-followed by five timed repeats, or seven for the host-boundary experiment. We report the
+\paragraph{Protocol.} Complete-generation benchmarks use \GenWarmup{} warm-up generations
+followed by \GenRepeats{} timed repeats, or \BoundaryRepeats{} for the host-boundary experiment. We report the
 median and wait for device execution to finish before stopping each timer. Separate
 component-timing procedures are described in Appendix~\ref{sec:implementation}.
 Matrix-multiplication precision is fixed per experiment and recorded. The
@@ -48,6 +48,6 @@ between devices is fastest, and one pair of A100 hosts connected by TCP sockets;
 simplified block; and one real model, Qwen2.5-0.5B, on one platform. Results are stated
 within those limits.
 
-\paragraph{Provenance.} Experiment configurations are committed before runs. Result
-records capture the code versions and execution environments, and measurement figures
+\paragraph{Provenance.} Experiment configurations were fixed before the runs. Each result
+record includes the code version and environment that produced it, and measurement figures
 and tables are generated from saved results (Appendix~\ref{sec:repro}).

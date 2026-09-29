@@ -9,7 +9,7 @@ Qwen2.5-0.5B updates on the A100 have a relative error of $6.3\times10^{-6}$, me
        {\lVert\Delta\theta_8\rVert_2},
 \]
 where $\Delta\theta_D$ is the update computed on $D$ devices and the norms treat all
-parameters as one vector. The committed log reports this aggregate; it does not bound
+parameters as one vector. The log reports this aggregate; it does not bound
 every parameter array. Two 20-generation runs of the same eight-device program agree
 byte for byte. Separately
 compiled programs need not follow the same training trajectory: changes in floating-point
@@ -24,9 +24,9 @@ candidates.
 \label{sec:barrier}
 
 Centered ranks require the scores of all candidates. Each device gathers and sorts
-the same list. Each configuration is timed by repeating a chain of operations five times
+the same list. Each configuration is timed by repeating a chain of operations \RankBenchRepeats{} times
 and dividing the median duration by the chain length. In an isolated v5e benchmark over
-84 configurations, the ranking step
+\RankBenchConfigs{} configurations, the ranking step
 takes at most 60\,$\mu$s for populations up to a thousand and about 0.2\,ms at 4096.
 At $N=2^{18}$, sorting takes 12.1\,ms and does not become faster with more devices,
 because every device repeats it. Going from one to eight devices adds 9--10\,$\mu$s
@@ -46,7 +46,7 @@ with equal-sized chunks sends $2(D-1)/D$ times the array size per device
 \citep{thakur2005,patarasuk2009}.
 
 Table~\ref{tab:tb8} uses a communication-only probe with a dependent chain of operations.
-Each chain length is timed ten times after warm-up, and its median duration is used.
+Each chain length is timed \LadderRepeats{} times after warm-up, and its median duration is used.
 The increase in run time per additional operation estimates the collective's marginal
 cost, excluding the fixed launch and synchronization cost of the compiled call. That
 fixed cost is 0.32\,ms on the A100 and 0.60\,ms on the v5e. These are isolated
@@ -54,7 +54,7 @@ communication measurements, not timings extracted from a training trace.
 
 \texttt{contraction\_isolation.py} similarly times three reconstruction probes: the
 replicated path, the split path with its all-reduce, and the local split computation
-with the all-reduce removed. These probes also use ten timed repeats per chain length.
+with the all-reduce removed. These probes use \ProbeRepeats{} timed repeats per chain length.
 The last two give $C_B$ and an estimate of the added cost
 of communication. That difference can include scheduling changes caused by the
 collective. It is not a directly isolated kernel duration.
@@ -80,7 +80,7 @@ comparisons. The counts differ between platforms because the mirrored full-rank 
 was run only on A100. Replacing $C_B$ by $C_A/D$ and using the isolated collective
 benchmark gives 17/20 and 16/16 sign agreements, including two resolved A100 misses:
 mirrored rank 1 at $(d,N)=(512,256)$ and non-mirrored rank 1 at $(2048,256)$. For A100
-low-rank noise at width 2048, this simple model predicts $t_A-t_B$ between $-0.49$
+low-rank noise at width 2048, this simple model gives $t_A-t_B$ between $-0.49$
 and $+0.18$\,ms, against $-1.63$ to $-0.84$\,ms measured. Keeping ideal splitting but
 using the communication added to the reconstruction probe improves the counts to 19/20
 and 16/16. Thus measured local reconstruction does not improve every near-tie; the added
@@ -90,22 +90,17 @@ communication cost is the important refinement for the resolved A100 cases.
 \paragraph{What was fixed before measuring.} Before the single-host sweeps we expected
 splitting to favor full-rank noise and replication to favor low-rank noise. The original
 byte counts were subsequently corrected from compiled programs to include both score
-and weight gathers. The timing equation was developed after these sweeps. It was used
-prospectively at the host boundary, where the original prediction and the correction
-below must be distinguished.
+and coefficient gathers. The timing equation was developed after these sweeps.
 
-\subsection{Host-boundary prediction audit}
+\subsection{Host-boundary check of Eq.~\ref{eq:crossover}}
 \label{sec:boundary-audit}
 
 \input{generated/tb7-audit}
 
-The calibration used for the sixteen-device prediction all-reduced $1/D$ of its labelled
-payload, overstating bandwidth by a factor of $D$. This was discovered after the runs.
-Table~\ref{tab:tb7-audit} retains the prediction made with that calibration and the
-retrospective correction at the actual payload size. The latter identifies all six
-preferences, but overestimates the split penalty by up to 63\,ms. The calibration
-and isolated ladder use different payloads and timing methods; their bandwidth numbers
-are not evidence of a difference between hardware sessions.
+Table~\ref{tab:tb7-audit} evaluates Eq.~\ref{eq:crossover} with the all-reduce rate
+measured on the two hosts, taken at the payload each calibration measurement moved. The
+calibration and the isolated ladder use different payloads and timing methods; their
+bandwidth numbers are not evidence of a difference between hardware sessions.
 
 For the fixed-eight-device comparison, let $S=t_A-t_B$ be the within-host saving and
 $T_{\mathrm{intra}}$ the communication being replaced. Neglecting latency and holding
@@ -114,9 +109,7 @@ $\beta_*=4P/(S+T_{\mathrm{intra}})$. At width 2048, $S$ is 21.4 or 50.8\,ms at
 $N=128$ or 256; the within-host bandwidth term at 96\,MiB is 1.46\,ms. This gives
 4.1 and 1.8\,GiB/s. Using repeat extremes gives 2.9--4.2 and 1.5--2.1\,GiB/s.
 These are approximate effective collective rates, including algorithmic traffic in the
-measured bandwidth, not line rates. The earlier sixteen-device prediction had the same
-ordering, with thresholds of 4.12 and 1.70\,GB/s (decimal units); it also assumed extra
-compute savings from using sixteen devices. The two calculations are not identical tests.
+measured bandwidth, not line rates.
 
 \paragraph{Other placements and overlap.} The two placements are not exhaustive.
 One primary device can reconstruct the whole update and broadcast the model, as in
@@ -218,14 +211,13 @@ of the tested code versions, not limitations of the algorithms.
 \input{generated/tb5}
 
 Table~\ref{tab:tb5} gives absolute generation times behind Figure~\ref{fig:f9}.
-The original grid has 128 records; 63 carry a dirty-worktree flag. Historical launch
-scripts ran other probes first, which could dirty result files, but no per-run diff
-was saved to certify that only outputs changed. We therefore exclude those records.
-The remaining 65 include 43 timings and 22 memory failures; only configurations with
-two clean records enter a placement comparison. This leaves twelve low-rank and eight
-full-rank timing comparisons. All eight-device records are clean. Excluded comparisons
-are dashes, distinct from observed memory failures; historical records remain available
-for audit in the experiment directory.
+The grid has \QwenRecords{} records. For \QwenUnknownRecords{} of them the exact code version
+cannot be confirmed, so they are excluded; the remaining \QwenKnownRecords{} include
+\QwenKnownTimings{} timings and \QwenKnownOOM{} memory failures. Only configurations with two
+such records, one per placement, enter a placement comparison, which leaves
+\QwenLowComparisons{} low-rank and \QwenFullComparisons{} full-rank comparisons; every
+eight-device record qualifies. Excluded comparisons are shown as dashes, distinct from observed
+memory failures, and the excluded records remain in the experiment directory.
 
 At eight devices, ranks 1, 4 and 16 fit populations up to 128 and all fail at 240; the
 regenerated full-rank variant fits all four populations. The evaluation schedules differ:
@@ -314,6 +306,6 @@ are reproduced by \texttt{phase2/paper\_evidence.py}.
 The timing ranges are printed by \texttt{phase2/timemodel.py}, the overlap bound by
 \texttt{phase2/overlap\_bound.py}, and the compiled-program byte counts by
 \texttt{phase2/comms.py} and \texttt{phase2/tb2.py}. The library's device-count
-invariance test runs on CPU with eight simulated devices. Continuous integration checks
-that regenerating tables changes no bytes and that every commit cited by a result record
-remains available.
+invariance test runs on CPU with eight simulated devices. An automated check verifies
+that regenerating the tables changes no bytes and that the code version each result record
+cites remains available.

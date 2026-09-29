@@ -2,11 +2,11 @@
 \begin{table*}[t]
 \centering
 \small
-\caption{Worked example of Eq.~\ref{eq:crossover}, at width 2048, population 256 and eight devices. All times are milliseconds. $C_A$ and $C_B$ are separately measured reconstruction costs; $T_{\mathrm{add}}$ is communication added to the split reconstruction probe. The prediction is $C_A-C_B+T_{\mathrm{ag}}-T_{\mathrm{add}}$, including the small weight gather. Positive differences favor splitting. $t_A$ gives the generation time against which a penalty is divided in Figure~\ref{fig:f2}.}
+\caption{Worked example of Eq.~\ref{eq:crossover} at width 2048, population 256 and eight devices; all times in milliseconds. $C_A$ and $C_B$ are the separately measured reconstruction times. $T_{\mathrm{add}}$ is the time the all-reduce adds to the split reconstruction, measured in context; it stands in for $T_{\mathrm{ar}}(4P)$. The expected difference is $C_A-C_B+T_{\mathrm{ag}}-T_{\mathrm{add}}$, where $T_{\mathrm{ag}}$ is replication's second coefficient gather. Positive differences favor splitting. $t_A$ is the replicated generation time, the denominator of the ratio in Figure~\ref{fig:f2}.}
 \label{tab:worked}
 \begin{tabular}{llrrrrrr}
 \toprule
-platform & variant & $C_A$ & $C_B$ & $T_{\mathrm{add}}$ & predicted $t_A-t_B$ & measured $t_A-t_B$ & $t_A$ \\
+platform & variant & $C_A$ & $C_B$ & $T_{\mathrm{add}}$ & expected $t_A-t_B$ & measured $t_A-t_B$ & $t_A$ \\
 \midrule
 A100 & seed & 61.05 & 7.78 & 1.25 & 52.03 & 54.30 & 113.26 \\
 A100 & rank 1 & 0.77 & 0.35 & 1.62 & -1.19 & -1.40 & 19.88 \\

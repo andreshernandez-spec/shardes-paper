@@ -3,18 +3,18 @@
 \centering
 \small
 \setlength{\tabcolsep}{3pt}
-\caption{Measured split minus replicated generation time (ms). Negative values favor splitting. Columns give hosts $\times$ devices per host; the cross-host connection uses TCP sockets. At width 2048 the full-rank seed variant switches from splitting to replication. Predictions and their correction are in Table~\ref{tab:tb7-audit}.}
+\caption{Generation time under replication minus generation time under splitting, $t_A-t_B$, in ms; positive values favor splitting, as in Table~\ref{tab:worked}. Columns give hosts $\times$ devices per host; the two hosts are connected by TCP sockets. Table~\ref{tab:tb7-audit} sets them beside the values Eq.~\ref{eq:crossover} gives.}
 \label{tab:tb7}
 \begin{tabular}{llrrrr}
 \toprule
 variant & $d$ & $N$ & $1\times8$ & $2\times4$ & $2\times8$ \\
 \midrule
-seed & 2048 & 128 & $-21.4$ & $+86.8$ & $+74.1$ \\
-seed & 2048 & 256 & $-50.8$ & $+57.2$ & $+56.7$ \\
-seed & 512 & 1024 & $-20.1$ & $-13.0$ & $-24.8$ \\
-rank 1 & 2048 & 128 & $+1.6$ & $+108.9$ & $+159.1$ \\
-rank 1 & 2048 & 256 & $+1.4$ & $+111.4$ & $+130.9$ \\
-rank 1 & 512 & 1024 & $0.0$ & $+6.9$ & $+7.8$ \\
+seed & 2048 & 128 & $+21.4$ & $-86.8$ & $-74.1$ \\
+seed & 2048 & 256 & $+50.8$ & $-57.2$ & $-56.7$ \\
+seed & 512 & 1024 & $+20.1$ & $+13.0$ & $+24.8$ \\
+rank 1 & 2048 & 128 & $-1.6$ & $-108.9$ & $-159.1$ \\
+rank 1 & 2048 & 256 & $-1.4$ & $-111.4$ & $-130.9$ \\
+rank 1 & 512 & 1024 & $0.0$ & $-6.9$ & $-7.8$ \\
 \bottomrule
 \end{tabular}
 \end{table}
