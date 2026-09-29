@@ -27,8 +27,9 @@ LOW_RANK = ("lowrank_r1", "mirrored_lr1")
 NAMES = {"lowrank_r1": "rank 1, unpaired", "mirrored_lr1": "rank 1"}
 
 
-def main() -> int:
-    rows = []
+def rows() -> list[tuple]:
+    """(device, arm, d, N, C_A, C_local, added communication, t_B - t_A, with overlap), ms."""
+    out = []
     for p in sorted((HERE / "results-contraction").glob("*.json")):
         r = json.loads(p.read_text())
         s = next((s for s in LOW_RANK if f"__s={s}__" in p.name), None)
@@ -38,14 +39,19 @@ def main() -> int:
         n = int(p.name.split("N=")[1].split("__")[0])
         c, cl, ar = (r[k] * 1e3 for k in ("contraction_seconds", "contraction_local_seconds",
                                           "allreduce_insitu_seconds"))
-        rows.append((r["device_kind"], NAMES[s], d, n, c, cl, ar, cl + ar - c,
-                     max(cl, ar) - c))
+        out.append((r["device_kind"], NAMES[s], d, n, c, cl, ar, cl + ar - c,
+                    max(cl, ar) - c))
+    return out
+
+
+def main() -> int:
+    rows_ = rows()
     print("| device | arm | d | N | A including gather | C_local | added communication | t_B - t_A | with overlap |")
     print("|---|---|---|---|---|---|---|---|---|")
-    for kind, name, d, n, c, cl, ar, plain, over in rows:
+    for kind, name, d, n, c, cl, ar, plain, over in rows_:
         print(f"| {kind} | {name} | {d} | {n} | {c:.2f} | {cl:.2f} | {ar:.2f} | "
               f"{plain:+.2f} | {over:+.2f} |")
-    big = [r for r in rows if r[2] == 2048]
+    big = [r for r in rows_ if r[2] == 2048]
     print(f"\nd=2048, all {len(big)} low-rank cells (ms): t_B - t_A "
           f"{min(r[7] for r in big):+.2f} to {max(r[7] for r in big):+.2f} without overlap, "
           f"{min(r[8] for r in big):+.2f} to {max(r[8] for r in big):+.2f} with it")

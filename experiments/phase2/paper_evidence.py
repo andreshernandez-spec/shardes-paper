@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import argparse
 import collections
+from decimal import ROUND_CEILING, Decimal
 import json
 import math
+import re
 from pathlib import Path
 import statistics
 import sys
@@ -164,13 +166,6 @@ def qwen_values(qwen):
           "the predicted smaller margin for rank 16 than for rank 1 held")
     check(at['mirrored_lr4', 64, 8]['ratio'] > one8[64]['ratio'],
           "the predicted shrinking margin with rank fails at N = 64 (rank 4 above rank 1)")
-    # The memory paragraph: at eight devices and N = 240, low rank runs out of memory under
-    # both placements and full rank fits.
-    cell = {tuple(o[:4]): o[4] for o in qwen['outcomes']}
-    check(all(cell.get((s, 240, 8, h)) == 'oom' for s in ('mirrored_lr1', 'mirrored_lr4', 'mirrored_lr16')
-              for h in 'AB'), 'every low-rank variant runs out of memory at eight devices and N = 240')
-    check(all(cell.get(('mirrored_seed', 240, 8, h)) == 'timed' for h in 'AB'),
-          'full rank fits at eight devices and N = 240')
     # Appendix B's record counts: every record is a timing or a memory failure.
     known = qwen['record_outcomes']['clean']
     unknown = qwen['record_outcomes']['dirty']
@@ -202,12 +197,220 @@ def qwen_values(qwen):
     }
 
 
-def results_latex(block, examples=(), qwen=None, host=None):
+def memory_values(qwen):
+    """Appendix C: where Qwen runs out of memory, from the records whose code version is known."""
+    def check(ok, claim):
+        if not ok:
+            raise SystemExit(f'Appendix C says {claim}')
+    low = ('mirrored_lr1', 'mirrored_lr4', 'mirrored_lr16')
+    outcomes = qwen['known_outcomes']
+    eight = collections.defaultdict(dict)
+    for s, n, d, h, o in outcomes:
+        if d == 8:
+            eight[s, h][n] = o
+    populations = sorted({n for v in eight.values() for n in v})
+    check(set(eight) == {(s, h) for s in low + ('mirrored_seed',) for h in 'AB'}
+          and all(sorted(v) == populations for v in eight.values()),
+          'every variant ran at every population on eight devices')
+    fits = max(n for n in populations if all(eight[s, h][n] == 'timed' for s in low for h in 'AB'))
+    oom = [n for n in populations if n > fits]
+    check(len(oom) == 1 and all(eight[s, h][n] == ('timed' if n <= fits else 'oom')
+                                for s in low for h in 'AB' for n in populations),
+          'ranks 1, 4 and 16 run up to one population and run out of memory at the next, '
+          'under both placements')
+    check(all(o == 'timed' for (s, _), v in eight.items() if s == 'mirrored_seed' for o in v.values()),
+          'seed, mirrored runs at every population on eight devices')
+    per = [(n / d, o, s, h) for s, n, d, h, o in outcomes if s in low]
+    fit_max = max(m for m, o, *_ in per if o == 'timed')
+    oom_min = min(m for m, o, *_ in per if o == 'oom')
+    check(fit_max < oom_min and {o for _, o, *_ in per} == {'timed', 'oom'},
+          'whether a low-rank configuration fits depends only on the candidates per device')
+    both = {(s, h) for s in low for h in 'AB'}
+    check({(s, h) for _, o, s, h in per if o == 'oom'} == both == {(s, h) for _, o, s, h in per if o == 'timed'},
+          'the per-device limit holds for all three ranks and both placements')
+    memory_probe_checks()
+    return {'QwenLowFitMaxN': str(fits), 'QwenLowOOMN': str(oom[0]),
+            'QwenPopulationCount': spelled(len(populations)),
+            'QwenFitPerDevice': spelled(int(fit_max)), 'QwenOOMPerDevice': spelled(int(oom_min))}
+
+
+def memory_probe_checks():
+    """Appendix C's account of e17_memory_probe.py, checked against its saved log."""
+    def check(ok, claim):
+        if not ok:
+            raise SystemExit(f'Appendix C says {claim} (results-e17b-memory/probe.log)')
+    tables, section = collections.defaultdict(list), None
+    for line in (COUNTDOWN / 'results-e17b-memory/probe.log').read_text().splitlines():
+        head = re.match(r'([A-D])\. ', line)
+        if head:
+            section = head.group(1)
+        elif re.match(r'\s+\d+\s', line) and section:
+            tables[section].append([float(x.rstrip('G')) for x in line.split()])
+        elif section == 'C' and re.match(r'\s+\w+: [0-9.]+G', line):
+            tables['C'].append(float(line.split(':')[1].strip().rstrip('G')))
+    doubles = lambda col: all(1.9 <= b / a <= 2.1 for a, b in zip(col, col[1:]))  # noqa: E731
+    column = lambda t, i: [row[i] for row in tables[t]]  # noqa: E731
+    # A and B: columns seed, rank 1, rank 4, rank 16, one row per doubling.
+    check(all(doubles(column('A', i)) for i in (2, 3, 4)),
+          'low-rank temporary memory grows in proportion to the candidates per device')
+    check(all(doubles(column('B', i)) for i in (2, 3, 4)),
+          'low-rank temporary memory grows in proportion to the prompts')
+    check(all(row[4] <= row[2] for t in 'AB' for row in tables[t]) and tables['C'][3] <= tables['C'][1],
+          'temporary memory is no larger at rank 16 than at rank 1')
+    seed = column('A', 1)
+    check(all(b <= a for a, b in zip(seed, seed[1:])), "seed's temporary memory does not grow with the candidates")
+    check(doubles(column('D', 2)), "evaluating seed's candidates together reproduces the growth")
+
+
+def model_errors():
+    """Appendix A.2 on Eq. 2's terms and errors, per platform, from timemodel.py's rows."""
+    out = {}
+    for platform, spec in timemodel.PLATFORMS.items():
+        rows, _ = timemodel.rows(platform, spec)
+        low = lambda r: r['strategy'] in timemodel.LOW_RANK  # noqa: E731
+        split = lambda r: r['contraction_measured'] / (8 * r['contraction_local_measured'])  # noqa: E731
+        err = [abs(r['delta_predicted'] - r['delta_measured']) for r in rows]
+        misses = [r for r in rows if (r['delta_predicted'] > 0) != (r['delta_measured'] > 0)]
+        out['GPU' if 'A100' in platform else 'TPU'] = {
+            'split_full': [split(r) for r in rows if not low(r)],
+            'split_low': [split(r) for r in rows if low(r)],
+            'add_over_isolated': [r['allreduce_insitu'] / r['allreduce_seconds']
+                                  for r in rows if low(r) and r['d_model'] == 2048],
+            'median_ms': statistics.median(err) * 1e3,
+            'max_ms': max(err) * 1e3,
+            'configurations': len(rows),
+            'correct': len(rows) - len(misses),
+            'miss_gaps_ms': [abs(r['delta_measured']) * 1e3 for r in misses],
+        }
+    return out
+
+
+def model_values(tm):
+    """Appendix A.2: Eq. 2's measured terms and its errors on one host."""
+    gaps = [g for p in tm.values() for g in p['miss_gaps_ms']]
+    if not gaps or max(gaps) >= min(p['median_ms'] for p in tm.values()):
+        raise SystemExit("Appendix A.2 presents Eq. 2's misses as near-ties: each measured difference "
+                         "must be below the median error")
+    if not all(max(p['split_low']) < 1 for p in tm.values()):
+        raise SystemExit('Appendix A.4 says splitting takes more than 1/D of the replicated '
+                         'reconstruction for low-rank noise (q > 1/D)')
+    rng = lambda xs, places: f"{rounded(min(xs), places)}--{rounded(max(xs), places)}"  # noqa: E731
+    return {
+        **{f'TmSplitFull{k}': rng(v['split_full'], 2) for k, v in tm.items()},
+        **{f'TmSplitLow{k}': rng(v['split_low'], 2) for k, v in tm.items()},
+        **{f'TmAddOverIsolated{k}': rng(v['add_over_isolated'], 2) for k, v in tm.items()},
+        **{f'TmMedianErr{k}': rounded(v['median_ms'], 2) for k, v in tm.items()},
+        **{f'TmMaxErr{k}': rounded(v['max_ms'], 2) for k, v in tm.items()},
+        **{f'TmConfigs{k}': spelled(v['configurations']) for k, v in tm.items()},
+        **{f'TmCorrect{k}': spelled(v['correct']) for k, v in tm.items()},
+        'TmMisses': spelled(len(gaps)),
+        'TmMissGaps': rng(gaps, 2),
+    }
+
+
+def scaling_values():
+    """Appendix D: parallel efficiency, as plot.py draws it, throughput per device relative to
+    the series' smallest measured device count."""
+    import plot
+    def check(ok, claim):
+        if not ok:
+            raise SystemExit(f'Appendix D says {claim}')
+    eff = {}
+    for platform, spec in timemodel.PLATFORMS.items():
+        k = 'GPU' if 'A100' in platform else 'TPU'
+        series = collections.defaultdict(dict)
+        for r in plot.load([HERE / s for s in spec['sweeps']]):
+            c = r['config']
+            per = c['population'] // c['devices'] if c['mode'] == 'weak' else c['population']
+            series[c['mode'], c['d_model'], per, c['strategy'], c['how']][c['devices']] = \
+                c['population'] / r['seconds_median']
+        for key, by in series.items():
+            d0 = min(by)
+            eff[k, *key] = {d: (t / d) / (by[d0] / d0) for d, t in by.items()}
+    weak8 = lambda k, s, h: eff[k, 'weak', 2048, 32, s, h][8]  # noqa: E731
+    rank1 = {k: [weak8(k, s, h) for s in timemodel.LOW_RANK for h in 'AB'] for k in ('GPU', 'TPU')}
+    repl = {(k, s): weak8(k, s, 'A') for k in ('GPU', 'TPU') for s in ('iid_gaussian', 'seed_regenerated')}
+    split = [weak8(k, s, 'B') for k in ('GPU', 'TPU') for s in ('iid_gaussian', 'seed_regenerated')]
+    check(max(repl.values()) < min(split), 'dense and seed keep more efficiency under splitting than under replication')
+    above = [(e, key, d) for key, by in eff.items() for d, e in by.items()
+             if key[0] == 'TPU' and key[1] == 'strong' and e > 1]
+    check({key[2] for _, key, _ in above} == {512, 2048}, 'v5e strong-scaling efficiencies exceed 1 at both widths')
+    top, key, d = max(a for a in above if a[1][2] == 512)
+    check((key[4], key[3], d) == ('mirrored_lr1', 1024, 2), 'the largest at width 512 is rank 1 at N = 1024 on two devices')
+    wide = max(e for e, key, _ in above if key[2] == 2048)
+    return {
+        **{f'ScalingRankOne{k}': span(min(v), max(v), 2) for k, v in rank1.items()},
+        **{f'ScalingRepl{"Dense" if s == "iid_gaussian" else "Seed"}{k}': rounded(v, 2) for (k, s), v in repl.items()},
+        'ScalingSplitFull': span(min(split), max(split), 2),
+        'ScalingStrongMax': rounded(top, 2),
+        'ScalingStrongMaxWide': rounded(wide, 2),
+    }
+
+
+def overlap_values():
+    """Appendix A.2 on overlap: replication's lead if splitting overlapped perfectly."""
+    import overlap_bound
+    wide = [r for r in overlap_bound.rows() if r[2] == 2048]
+    with_overlap = [r[8] for r in wide]
+    if {r[0] for r in wide} != {'NVIDIA A100-SXM4-80GB', 'TPU v5 lite'} or min(with_overlap) <= 0:
+        raise SystemExit('Appendix A.2 says replication stays faster with perfect overlap in every '
+                         'low-rank configuration at width 2048, on both platforms')
+    return {'OverlapLead': span(min(with_overlap), max(with_overlap), 2)}
+
+
+def simpler_versions(gpu, tpu, tm):
+    """Appendix A.2 on Eq. 2 against its two simpler versions, with the claims it makes in words."""
+    platforms = {'GPU': gpu, 'TPU': tpu}
+    for k, p in platforms.items():
+        if (p['configurations'], p['audit']['measured_components']['correct']) != \
+                (tm[k]['configurations'], tm[k]['correct']):
+            raise SystemExit(f'the {k} audit and timemodel.py disagree on the configurations')
+    strategies = {k: {row[0] for row in p['resolution']} for k, p in platforms.items()}
+    unresolved = {k: sum(not row[3] for row in p['resolution']) for k, p in platforms.items()}
+    if strategies['GPU'] - strategies['TPU'] != {'mirrored_seed'} or strategies['TPU'] - strategies['GPU']:
+        raise SystemExit('Appendix A.2 says the mirrored full-rank variant is the only one run on one platform')
+    if not unresolved['GPU'] < unresolved['TPU']:
+        raise SystemExit('Appendix A.2 says fewer A100 comparisons are unresolved')
+    misses = sorted(map(tuple, gpu['audit']['ideal_isolated']['resolved_misses']))
+    if misses != [('lowrank_r1', 2048, 256), ('mirrored_lr1', 512, 256)]:
+        raise SystemExit(f'Appendix A.2 names the resolved A100 misses of the simpler version; they are {misses}')
+    for k, p in platforms.items():
+        measured, in_context = p['audit']['measured_components'], p['audit']['ideal_in_context']
+        if in_context['resolved_misses']:
+            raise SystemExit(f'Appendix A.2 says the version with T_add has no resolved {k} misses')
+        if measured['correct'] > in_context['correct']:
+            raise SystemExit(f'Appendix A.2 says measuring C_B does not help on the {k}')
+    naive, measured = gpu['large_lowrank_naive_ms'], gpu['large_lowrank_measured_ms']
+    signed = lambda x: ('+' if x > 0 else '') + rounded(x, 2)  # noqa: E731
+    return {
+        **{f'ModelResolved{k}': spelled(p['resolved']) for k, p in platforms.items()},
+        **{f'IdealCorrect{k}': spelled(p['audit']['ideal_isolated']['correct']) for k, p in platforms.items()},
+        **{f'InContextCorrect{k}': spelled(p['audit']['ideal_in_context']['correct']) for k, p in platforms.items()},
+        'IdealLowRankLoGPU': signed(naive[0]), 'IdealLowRankHiGPU': signed(naive[1]),
+        'MeasuredLowRankLoGPU': signed(measured[0]), 'MeasuredLowRankHiGPU': signed(measured[1]),
+    }
+
+
+def update_agreement():
+    """The one- against eight-device update error, from the committed C6d log (the run needed
+    eight A100s; the log is the record). Section 4 and Appendix A both state it."""
+    log = (COUNTDOWN / 'results/c6d-a100x8-2026-08-18/decompose-verdicts.txt').read_text()
+    m = re.search(r'D=1 vs D=8: norm rel err ([0-9.]+e[-+][0-9]+)', log)
+    if not m:
+        raise SystemExit('the C6d log no longer states the D=1 against D=8 update error')
+    value = float(m.group(1))
+    exponent = math.floor(math.log10(value))
+    return f'{rounded(value / 10**exponent, 1)}\\times10^{{{exponent}}}'
+
+
+def results_latex(block, examples=(), qwen=None, host=None, tm=None):
     """Macros for the results figures the abstract and Section 6 state."""
     gpu, tpu = block['8x A100-SXM4-80GB (NVLink)'], block['TPU v5e-8 (ICI)']
     both = lambda key: (min(gpu[key][0], tpu[key][0]), max(gpu[key][1], tpu[key][1]))  # noqa: E731
     matched = block['matched_precision']
     values = {
+        # Section 4 and Appendix A: the update computed on one and on eight A100s.
+        'UpdateRelErr': update_agreement(),
         # Section 6.4: the platform difference at matched (float32, highest) precision.
         'MatchedRankOneGPU': rounded(matched['rank1_over_dense'][0], 2),
         'MatchedRankOneTPU': rounded(matched['rank1_over_dense'][1], 2),
@@ -242,17 +445,33 @@ def results_latex(block, examples=(), qwen=None, host=None):
     values['ModelCorrect'] = spelled(correct)
     values['ModelMisses'] = spelled(configs - correct)
     values['IdealMissesGPU'] = spelled(len(gpu['audit']['ideal_isolated']['resolved_misses']))
+    if tm:
+        values.update(model_values(tm))
+        values.update(simpler_versions(gpu, tpu, tm))
+        values.update(overlap_values())
+        values.update(scaling_values())
     values['NarrowLowRank'] = spelled(len(narrow))
     values['NarrowLowRankUnresolved'] = spelled(sum(not row[3] for row in narrow))
     if examples:
         values.update(example_values(examples))
     if qwen:
         values.update(qwen_values(qwen))
+        values.update(memory_values(qwen))
     if host:
         values['HostConfigsCap'] = spelled(host['two_host_cells']).capitalize()
         values['HostRate'] = span(*host['cross_host_rate_GiB_s'], 1)
         values['HostBreakEvenSmallN'] = rounded(host[128]['break_even_GiB_s'], 1)
         values['HostBreakEvenLargeN'] = rounded(host[256]['break_even_GiB_s'], 1)
+        # Appendix A.3: the inputs of the break-even rate, and its range over the repeats.
+        values['HostSavingSmallN'] = rounded(host[128]['saving_ms'], 1)
+        values['HostSavingLargeN'] = rounded(host[256]['saving_ms'], 1)
+        values['HostIntra'] = rounded(host[128]['intra_bandwidth_term_ms'], 2)
+        values['HostBoundsSmallN'] = span(*host[128]['repeat_bounds_GiB_s'], 1)
+        values['HostBoundsLargeN'] = span(*host[256]['repeat_bounds_GiB_s'], 1)
+        values['HostIsolatedIntra'] = rounded(host['isolated_intra_ms'], 2)
+        # "at most": an upper bound, so rounded up.
+        values['HostIsolatedShift'] = str(Decimal(repr(host['isolated_shift_GiB_s'])).quantize(
+            Decimal('0.1'), rounding=ROUND_CEILING))
         if host['expected_matches'] != host['expected_cells']:
             raise SystemExit('Section 6.3 says Eq. 2 gives the faster placement in every two-host configuration')
         if not all(v > 0 for v in host['expected_over_sixteen_ms']):
@@ -323,6 +542,9 @@ def qwen_checks():
             'records_total':len(records),
             'outcomes':[[r['config'][k] for k in ('strategy','population','devices','how')]
                         + ['timed' if 'seconds_median' in r else r.get('status')] for r in records],
+            'known_outcomes':[[r['config'][k] for k in ('strategy','population','devices','how')]
+                              + ['timed' if 'seconds_median' in r else r.get('status')]
+                              for r in records if r['env']['dirty_worktree'] is False],
             'dirty_records_by_devices':dict(collections.Counter(
                 r['config']['devices'] for r in records if r['env']['dirty_worktree']))}
 
@@ -345,6 +567,16 @@ def host_checks():
     # The threshold paragraph: a break-even rate only means something below the one-host rate.
     if not all(v['break_even_GiB_s'] < beta / 2**30 for v in out.values()):
         raise SystemExit('Section 6.3 gives break-even rates that must lie below the one-host all-reduce rate')
+    # Appendix A.3 reads S from Table 9's 1x8 column, and compares T_intra with Table 8's time.
+    one_host = {n: -v[0] * 1e3 for s, d, n, v in tb7_e18.table_rows()[2] if (s, d) == ('seed', 2048)}
+    if any(abs(one_host[n] - out[n]['saving_ms']) > 1e-9 for n in (128, 256)):
+        raise SystemExit("Appendix A.3 says S is Table 9's 1x8 column")
+    import tb8
+    ladder = next(rec for _, md, rec, _ in tb8.load() if 'A100' in md)
+    isolated = ladder['allreduce'][str(payload)]['step_seconds']
+    out['isolated_intra_ms'] = isolated * 1e3
+    out['isolated_shift_GiB_s'] = max(abs(payload / (v['saving_ms'] / 1e3 + isolated) - payload / (v['saving_ms'] / 1e3 + intra))
+                                      for v in (out[128], out[256])) / 2**30
     # Section 6.3's opening: how many configurations ran on two hosts, and at what rate.
     two_host = [c for c in tb7_e18.CELLS
                 if all(tb7_e18.measured(s, d, n, topo) is not None
@@ -413,7 +645,7 @@ def main():
     print(json.dumps(report,indent=2))
     if args.latex:
         (HERE.parent.parent/'paper/generated/worked-example.tex').write_text(example_latex(examples))
-        (HERE.parent.parent/'paper/generated/results.tex').write_text(results_latex(block, examples, report['qwen'], report['host']))
+        (HERE.parent.parent/'paper/generated/results.tex').write_text(results_latex(block, examples, report['qwen'], report['host'], model_errors()))
 
 
 if __name__=='__main__':

@@ -2,18 +2,15 @@
 \section{Measurement details}
 \label{sec:implementation}
 
-\paragraph{Repeatability.} With fitness scores held fixed, one- and eight-device
-Qwen2.5-0.5B updates on the A100 have a relative error of $6.3\times10^{-6}$, measured as
+\paragraph{Repeatability.} With the fitness scores held fixed, the updates computed for
+Qwen2.5-0.5B on one and on eight A100s differ by a relative $\UpdateRelErr$, measured as
 \[
   \frac{\lVert\Delta\theta_1-\Delta\theta_8\rVert_2}
        {\lVert\Delta\theta_8\rVert_2},
 \]
 where $\Delta\theta_D$ is the update computed on $D$ devices and the norms treat all
-parameters as one vector. The log reports this aggregate; it does not bound
-every parameter array. Two 20-generation runs of the same eight-device program agree
-byte for byte. Separately
-compiled programs need not follow the same training trajectory: changes in floating-point
-arithmetic can change the selected token when greedy-decoding logits are nearly tied.
+parameters as one vector. Only this aggregate was recorded; it does not bound the error in
+each parameter array.
 
 \paragraph{Score precision.} The library requires fitness scores in float32 or wider,
 even when the model is evaluated in bfloat16, and rejects narrower ones. On the synthetic
@@ -23,17 +20,20 @@ candidates.
 \subsection{The cost of ranking}
 \label{sec:barrier}
 
-Centered ranks require the scores of all candidates. Each device gathers and sorts
-the same list. Each configuration is timed by repeating a chain of operations \RankBenchRepeats{} times
-and dividing the median duration by the chain length. In an isolated v5e benchmark over
-\RankBenchConfigs{} configurations, the ranking step
-takes at most 60\,$\mu$s for populations up to a thousand and about 0.2\,ms at 4096.
-At $N=2^{18}$, sorting takes 12.1\,ms and does not become faster with more devices,
-because every device repeats it. Going from one to eight devices adds 9--10\,$\mu$s
-at populations up to a thousand and 38.5\,$\mu$s at $N=2^{18}$. The isolated 1\,MiB score gather costs about 20\,$\mu$s, accounting for roughly half of the latter increase.
-In full generations, turning score shaping on adds 41\,$\mu$s at $d=512$, $N=1024$
-and 149\,$\mu$s at $d=2048$, $N=256$, within the repeat spread. Very large populations
-should therefore budget for sorting even when gathering the scores is cheap.
+Centered ranks need every candidate's score, so each device gathers the scores and sorts the
+same list; this step is the same under both placements and cancels in Eq.~\ref{eq:crossover}.
+It was measured in isolation on the v5e over \RankBenchConfigs{} configurations. Each
+configuration was timed \RankBenchRepeats{} times, each timing ran a chain of
+\RankBenchChain{} ranking steps and was divided by the chain length, and the median is
+reported. The ranking step takes at most \RankStepSmallMax\,$\mu$s for populations up to a
+thousand and about \RankStepMid\,ms at 4096. Going from one to eight devices adds
+\RankAddedSmall\,$\mu$s at populations up to a thousand and \RankAddedMax\,$\mu$s at
+$N=2^{18}$, about half of which is the 1\,MiB score gather (about \RankGatherIsolated\,$\mu$s
+measured in isolation). The sort itself is repeated on every device and does not get faster
+with more of them: at $N=2^{18}$ it takes \RankSortMax\,ms, against about
+\RankGatherIsolated\,$\mu$s for gathering the scores. In complete generations, turning rank
+shaping on adds \RankContextSmall\,$\mu$s at $d=512$, $N=1024$ and \RankContextLarge\,$\mu$s
+at $d=2048$, $N=256$, within the spread of the repeats.
 
 \subsection{How the timing components are measured}
 \label{sec:timemodel}
@@ -45,111 +45,125 @@ each device sends also depend on the collective algorithm. For example, a ring a
 with equal-sized chunks sends $2(D-1)/D$ times the array size per device
 \citep{thakur2005,patarasuk2009}.
 
-Table~\ref{tab:tb8} uses a communication-only probe with a dependent chain of operations.
-Each chain length is timed \LadderRepeats{} times after warm-up, and its median duration is used.
-The increase in run time per additional operation estimates the collective's marginal
-cost, excluding the fixed launch and synchronization cost of the compiled call. That
-fixed cost is 0.32\,ms on the A100 and 0.60\,ms on the v5e. These are isolated
-communication measurements, not timings extracted from a training trace.
+Table~\ref{tab:tb8} comes from a benchmark that runs only the collective, as a chain of
+dependent operations. Each chain length is timed \LadderRepeats{} times after warm-up and the
+median is used; the increase in time per additional operation estimates the collective's cost
+without the fixed launch and synchronization cost of the compiled call, which is
+\LadderFloorGPU\,ms on the A100 and \LadderFloorTPU\,ms on the v5e. These times are measured
+in isolation, not taken from complete generations.
 
-\texttt{contraction\_isolation.py} similarly times three reconstruction probes: the
-replicated path, the split path with its all-reduce, and the local split computation
-with the all-reduce removed. These probes use \ProbeRepeats{} timed repeats per chain length.
-The last two give $C_B$ and an estimate of the added cost
-of communication. That difference can include scheduling changes caused by the
-collective. It is not a directly isolated kernel duration.
+The reconstruction terms of Eq.~\ref{eq:crossover} are timed by
+\texttt{contraction\_isolation.py} in three programs: replication's full reconstruction,
+splitting's local reconstruction followed by its all-reduce, and the local reconstruction
+alone. Like the collective benchmark, each is timed as a dependent chain, \ProbeRepeats{}
+times per chain length, and the increase per step is used. The third program gives $C_B$,
+and its difference from the second gives $T_{\mathrm{add}}$, the time the all-reduce adds;
+$T_{\mathrm{add}}$ can include scheduling changes the all-reduce causes, so it is not the
+all-reduce's own duration. The replicated timing includes replication's second coefficient
+gather, which \texttt{timemodel.py} subtracts, using the separately measured gather, to obtain
+$C_A$; Eq.~\ref{eq:crossover} therefore counts the gather once.
 
-The recorded replicated-probe slope includes A's gather of rank-derived weights.
-\texttt{timemodel.py} subtracts the separately measured gather to obtain $C_A$ before
-applying Eq.~\ref{eq:crossover}, so the gather is counted once.
+Reconstruction does not divide ideally among devices. The ratio $C_A/(D\,C_B)$, which is 1
+when splitting divides the work exactly $D$ ways, is \TmSplitFullGPU{} for full-rank noise and
+\TmSplitLowGPU{} for rank 1 on the A100, and \TmSplitFullTPU{} and \TmSplitLowTPU{} on the
+v5e. For low-rank noise at width 2048, $T_{\mathrm{add}}$ is \TmAddOverIsolatedGPU{} times the
+isolated all-reduce time on the A100 and \TmAddOverIsolatedTPU{} times on the v5e. With these
+measured terms, on one host with eight devices, the median absolute error of
+Eq.~\ref{eq:crossover} is \TmMedianErrGPU\,ms on the A100 and \TmMedianErrTPU\,ms on the v5e,
+and the largest is \TmMaxErrGPU\,ms and \TmMaxErrTPU\,ms. Eq.~\ref{eq:crossover} gives the
+faster placement in \TmCorrectGPU{} of \TmConfigsGPU{} configurations on the A100 and
+\TmCorrectTPU{} of \TmConfigsTPU{} on the v5e; in the \TmMisses{} it misses, the measured
+difference is \TmMissGaps\,ms. Giving the faster placement does not mean estimating the
+difference accurately. \texttt{timemodel.py} reports every configuration.
 
-Small reconstruction computations do not split ideally. On the A100,
-$C_A/(D C_B)$ is 0.60--1.01 for full-rank noise and 0.18--0.45 for rank 1.
-At width 2048, adding the all-reduce to the low-rank reconstruction probe costs
-1.75--1.80 times the isolated communication benchmark on the A100, and 1.18--1.19 times
-on the v5e. With measured local computation
-and this added cost, the median absolute timing-model discrepancy is 0.63\,ms on the
-A100 and 0.48\,ms on the v5e. The faster placement is identified in 18 of 20 and 15
-of 16 configurations respectively; the three disagreements have measured gaps of
-0.02--0.09\,ms. Correctly identifying a preference does not imply an accurate estimate
-of its size: the largest discrepancies are 9.19\,ms on the A100 and 25.22\,ms on the
-v5e. \texttt{timemodel.py} reports every configuration.
-
-The measured-components model agrees with all 18 resolved A100 and all 12 resolved v5e
-comparisons. The counts differ between platforms because the mirrored full-rank variant
-was run only on A100. Replacing $C_B$ by $C_A/D$ and using the isolated collective
-benchmark gives 17/20 and 16/16 sign agreements, including two resolved A100 misses:
-mirrored rank 1 at $(d,N)=(512,256)$ and non-mirrored rank 1 at $(2048,256)$. For A100
-low-rank noise at width 2048, this simple model gives $t_A-t_B$ between $-0.49$
-and $+0.18$\,ms, against $-1.63$ to $-0.84$\,ms measured. Keeping ideal splitting but
-using the communication added to the reconstruction probe improves the counts to 19/20
-and 16/16. Thus measured local reconstruction does not improve every near-tie; the added
-communication cost is the important refinement for the resolved A100 cases.
+With its measured terms, Eq.~\ref{eq:crossover} gives the faster placement in all
+\ModelResolvedGPU{} resolved A100 and all \ModelResolvedTPU{} resolved v5e configurations. The
+A100 has more because the mirrored full-rank variant was run only there and fewer of its
+comparisons are unresolved. A simpler version, with $C_B=C_A/D$ and the isolated all-reduce
+times, gives the faster placement in \IdealCorrectGPU{} of \TmConfigsGPU{} and
+\IdealCorrectTPU{} of \TmConfigsTPU{} configurations and misses \IdealMissesGPU{} resolved A100
+ones: mirrored rank 1 at $(d,N)=(512,256)$ and non-mirrored rank 1 at $(2048,256)$. For
+low-rank noise at width 2048 on the A100, it gives $t_A-t_B$ between $\IdealLowRankLoGPU$ and
+$\IdealLowRankHiGPU$\,ms, against $\MeasuredLowRankLoGPU$ to $\MeasuredLowRankHiGPU$\,ms
+measured. Keeping $C_B=C_A/D$ but using $T_{\mathrm{add}}$ instead of the isolated time gives
+\InContextCorrectGPU{} of \TmConfigsGPU{} and \InContextCorrectTPU{} of \TmConfigsTPU{}, with
+no resolved misses. So $T_{\mathrm{add}}$ is what corrects the \IdealMissesGPU{} A100 cases,
+while measuring $C_B$ does not help in the unresolved configurations.
 \texttt{paper\_evidence.py} reproduces these comparisons and Table~\ref{tab:worked}.
 
-\paragraph{What was fixed before measuring.} Before the single-host sweeps we expected
-splitting to favor full-rank noise and replication to favor low-rank noise. The original
-byte counts were subsequently corrected from compiled programs to include both score
-and coefficient gathers. The timing equation was developed after these sweeps.
+\paragraph{Other placements.} Replication and splitting are not the only placements. In
+EGGROLL's vLLM setup, one primary device reconstructs the whole update and broadcasts the
+updated model \citep[Appendix L.2]{eggroll2025}. This avoids reconstructing the update on
+every device, but the full reconstruction remains on the critical path, followed by a
+model-sized broadcast. Under the accounting of Eq.~\ref{eq:crossover}, this placement is
+expected to be slower than replication by the time of the broadcast. It was not measured.
+
+\paragraph{Overlap.} Under the current execution schedule, overlapping the all-reduce of
+one update with the evaluation of the next generation would evaluate that generation with
+weights one update old, which changes the algorithm. Within a generation, the update can
+be divided into parts, and the all-reduce of each part can start as soon as that part is
+reconstructed. PyTorch's distributed data-parallel training does this with gradients
+\citep{li2020ddp}. Assuming the measured component costs remain unchanged, ideal overlap
+replaces $C_B+T_{\mathrm{add}}$ with $\max(C_B,T_{\mathrm{add}})$. Under this assumption,
+replication remains \OverlapLead\,ms faster in every tested rank-1 configuration at width
+2048, on both platforms. This is a bound within this model, computed by
+\texttt{overlap\_bound.py}; overlap was not implemented.
 
 \subsection{Host-boundary check of Eq.~\ref{eq:crossover}}
 \label{sec:boundary-audit}
 
 \input{generated/tb7-audit}
 
-Table~\ref{tab:tb7-audit} evaluates Eq.~\ref{eq:crossover} with the all-reduce rate
-measured on the two hosts, taken at the payload each calibration measurement moved. The
-calibration and the isolated ladder use different payloads and timing methods; their
-bandwidth numbers are not evidence of a difference between hardware sessions.
+Table~\ref{tab:tb7-audit} gives the values of Eq.~\ref{eq:crossover} that
+Section~\ref{subsec:boundary} compares with the two-host measurements. The expected values
+start from the earlier eight-device single-host timings and adjust for the change in
+all-reduce cost. For sixteen devices, the additional reconstruction saving is estimated
+using ideal $1/D$ scaling.
 
-For the fixed-eight-device comparison, let $S=t_A-t_B$ be the within-host saving and
-$T_{\mathrm{intra}}$ the communication being replaced. Neglecting latency and holding
-reconstruction costs fixed, the cross-host break-even rate is
-$\beta_*=4P/(S+T_{\mathrm{intra}})$. At width 2048, $S$ is 21.4 or 50.8\,ms at
-$N=128$ or 256; the within-host bandwidth term at 96\,MiB is 1.46\,ms. This gives
-4.1 and 1.8\,GiB/s. Using repeat extremes gives 2.9--4.2 and 1.5--2.1\,GiB/s.
-These are approximate effective collective rates, including algorithmic traffic in the
-measured bandwidth, not line rates.
+The break-even rate in Section~\ref{subsec:boundary} compares one host with eight devices
+($1\times8$) and two hosts with four each ($2\times4$). Let $S=t_A-t_B$ be the time
+splitting saves on one host, and $T_{\mathrm{intra}}$ the time of its all-reduce within
+that host. Across two hosts, the all-reduce of the $4P$-byte update at an effective rate
+$\beta$ takes $4P/\beta$ instead of $T_{\mathrm{intra}}$, where an effective rate is the
+array size divided by the all-reduce time, not a line rate. Ignoring latency and holding
+the reconstruction times fixed, splitting remains faster while
+$4P/\beta<S+T_{\mathrm{intra}}$, that is, above $\beta_*=4P/(S+T_{\mathrm{intra}})$. For
+seed at width 2048, $S$ is \HostSavingSmallN{} and \HostSavingLargeN\,ms at $N=128$ and
+256 (the $1\times8$ column of Table~\ref{tab:tb7-audit}). $T_{\mathrm{intra}}$ for the
+96\,MiB update is \HostIntra\,ms, from the all-reduce measured on the cluster's first
+host. This gives the \HostBreakEvenSmallN{} and \HostBreakEvenLargeN\,GiB/s of
+Section~\ref{subsec:boundary}. Taking $S$ from the extremes of the repeats instead of the
+medians gives \HostBoundsSmallN{} and \HostBoundsLargeN\,GiB/s. With
+Table~\ref{tab:tb8}'s isolated time (\HostIsolatedIntra\,ms) as $T_{\mathrm{intra}}$, the
+break-even rates change by at most \HostIsolatedShift\,GiB/s.
 
-\paragraph{Other placements and overlap.} The two placements are not exhaustive.
-One primary device can reconstruct the whole update and broadcast the model, as in
-EGGROLL's vLLM setup \citep[Appendix L.2]{eggroll2025}. It avoids repeated reconstruction
-across replicas, but retains a full reconstruction on the critical path and adds a
-model-sized broadcast. We did not benchmark this third placement. Under an otherwise
-identical synchronous cost model it adds communication to A; heterogeneous devices,
-memory limits and implementation differences could change the comparison. Hierarchical
-or compressed communication also changes the tradeoff; PowerSGD communicates low-rank
-approximations of updates rather than the dense arrays studied here \citep{vogels2019}.
-Overlapping an update's all-reduce with the next generation's evaluation would use stale
-weights. Within a generation, bucketing partial updates could overlap local reconstruction with
-communication, as in distributed backpropagation \citep{li2020ddp}. Such overlap can
-at best replace $C_B+T_{\mathrm{ar}}$ by $\max(C_B,T_{\mathrm{ar}})$ under the
-accounting model. With the measured probe costs, replication retains a 0.40--1.98\,ms
-lead at every low-rank width-2048 configuration. This is a conditional bound from
-\texttt{overlap\_bound.py}, not an implemented overlap experiment.
-
-
-
-\subsection{What model size alone can predict}
+\subsection{Scaling with model size}
 \label{sec:size}
 
-A conditional scaling argument helps separate parameter count from implementation
-constants. Suppose the leading low-rank reconstruction cost is $C_A=kPNr$, with $k$ absorbing
-mirrored sampling and arithmetic efficiency, and $C_B=qC_A$. Write the collective time
-as $\alpha+4P/\beta$. Equation~\ref{eq:crossover} then favors splitting when
+Writing the terms of Eq.~\ref{eq:crossover} as functions of the parameter count $P$ shows
+which quantities decide the placement for larger models. Suppose the leading cost of
+low-rank reconstruction is $C_A=kPNr$, where $k$ is a time per operation that includes the
+effect of mirrored sampling and the hardware's arithmetic efficiency, and splitting takes
+$C_B=qC_A$, with
+$q=1/D$ when the work divides exactly among $D$ devices. Write the all-reduce time as
+$\alpha+4P/\beta$, with a fixed latency $\alpha$ and an effective rate $\beta$
+(Appendix~\ref{sec:boundary-audit}). Eq.~\ref{eq:crossover} then favors splitting when
 \[
   (1-q)kNr > \frac{4}{\beta}
                +\frac{\alpha-T_{\mathrm{ag}}(4N)}{P}.
 \]
-For bandwidth-dominated communication, fixed $k,q,\beta$ and large $P$, the leading
-parameter-count dependence cancels. Population times rank, rather than parameter count
-alone, then sets the balance. For full-rank noise, the analogous assumption is
-$C_A=kPN$. These assumptions are not automatic: matrix shapes and compiler fusion change
-$k$, small local computations change $q$, and the collective rate depends on message size
-and topology. Factor generation also has terms proportional to $Nr(m+n)$ rather than
-$P$. We therefore do not turn the block's constants into a universal threshold or a
-claim about 7B models. Such a model would need to fit on each device, and its
-reconstruction and collective costs would need measurement.
+If $k$, $q$ and $\beta$ do not change with $P$, the second term on the right vanishes as
+$P$ grows, and the condition becomes $(1-q)kNr>4/\beta$: the product of population and
+rank decides the placement, not the parameter count. For full-rank noise, $C_A=kPN$, and
+the same argument applies without $r$.
+
+In practice $k$, $q$ and $\beta$ are not constants. $k$ depends on matrix shapes and on
+how the compiler combines operations; $q$ is above $1/D$ for low-rank noise on the block
+(Appendix~\ref{sec:timemodel}); and $\beta$ depends on message size and on the connection
+between devices. Generating the factors of each $m\times n$ matrix also takes time
+proportional to $Nr(m+n)$. How this grows with the total parameter count depends on whether
+the model gains wider matrices, more layers, or both. The constants measured on the block
+therefore do not give a threshold for larger models.
 
 \section{Cost and implementation comparisons}
 \label{sec:systems-ablations}
@@ -158,52 +172,37 @@ reconstruction and collective costs would need measurement.
 \begin{figure*}[t]
   \centering
   \includegraphics[width=\textwidth]{f4-cost-bfloat16.png}
-  \caption{The full single-device cost and feasibility grid, relative to stored
-    full-rank noise at each model width and population. Blue is faster, red slower.
-    Hatched cells mean the dense baseline does not fit; blank cells marked ``both OOM''
-    mean neither variant fits. Memory feasibility is separate from a measured speedup.
-    The main text compares only configurations feasible on both platforms.}
+  \caption{Generation time of seed and rank 1 relative to dense (stored full-rank noise)
+    on one device, over the full cost grid, with bfloat16 storage and default
+    matrix-multiplication precision. Blue is faster than dense, red slower. Hatched cells:
+    the variant fits but dense does not. Cells marked ``both OOM'': neither fits.
+    Figure~\ref{fig:f4} shows the configurations at which every compared variant fits on
+    both platforms.}
   \label{fig:f4-full}
 \end{figure*}
 
 \input{generated/tb3}
 
-Figure~\ref{fig:f4-full} includes the configurations excluded from the common-grid speed
-comparison because one or more variants do not fit. Table~\ref{tab:tb3} separates three
-choices: perturbation rank, storage datatype, and matrix-multiplication precision.
-The precision setting controls internal multiplication accuracy, separately from array
-storage. On the v5e, forcing JAX's highest precision instead of its default costs the
-low-rank variants 1.6--1.9 times in run time and the full-rank variants at most 8\%.
-Its effect on learning accuracy was not measured. Default precision reduces low-rank
-reconstruction cost further, which, with communication fixed, favors replication in
-Eq.~\ref{eq:crossover}; the placement sweeps nevertheless keep highest precision fixed. Storage datatype alone changes the
-reported geometric-mean times by much less; it should not be confused with this
-precision setting.
+Figure~\ref{fig:f4-full} extends Figure~\ref{fig:f4} to every configuration of the cost
+grid, including those at which dense does not fit. Table~\ref{tab:tb3} separates three
+choices: the perturbation rank, the datatype in which arrays are stored, and the
+matrix-multiplication precision. The precision sets the accuracy of the arithmetic inside
+matrix multiplications, independently of the storage datatype. On the v5e, JAX's highest
+precision takes \PrecisionLowRank{} times as long as its default for the low-rank variants
+and \PrecisionFullRank{} times as long for the full-rank ones. Storing arrays in bfloat16
+instead of float32 changes the time by a factor of \DtypeRange. The placement measurements
+use the highest precision throughout (Section~\ref{sec:setup}).
 
 \input{generated/tb1}
 
-\paragraph{Matched-device comparison.} Table~\ref{tab:tb1} compares released
-implementations at the same block configurations. The naive baseline gives each
-candidate a separate copy of the model; evosax uses OpenES. At one device, the library's
-rank-1 throughput is 0.97--1.02 times EGGROLL's on the A100 and 0.68--0.85 times on
-the v5e. The TPU difference was not isolated. We did not benchmark Qiu et al.'s released
-implementation, so the seed column is not a timing of their code.
-
-\paragraph{Additional devices.} The tested reference implementations do not split the
-population across devices. The eight-device columns therefore show extra throughput
-from extra hardware, not equal-resource speedups over those references. Compared with
-one-device EGGROLL, the library on eight devices reaches 1.3--3.4 times the throughput on A100
-and 1.7--6.1 times on v5e. The full scaling grids report each implementation path against
-its own smallest device count.
-
-\paragraph{Implementation boundaries.} EGGROLL's reference rank-1 path does not compile
-on a 16\,GB TPU chip at $d=512$, $N=16384$: it requests 24.1\,GiB of temporaries.
-The library avoids this compiler behavior by padding rank-1 factors with a zero column
-on TPU, retaining a fused multiply; it runs that configuration in 245\,ms. The GPU
-compiler does not need the padding. The tested reference also declines embedding tables,
-which the library supports through the same interface as matrix layers. These are properties
-of the tested code versions, not limitations of the algorithms.
-
+\paragraph{Reference implementations.} Table~\ref{tab:tb1} compares the library with released
+implementations at the same block configurations; Section~\ref{subsec:cost} gives the
+single-device comparison with EGGROLL's code. None of the reference implementations divides
+the population among devices. The library's eight-device columns therefore show the
+throughput that additional devices provide, not a speedup over the references on the same
+hardware. On eight devices, the library's rank-1 throughput is \RefEightGPU{} times that of
+EGGROLL's code on one device on the A100, and \RefEightTPU{} times on the v5e.
+Appendix~\ref{sec:grids} gives the library's scaling relative to its own one-device times.
 
 \section{Real-model timing and memory}
 \label{sec:memory}
@@ -219,65 +218,72 @@ such records, one per placement, enter a placement comparison, which leaves
 eight-device record qualifies. Excluded comparisons are shown as dashes, distinct from observed
 memory failures, and the excluded records remain in the experiment directory.
 
-At eight devices, ranks 1, 4 and 16 fit populations up to 128 and all fail at 240; the
-regenerated full-rank variant fits all four populations. The evaluation schedules differ:
-full rank scans individual candidates, while low rank batches them with a shared base
-weight matrix. A diagnostic CPU compilation probe on a reduced model finds temporary
-memory growing with candidates and prompts when candidates are batched. Batching
-full-rank evaluation in the same way reproduces that growth, rather than the flat
-population dependence of scanning. This supports an activation-memory explanation,
-but is not a measured matched-batching memory boundary for Qwen on TPU.
+At eight devices, ranks 1, 4 and 16 run at every population up to \QwenLowFitMaxN{} and run
+out of memory at \QwenLowOOMN{}, under both placements; seed, mirrored runs at all
+\QwenPopulationCount{} populations. Across device counts, whether a low-rank configuration
+fits depends only on the number of candidates per device: every configuration with
+\QwenFitPerDevice{} or fewer fits, and every one with \QwenOOMPerDevice{} or more does not,
+for all three ranks and both placements. Seed evaluates one candidate at a time on each
+device, while the low-rank variants evaluate all of a device's candidates together against
+the shared weights. Compiling one generation of a reduced model for the CPU and reading the
+compiler's estimate of temporary memory (\texttt{e17\_memory\_probe.py}) shows the effect of
+this difference. With candidates evaluated together, temporary memory grows in proportion to
+the number of candidates per device and to the number of prompts, and it is no larger at
+rank 16 than at rank 1. With seed's evaluation it does not grow with the candidates, and
+evaluating seed's candidates together reproduces the growth. This points to the activations
+of the candidates evaluated together, not the stored factors, as what exceeds the device
+memory. The probe uses a reduced model on the CPU; it indicates the cause but does not
+measure the limit for Qwen on the TPU.
 
 \section{Scaling grids}
 \label{sec:grids}
 
-Figures~\ref{fig:m1-a100}--\ref{fig:m2-tpu} are the full strong- and weak-scaling grids,
-every perturbation variant under both placements. Both show parallel efficiency, each series against its
-own smallest measured device count, so the ideal is 1 for every series; the strong-scaling
-figures add time per generation, and the weak-scaling figures peak memory per device. At $d{=}2048$ and 32 members per device the rank-1 variants keep
-0.86--0.93 efficiency at eight devices on the A100 and 0.71--0.91 on the v5e. What
-degrades is a placement: under replication the dense and seed variants fall to 0.39 and 0.50
-on the A100 (0.18 and 0.54 on the v5e), because they have the most work to repeat, and
-under splitting the same variants hold 0.79--1.00. The v5e grid has efficiencies above one,
-all at $d{=}512$ (rank 1 at $N{=}1024$ reaches 1.22 at $D{=}2$): there the single chip is
-memory-bound, and dividing the population among chips relieves it. The split dense variant has
-no one-device point at $d{=}2048$, $N{=}256$ on the v5e (out of memory), so its efficiency
-is normalized at $D{=}2$.
+Figures~\ref{fig:m1-a100}--\ref{fig:m2-tpu} give the full strong- and weak-scaling grids,
+with every perturbation variant under both placements. In strong scaling the total population
+is fixed; in weak scaling the population per device is fixed. Each figure shows parallel
+efficiency, the throughput per device relative to that at the series' own smallest measured
+device count, so the ideal is 1 for every series. The strong-scaling figures also show time
+per generation, and the weak-scaling figures peak memory per device.
+
+In weak scaling at width 2048 with 32 candidates per device, the rank-1 variants keep an
+efficiency of \ScalingRankOneGPU{} at eight devices on the A100 and \ScalingRankOneTPU{} on
+the v5e. Under replication, every device reconstructs the update for the whole population,
+which in weak scaling grows with the number of devices; with full-rank noise this
+reconstruction is expensive, and dense and seed fall to \ScalingReplDenseGPU{} and
+\ScalingReplSeedGPU{} on the A100 and to \ScalingReplDenseTPU{} and \ScalingReplSeedTPU{} on
+the v5e. Under splitting the same two variants keep \ScalingSplitFull. In strong scaling on
+the v5e, some efficiencies exceed 1: up to \ScalingStrongMax{} at width 512, for rank 1 at
+$N=1024$ on two devices, and up to \ScalingStrongMaxWide{} at width 2048.
 
 % M1/M2 per platform. Explicit paths: the A100 and TPU sets share filenames.
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures/m1-strong-scaling.png}
-  \caption{A100 strong scaling at fixed total population: generation time (top) and
-    parallel efficiency (bottom), relative to each series' smallest device count.
-    An efficiency of 1 means ideal scaling. Every perturbation variant is shown under
-    both replicated and split update placement.}
+  \caption{Strong scaling on the A100 (fixed total population): time per generation (top)
+    and parallel efficiency (bottom), every variant under both placements.}
   \label{fig:m1-a100}
 \end{figure*}
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures-tpu-v5e8/m1-strong-scaling.png}
-  \caption{TPU strong scaling at fixed total population: generation time (top) and
-    efficiency (bottom). Dense noise with splitting at $d=2048$, $N=256$ is normalized
-    at two devices because it does not fit on one. Some width-512 cases exceed unit
-    efficiency when splitting the population relieves the single-device bottleneck.}
+  \caption{Strong scaling on the v5e (fixed total population): time per generation (top)
+    and parallel efficiency (bottom), every variant under both placements. Dense with
+    splitting at $d=2048$, $N=256$ does not fit on one device, so its efficiency is relative
+    to two devices.}
   \label{fig:m1-tpu}
 \end{figure*}
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures/m2-weak-scaling.png}
-  \caption{A100 weak scaling: population per device stays fixed. Top: throughput per
-    device relative to each series' smallest device count; 1 is ideal. Bottom: peak
-    memory per device. A flat memory curve means adding devices does not increase that
-    variant's per-device memory requirement at the stated population per device.}
+  \caption{Weak scaling on the A100 (fixed population per device): parallel efficiency (top)
+    and peak memory per device (bottom), every variant under both placements.}
   \label{fig:m2-a100}
 \end{figure*}
 \begin{figure*}[p]
   \centering
   \includegraphics[width=.9\textwidth]{../experiments/phase2/figures-tpu-v5e8/m2-weak-scaling.png}
-  \caption{TPU weak scaling at fixed population per device: relative throughput per
-    device (top) and peak memory (bottom). Replicated dense reconstruction has the
-    largest efficiency loss and its memory grows with the total population.}
+  \caption{Weak scaling on the v5e (fixed population per device): parallel efficiency (top)
+    and peak memory per device (bottom), every variant under both placements.}
   \label{fig:m2-tpu}
 \end{figure*}
 
@@ -285,27 +291,25 @@ is normalized at $D{=}2$.
 \section{Reproduction}
 \label{sec:repro}
 
-The measurement figures and tables regenerate from scripts and saved results in the
-experiments' repository. Each results directory's README records the session that
-produced it, including the platform, code version, environment and incidents. The library
-is released publicly \librarycite{}; the experiments and manuscript are at \paperurl{}.
+The figures, the tables and the numbers stated in the text are generated from the saved
+results in \paperurl{}; the library is released at \librarycite{}. Each result record stores
+the code version that produced it, the devices, and the versions of JAX and the other
+software it ran with.
 
-In \texttt{experiments/phase2}, \texttt{plot\_paper.py} generates the block-placement
-plot, \texttt{plot\_cost.py} the main and appendix cost plots, and \texttt{plot.py}
-the scaling grids. In \texttt{experiments/countdown}, \texttt{plot\_e17.py} generates
-the real-model placement plot.
+\texttt{make -C paper} runs the generators and builds the PDF; \texttt{paper/Makefile} lists
+the commands, and \texttt{paper/README.md} explains how to select the Python environment. The
+generators write the tables and the numbers the text states, as LaTeX macros in
+\texttt{paper/generated}, and each stops if a record contradicts a statement the text makes in
+words, such as a claim about every configuration. Generated files are not edited by hand. The
+figures come from \texttt{plot\_paper.py} (block placement), \texttt{plot\_cost.py} (cost) and
+\texttt{plot.py} (scaling grids) in \texttt{experiments/phase2}, and from
+\texttt{plot\_e17.py} (real-model placement) in \texttt{experiments/countdown};
+\texttt{make} runs all but \texttt{plot.py}.
 
-\texttt{make -C paper} runs the table generators and the revised figure generators,
-then builds the PDF. \texttt{paper/Makefile} lists the commands, and
-\texttt{paper/README.md} explains how to select the Python environment. Each table
-generator accepts \texttt{--latex} and writes the file included in the manuscript;
-generated tables are not edited by hand.
-
-The worked example, model comparisons, matched-precision check and bandwidth thresholds
-are reproduced by \texttt{phase2/paper\_evidence.py}.
-The timing ranges are printed by \texttt{phase2/timemodel.py}, the overlap bound by
-\texttt{phase2/overlap\_bound.py}, and the compiled-program byte counts by
-\texttt{phase2/comms.py} and \texttt{phase2/tb2.py}. The library's device-count
-invariance test runs on CPU with eight simulated devices. An automated check verifies
-that regenerating the tables changes no bytes and that the code version each result record
-cites remains available.
+\texttt{phase2/timemodel.py} reports Eq.~\ref{eq:crossover} for every configuration,
+\texttt{phase2/overlap\_bound.py} the overlap bound, and \texttt{phase2/comms.py} and
+\texttt{phase2/tb2.py} the byte counts of the compiled programs. The score-precision count in
+Appendix~\ref{sec:implementation} comes from \texttt{tools/bf16\_probe.py} in the library. The
+library's test of agreement across device counts runs on the CPU with eight simulated devices.
+An automated check verifies that regenerating the generated files changes no bytes and that
+the code version each result record cites remains available.

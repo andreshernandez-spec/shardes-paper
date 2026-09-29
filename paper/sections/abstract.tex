@@ -9,8 +9,10 @@ whether the computation saved outweighs the communication added. Using one JAX i
 we measure this tradeoff for full-rank and low-rank perturbations on A100 GPUs and TPU v5e
 chips. On a transformer-block benchmark with eight devices in one host, splitting gives
 \FullRankSpeedup$\times$ speedups for full-rank variants without mirrored sampling; for rank-1
-perturbations at matrix width 2048, it takes \LowRankSlowdown\% longer than replication. The placement
-preference carries over to Qwen2.5-0.5B on the TPU, while across a slow connection between two A100
-hosts, replication wins for both perturbation types at the larger matrix width, reversing
-the full-rank preference. Code, configurations, and results are released.
+perturbations at matrix width 2048, it takes \LowRankSlowdown\% longer than replication.
+A timing model using separately measured costs identifies the faster placement in all
+\ModelResolved{} block configurations with a clear timing difference. The placement preference
+carries over to Qwen2.5-0.5B on the TPU. Across a slow connection between two A100 hosts,
+replication is faster for full-rank and rank-1 perturbations at width 2048, reversing the
+full-rank preference. Code, configurations, and results are released.
 \end{abstract}

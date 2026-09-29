@@ -29,6 +29,7 @@ tables:
 	cd ../experiments/phase2 && $(PYTHON) tb3.py --latex >/dev/null
 	cd ../experiments/phase2 && $(PYTHON) tb8.py --latex >/dev/null
 	cd ../experiments/phase2 && $(PYTHON) paper_evidence.py --latex >/dev/null
+	cd ../experiments/phase2 && $(PYTHON) barrier_report.py --latex >/dev/null
 	cd ../experiments/phase2/multihost && $(PYTHON) tb7_e18.py --latex >/dev/null
 	cd ../experiments/countdown && $(PYTHON) tb5_e17.py --latex >/dev/null
 

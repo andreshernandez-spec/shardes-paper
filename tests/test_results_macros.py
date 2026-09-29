@@ -30,12 +30,15 @@ def test_a_span_is_a_latex_range():
     assert pe.span(4.4325, 14.528, 0) == "4--15"
 
 
-def platform(resolution):
+def platform(resolution, ideal_misses=()):
     resolved = sum(row[3] for row in resolution)
     audit = {"measured_components": {"correct": resolved, "resolved_correct": resolved},
-             "ideal_isolated": {"resolved_misses": []}}
+             "ideal_isolated": {"correct": resolved - len(ideal_misses),
+                                "resolved_misses": [list(m) for m in ideal_misses]},
+             "ideal_in_context": {"correct": resolved, "resolved_misses": []}}
     return {"drawn_full_rank_speedup": [1.45, 2.4], "dense_speedup": [1.8, 2.4],
             "large_lowrank_split_slower_pct": [4.4, 14.5], "resolution": resolution,
+            "large_lowrank_naive_ms": [-0.49, 0.18], "large_lowrank_measured_ms": [-1.63, -0.84],
             "configurations": len(resolution), "resolved": resolved, "audit": audit}
 
 
@@ -66,3 +69,21 @@ def test_a_resolved_miss_of_eq_2_stops_the_build():
     b["TPU v5e-8 (ICI)"]["audit"]["measured_components"]["resolved_correct"] = 0
     with pytest.raises(SystemExit, match="every miss of Eq. 2 is an unresolved"):
         pe.results_latex(b)
+
+
+def versions(ideal_misses):
+    """A100 has the mirrored full-rank variant and fewer unresolved comparisons, as the text says."""
+    gpu = platform([["mirrored_seed", 2048, 256, True], ["mirrored_lr1", 512, 256, True],
+                    ["lowrank_r1", 2048, 256, True]], ideal_misses)
+    tpu = platform([["mirrored_lr1", 512, 256, False], ["lowrank_r1", 2048, 256, True]])
+    tm = {k: {"configurations": p["configurations"], "correct": p["audit"]["measured_components"]["correct"]}
+          for k, p in (("GPU", gpu), ("TPU", tpu))}
+    return gpu, tpu, tm
+
+
+def test_the_simpler_versions_named_misses_must_be_the_measured_ones():
+    import pytest
+    named = [("lowrank_r1", 2048, 256), ("mirrored_lr1", 512, 256)]
+    assert pe.simpler_versions(*versions(named))["IdealLowRankHiGPU"] == "+0.18"
+    with pytest.raises(SystemExit, match="names the resolved A100 misses"):
+        pe.simpler_versions(*versions(named[:1]))

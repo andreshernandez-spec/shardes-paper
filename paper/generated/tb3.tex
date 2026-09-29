@@ -2,11 +2,11 @@
 \begin{table*}
 \centering
 \small
-\caption{Systems ablations, assembled from the saved results. Each ratio is the time of the first variant over the second (below one: the first is faster), as a geometric mean over the configurations where both were measured (n: how many).}
+\caption{Time ratios on one device for three choices: perturbation rank, storage datatype and matrix-multiplication precision. Each ratio is the time with the first setting over the time with the second (below 1: the first is faster), as a geometric mean over the configurations where both were measured (n: how many).}
 \label{tab:tb3}
 \begin{tabular}{p{0.30\linewidth}p{0.22\linewidth}p{0.40\linewidth}}
 \toprule
-ablation & where & result \\
+comparison & where & ratio \\
 \midrule
 \multicolumn{3}{l}{\emph{Perturbation rank}} \\
 rank 1 vs dense & A100, bf16 & 0.22x (n=9) \\
@@ -25,12 +25,12 @@ bf16 vs f32 & TPU v5e, seed & 1.01x (n=20) \\
 bf16 vs f32 & TPU v5e, rank 1 & 0.97x (n=16) \\
 \midrule
 \multicolumn{3}{l}{\emph{Matrix-multiplication precision (TPU)}} \\
-full vs default precision & TPU v5e, dense & 1.08x (n=5) \\
-full vs default precision & TPU v5e, rank 1 & 1.85x (n=6) \\
-full vs default precision & TPU v5e, rank 16 & 1.64x (n=6) \\
-full vs default precision & TPU v5e, rank 4 & 1.76x (n=6) \\
-full vs default precision & TPU v5e, seed, mirrored & 1.02x (n=6) \\
-full vs default precision & TPU v5e, seed & 1.02x (n=6) \\
+highest vs default precision & TPU v5e, dense & 1.08x (n=5) \\
+highest vs default precision & TPU v5e, rank 1 & 1.85x (n=6) \\
+highest vs default precision & TPU v5e, rank 4 & 1.76x (n=6) \\
+highest vs default precision & TPU v5e, rank 16 & 1.64x (n=6) \\
+highest vs default precision & TPU v5e, seed & 1.02x (n=6) \\
+highest vs default precision & TPU v5e, seed, mirrored & 1.02x (n=6) \\
 \bottomrule
 \end{tabular}
 \end{table*}
