@@ -2,10 +2,13 @@
 
 Exchanging only scalar scores makes every device repeat the whole update reconstruction.
 Splitting that reconstruction is faster when the computation it saves outweighs the
-communication of a model-sized update. With eight devices in one host, splitting is faster for
-full-rank perturbations and replication for low-rank perturbations at width 2048, and the
-faster placement is the same on Qwen2.5-0.5B on the TPU. Across a slow connection between two
-A100 hosts, replication is faster for both perturbation types at width 2048. In the block's
+communication of a model-sized update. Low-rank perturbations make reconstruction cheaper
+without reducing the size of the communicated update, leaving less computation for splitting
+to save. On the block benchmark with eight devices in one host, splitting is faster for
+full-rank perturbations and replication for rank-1 perturbations at width 2048. The same
+placement preference holds for the tested full-rank and low-rank variants on Qwen2.5-0.5B on
+the TPU. Across a slow connection between two A100 hosts, replication is faster for full-rank
+and rank-1 perturbations at width 2048. In the block's
 single-device cost grid (Figure~\ref{fig:f4}), rank-1 generations take
 \RankOneOverDenseGPU{} times as long as dense ones on the A100 and \RankOneOverDenseTPU{}
 times as long on the v5e, as geometric means over matched configurations.
