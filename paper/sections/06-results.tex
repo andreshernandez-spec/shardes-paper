@@ -144,11 +144,11 @@ the calculation and the bounds from the repeats.
 
 With the all-reduce rates measured on these hosts, the values Eq.~\ref{eq:crossover} gives
 (expected, in Table~\ref{tab:tb7-audit}) match the faster placement in all
-\HostExpectedMatches{} configurations, in both two-host layouts. On eight devices they differ
-from the measurements by at most \HostExpectedErrorEight\,ms; on sixteen they overestimate the
-penalty for splitting by up to \HostExpectedOverSixteen\,ms. This experiment shows what a slow
-connection does to the choice of placement; it does not measure a high-bandwidth multi-host
-cluster.
+\HostExpectedMatches{} configurations, in both two-host layouts. The estimates of the
+difference in generation time remain approximate: in these measurements, the errors reach
+\HostExpectedErrorEight\,ms on eight devices and \HostExpectedOverSixteen\,ms on sixteen.
+This experiment shows what a slow connection does to the choice of placement; it does not
+measure a high-bandwidth multi-host cluster.
 
 \subsection{What low-rank perturbations save}
 

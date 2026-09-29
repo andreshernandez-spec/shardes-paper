@@ -5,13 +5,14 @@ Splitting that reconstruction is faster when the computation it saves outweighs 
 communication of a model-sized update. With eight devices in one host, splitting is faster for
 full-rank perturbations and replication for low-rank perturbations at width 2048, and the
 faster placement is the same on Qwen2.5-0.5B on the TPU. Across a slow connection between two
-A100 hosts, replication is faster for both perturbation types at width 2048. Low-rank
-perturbations also shorten the generation itself: on the block, a rank-1 generation takes
-\RankOneOverDenseGPU{} times as long as a dense one on the A100 and \RankOneOverDenseTPU{}
-times as long on the v5e.
+A100 hosts, replication is faster for both perturbation types at width 2048. In the block's
+single-device cost grid (Figure~\ref{fig:f4}), rank-1 generations take
+\RankOneOverDenseGPU{} times as long as dense ones on the A100 and \RankOneOverDenseTPU{}
+times as long on the v5e, as geometric means over matched configurations.
 
 A placement is best chosen by measuring the reconstruction and the added communication inside
-the program that will run them. Eq.~\ref{eq:crossover} gives the faster placement in all
-\ModelResolved{} resolved single-host configurations and in all \HostExpectedMatches{}
-two-host configurations, but it is an accounting model, not an exact rule: on sixteen devices
-it overestimates the penalty for splitting by up to \HostExpectedOverSixteen\,ms.
+the program that will run them. Eq.~\ref{eq:crossover} identifies the faster placement in all
+\ModelResolved{} resolved block configurations on eight devices within one host, and in all
+\HostExpectedMatches{} configurations under both two-host layouts, but its estimates of the
+time difference remain approximate: on sixteen devices it overestimates the penalty for
+splitting by up to \HostExpectedOverSixteen\,ms.

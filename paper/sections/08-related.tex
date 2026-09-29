@@ -3,11 +3,13 @@
 \label{sec:related}
 
 \paragraph{ES at scale.} \citet{salimans2017} distributed ES across many workers by having
-them exchange only scalar returns rather than gradients; ARS \citep{mania2018} and deep
-neuroevolution \citep{such2017,conti2017,chrabaszcz2018} use the same design.
+them exchange only scalar returns rather than gradients. ARS \citep{mania2018} and deep
+neuroevolution \citep{such2017,conti2017,chrabaszcz2018} likewise exploit independent
+candidate evaluations.
 \citet{qiu2025} and EGGROLL \citep{eggroll2025} extend it to language models with the two
 perturbation designs compared here: full-rank noise regenerated from seeds, and low-rank
-noise. Neither compares update placements, and neither implements both designs.
+noise. Neither study compares the wall-clock costs of replication and splitting under
+both perturbation designs.
 
 \paragraph{Tuning language models.} MeZO \citep{malladi2023} also estimates gradients from
 forward passes, but to train within the memory needed for inference rather than to evaluate a
@@ -22,20 +24,19 @@ parameters by searching a small subspace of LoRA singular values; it does not st
 full-parameter update placement at those sizes.
 
 \paragraph{Other ES variants.} Natural ES, CMA-ES and information-geometric optimization adapt
-richer search distributions \citep{wierstra2014,hansen2001,hansen2016,ollivier2017}; here the
-update rule is held fixed and only the perturbation design varies.
+richer search distributions \citep{wierstra2014,hansen2001,hansen2016,ollivier2017}; here we
+hold the update rule fixed and vary the perturbation design and update placement.
 
 \paragraph{Distributed systems.} Spending extra computation or memory to reduce communication
 is a classical systems tradeoff; replicating data in matrix multiplication is one example
 \citep{solomonik2011}. This paper measures how the perturbation design changes that tradeoff
 for reconstructing the ES update. evosax \citep{lange2022evosax} provides ES algorithms in JAX.
 \citet{sheng2020tpu} run distributed ES on TPUs for meta-learning, without comparing
-placements. ZeRO \citep{rajbhandari2020zero} removes repeated optimizer
-work and memory in data-parallel training by dividing the optimizer step among devices, much
-as splitting divides reconstruction; its reduce-scatter and all-gather move the same bytes as
-the all-reduce they replace. BOOST \citep{wang2026boost} places the tensor-parallel collective
-of a factorized layer at its narrow activation bottleneck, of width $r$ rather than the hidden
-size. Splitting, by contrast, communicates full partial updates; communicating their factors
+placements. ZeRO's optimizer and gradient partitioning \citep{rajbhandari2020zero} divides
+optimizer work and storage among devices, much as splitting divides reconstruction, while
+preserving the communication volume of standard data-parallel training. BOOST
+\citep{wang2026boost} reduces communication by exchanging the smaller intermediate activations
+produced by low-rank model layers. Splitting, by contrast, communicates full partial updates; communicating their factors
 would be another placement, outside the scope of this paper. PowerSGD \citep{vogels2019}
 reduces communication by approximating gradients at low rank, whereas the low-rank
 perturbations here still produce a full update to communicate: the two use low rank for
