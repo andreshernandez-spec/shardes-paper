@@ -2,45 +2,42 @@
 \section{Related work}
 \label{sec:related}
 
-\paragraph{ES at scale.} \citet{salimans2017} made distributed ES practical by sending
-scalar returns rather than gradients; ARS \citep{mania2018} and deep neuroevolution
-\citep{such2017,conti2017,chrabaszcz2018} share its simple design. \citet{qiu2025} and
-EGGROLL \citep{eggroll2025} carry it to language models from opposite sides, exact noise
-regenerated from seeds and cheap low-rank noise. \citet{cho2026reward} show that reward
-normalization changes how large a population must be. Neither \citet{qiu2025} nor EGGROLL
-compares update placements, or both designs in one implementation.
+\paragraph{ES at scale.} \citet{salimans2017} distributed ES across many workers by having
+them exchange only scalar returns rather than gradients. ARS \citep{mania2018} and deep
+neuroevolution \citep{such2017,conti2017,chrabaszcz2018} likewise exploit independent
+candidate evaluations.
+\citet{qiu2025} and EGGROLL \citep{eggroll2025} extend it to language models with the two
+perturbation designs compared here: full-rank noise regenerated from seeds, and low-rank
+noise. Neither study compares the wall-clock costs of replication and splitting under
+both perturbation designs.
 
-\paragraph{Tuning language models.} MeZO \citep{malladi2023} also
-estimates gradients from forward passes, with the goal of training in inference-sized
-memory rather than evaluating a population in parallel. It is a close relative with a
-different bottleneck. FedKSeed also reconstructs updates from shared random seeds and
-communicates scalar coefficients in federated full-parameter tuning \citep{qin2024fedkseed}.
-Ferret uses shared randomness to communicate projected first-order updates
-\citep{shu2025ferret}. Both make the cost of reconstruction relevant, although their
-optimization and communication schedules differ from a synchronous ES population.
-ESSA reports alignment on models up to 72B by searching a compact subspace of LoRA
-singular values \citep{korotyshova2025essa}; it does not test full-parameter update
-placement at those sizes.
+\paragraph{Tuning language models.} MeZO \citep{malladi2023} also estimates gradients from
+forward passes, but to train within the memory needed for inference rather than to evaluate a
+population in parallel; its constraint is memory, not the communication and repeated
+computation measured here. FedKSeed \citep{qin2024fedkseed} communicates only scalar
+coefficients in federated full-parameter tuning, and each client reconstructs the update from
+shared random seeds, as in replication. Ferret \citep{shu2025ferret} uses shared randomness to
+communicate projected first-order updates. In both, the cost of reconstruction matters,
+although their optimization and communication schedules differ from a synchronous ES
+population. ESSA \citep{korotyshova2025essa} applies ES to align models of up to 72B
+parameters by searching a small subspace of LoRA singular values; it does not study
+full-parameter update placement at those sizes.
 
-\paragraph{Estimators.} Gaussian-smoothing and zeroth-order analyses make the dependence
-on dimension explicit \citep{nesterov2017,duchi2015,berahas2022}. Natural ES, CMA-ES and
-information-geometric optimization adapt richer search distributions
-\citep{wierstra2014,hansen2001,hansen2016,ollivier2017}; we hold the optimizer fixed and
-vary the perturbation.
+\paragraph{Other ES variants.} Natural ES, CMA-ES and information-geometric optimization adapt
+richer search distributions \citep{wierstra2014,hansen2001,hansen2016,ollivier2017}; here we
+hold the update rule fixed and vary the perturbation design and update placement.
 
-\paragraph{Distributed systems.} JAX and GSPMD provide the compiler and sharding we build
-on \citep{jax2018,gspmd2021}. Trading local resources for less communication is a
-classical systems choice; replicated-data matrix multiplication is one example
-\citep{solomonik2011}. Our contribution is to measure how perturbation design changes
-that choice for ES update reconstruction. evosax \citep{lange2022evosax} is a JAX ES
-library. \citet{sheng2020tpu} run distributed ES on TPUs for meta-learning, without
-comparing placements. ZeRO \citep{rajbhandari2020zero} removes repeated optimizer
-work and memory in data-parallel training by splitting the optimizer step across
-devices; its reduce-scatter and all-gather carry the same bytes as the all-reduce they
-replace. BOOST \citep{wang2026boost} places the tensor-parallel collective of a
-factorized layer at its narrow activation bottleneck, of width $r$ rather than the hidden
-size. Our all-reduce placement instead forms and communicates dense partial parameter
-updates; communicating their factors would be a different placement, which we do not
-study. PowerSGD explicitly reduces communication using low-rank gradient approximations
-\citep{vogels2019}; low-rank perturbations in our experiments instead produce a dense
-update payload. These are different uses of low rank.
+\paragraph{Distributed systems.} Spending extra computation or memory to reduce communication
+is a classical systems tradeoff; replicating data in matrix multiplication is one example
+\citep{solomonik2011}. This paper measures how the perturbation design changes that tradeoff
+for reconstructing the ES update. evosax \citep{lange2022evosax} provides ES algorithms in JAX.
+\citet{sheng2020tpu} run distributed ES on TPUs for meta-learning, without comparing
+placements. ZeRO's optimizer and gradient partitioning \citep{rajbhandari2020zero} divides
+optimizer work and storage among devices, much as splitting divides reconstruction, while
+preserving the communication volume of standard data-parallel training. BOOST
+\citep{wang2026boost} reduces communication by exchanging the smaller intermediate activations
+produced by low-rank model layers. Splitting, by contrast, communicates full partial updates; communicating their factors
+would be another placement, outside the scope of this paper. PowerSGD \citep{vogels2019}
+reduces communication by approximating gradients at low rank, whereas the low-rank
+perturbations here still produce a full update to communicate: the two use low rank for
+different ends.

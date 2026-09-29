@@ -1,17 +1,21 @@
 \section{Conclusion}
 
-Exchanging only scalar scores can make distributed ES repeat substantial work.
-Splitting update reconstruction helps when the computation saved exceeds the cost of
-communicating a model-sized update. In our single-host measurements, this favors
-splitting for full-rank perturbations and replication for low-rank perturbations at
-large matrix width. The same preference holds on Qwen2.5-0.5B on the TPU. Across the
-measured slow connection between two A100 hosts, replication is faster for both
-perturbation types at width 2048.
+Exchanging only scalar scores makes every device repeat the whole update reconstruction.
+Splitting that reconstruction is faster when the computation it saves outweighs the
+communication of a model-sized update. Low-rank perturbations make reconstruction cheaper
+without reducing the size of the communicated update, leaving less computation for splitting
+to save. On the block benchmark with eight devices in one host, splitting is faster for
+full-rank perturbations and replication for rank-1 perturbations at width 2048. The same
+placement preference holds for the tested full-rank and low-rank variants on Qwen2.5-0.5B on
+the TPU. Across a slow connection between two A100 hosts, replication is faster for full-rank
+and rank-1 perturbations at width 2048. In the block's
+single-device cost grid (Figure~\ref{fig:f4}), rank-1 generations take
+\RankOneOverDenseGPU{} times as long as dense ones on the A100 and \RankOneOverDenseTPU{}
+times as long on the v5e, as geometric means over matched configurations.
 
-To choose a placement, measure reconstruction and the added communication cost in the
-relevant computation context. Isolated communication benchmarks and ideal $1/D$ compute
-scaling can misestimate the small differences that decide low-rank cases. The model
-explains most measured preferences but is not an exact decision rule.
-
-Low-rank perturbations also reduce generation time relative to stored full-rank noise
-on the block, especially on the tested TPU.
+A placement is best chosen by measuring the reconstruction and the added communication inside
+the program that will run them. Eq.~\ref{eq:crossover} identifies the faster placement in all
+\ModelResolved{} resolved block configurations on eight devices within one host, and in all
+\HostExpectedMatches{} configurations under both two-host layouts, but its estimates of the
+time difference remain approximate: on sixteen devices it overestimates the penalty for
+splitting by up to \HostExpectedOverSixteen\,ms.
