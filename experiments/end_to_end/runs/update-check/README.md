@@ -42,6 +42,8 @@ processes be compared. Two replays per process (laptop: three).
 | | **154f63b** | in vLLM | | 3 (0) | 0 / 0 | one, `664fa37f` |
 | | **154f63b** | JAX alone | | 3 (0) | 0 / 0 | the same |
 | RTX 3080 Laptop, Qwen2.5-0.5B | **154f63b** | JAX alone | | 1 (0) | 0 / 0 | `5656f88b`, as before |
+| A100 SXM 80GB (T2's pods), Qwen2.5-0.5B, 30 it. | 9bf6b96 | JAX alone | | 2 (0) | 0 / 0 | `5656f88b`, the laptop's |
+| | 9bf6b96 | in vLLM | | 2 (0) | 0 / 0 | the same |
 
 `664fa37f` is the digest every clean H200 replay reached, before and after the fix: the
 fix gives the same weights the scan gives when it does not misbehave.
@@ -69,6 +71,7 @@ repeatedly and compared with its first evaluation:
 | 775b8bf | 6 x 200 | 3 | 0 | 0 | 0 | | |
 | 26c0348 | 6 x 1,000 | 24 | 0 | 0 | 0 | 0 | 0 |
 | 154f63b (contraction = one step per member) | 3 x 1,000 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 26c0348, A100 SXM 80GB, two hosts (drivers 590, 595) | 6 x 1,000 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Both loop-free forms equal the scan's most common value in every process (and on the
 laptop). At the scan's rate, 0.4%, zero in 6,000 by chance has probability about e^-24.
@@ -93,8 +96,9 @@ laptop the probe's 30-iteration replay went from 30 s to 227 s (dispatch-bound).
 - With the fix, a replay of a fitness log reproduces the weights again (every fixed
   replay reached the same digest), so fitness logs can again serve as checkpoints, with
   the digest check kept.
-- T2 (`docs/end_to_end/06`) runs the old code on A100s; its preflight ran this probe at
-  0.5B on each A100 before the runs (records added with T2's results).
+- T2 (`docs/end_to_end/06`) ran the old code on A100s. Its preflight (this probe at 0.5B
+  on each pod, before the runs; `a100-preflight-pod*.log`) and the kernel check run on the
+  same GPUs after them found nothing: 6,000 scan evaluations, all equal.
 - The library's `SeedRegenerated.contract` uses the same scan, so shardes itself is
   exposed on this GPU. Its published results were measured on A100 and TPU, where nothing
   like this was seen (C6d found A100 runs bitwise deterministic across processes).

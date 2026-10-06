@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-06T17:09:51+00:00",
+  "env": {
+    "commit": "26c0348d8825c53a5acf1aadcfc103baa417fd63",
+    "dirty_worktree": false,
+    "hostname": "243947847fa1",
+    "packages": {
+      "jax": "0.11.2",
+      "jaxlib": "0.11.2"
+    },
+    "platform": "Linux-6.8.0-134-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "gpu": "NVIDIA A100-SXM4-80GB",
+  "repeats": 1000,
+  "result": {
+    "contract": {
+      "differ": 0,
+      "distinct": 1
+    },
+    "contract_loop": {
+      "differ": 0,
+      "distinct": 1,
+      "equals_scan": true
+    },
+    "contract_unrolled": {
+      "differ": 0,
+      "distinct": 1,
+      "equals_scan": true
+    },
+    "control": {
+      "differ": 0,
+      "distinct": 1
+    },
+    "draw": {
+      "differ": 0,
+      "distinct": 1
+    },
+    "update": {
+      "differ": 0,
+      "distinct": 1
+    }
+  },
+  "seconds": 46.8541347887367,
+  "shape": [
+    14336,
+    4096
+  ],
+  "xla_flags": ""
+}
