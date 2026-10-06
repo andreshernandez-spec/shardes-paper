@@ -27,6 +27,12 @@ sys.path.insert(0, str(E2E))
 import releases as R  # noqa: E402
 
 SMOKE = {"population": 4, "iterations": 2, "max_tokens": 64, "eval_every": 1}
+REPO = E2E.parent.parent
+
+
+def portable(arg: str) -> str:
+    """A path as the record shows it: relative to this repository, or under ~."""
+    return arg.replace(str(REPO) + "/", "").replace(str(Path.home()), "~")
 
 
 def main(argv=None) -> int:
@@ -78,7 +84,7 @@ def main(argv=None) -> int:
     (out / "run.json").write_text(json.dumps(
         {"config": cfg, "config_file": str(args.config), "smoke": args.smoke,
          "model": {"repo": rel.repo, "revision": rel.commit}, "es_at_scale": head,
-         "command": cmd, "python": sys.version.split()[0],
+         "command": [portable(a) for a in cmd], "python": sys.version.split()[0],
          "shardes_paper": subprocess.run(["git", "-C", str(E2E), "rev-parse", "HEAD"],
                                          capture_output=True, text=True).stdout.strip(),
          "started": datetime.datetime.now(datetime.timezone.utc).isoformat()},

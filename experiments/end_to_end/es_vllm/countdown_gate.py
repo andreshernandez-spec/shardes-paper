@@ -57,16 +57,34 @@ def compact(run: Path) -> Path:
     return path
 
 
-def curve(run: Path) -> dict:
-    """{updates: eval reward} from eval.jsonl, or eval.jsonl.gz as committed."""
+def evals(run: Path) -> list:
+    """The evaluation records from eval.jsonl, or eval.jsonl.gz as committed."""
     path = run / "eval.jsonl"
     if path.exists():
         text = path.read_text()
     elif path.with_suffix(".jsonl.gz").exists():
         text = gzip.decompress(path.with_suffix(".jsonl.gz").read_bytes()).decode()
     else:
-        return {}
-    return {r["updates"]: r["reward"] for r in map(json.loads, text.splitlines())}
+        return []
+    return [json.loads(x) for x in text.splitlines()]
+
+
+def curve(run: Path) -> dict:
+    """{updates: eval reward}."""
+    return {r["updates"]: r["reward"] for r in evals(run)}
+
+
+def table(runs: Path, key: str) -> str:
+    """Markdown: one row per evaluation point, one column per run."""
+    names = [f"countdown-s{s}{suffix}" for suffix in ("", "-ref") for s in SEEDS]
+    cols = {n: {r["updates"]: r[key] for r in evals(runs / n)} for n in names}
+    head = ["updates"] + [("ours" if not n.endswith("-ref") else "es-at-scale")
+                          + f" s{n.split('-s')[1][0]}" for n in names]
+    lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for u in (0, *POINTS):
+        lines.append("| " + " | ".join([str(u)] + [f"{cols[n][u]:.4f}" if u in cols[n] else ""
+                                                    for n in names]) + " |")
+    return "\n".join(lines)
 
 
 def evaluate(ours: dict, ref: dict) -> dict:
@@ -102,9 +120,13 @@ def evaluate(ours: dict, ref: dict) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--compact", type=Path)
+    ap.add_argument("--table", choices=("reward", "solved", "format", "mean_len"))
     args = ap.parse_args(argv)
     if args.compact:
         print(compact(E2E / args.compact))
+        return 0
+    if args.table:
+        print(table(E2E / "runs", args.table))
         return 0
     runs = E2E / "runs"
     ours = {s: curve(runs / f"countdown-s{s}") for s in SEEDS}
