@@ -28,6 +28,7 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
 import argparse  # noqa: E402
 import datetime  # noqa: E402
+import gzip  # noqa: E402
 import json  # noqa: E402
 import sys  # noqa: E402
 import time  # noqa: E402
@@ -191,12 +192,29 @@ def run(args) -> dict:
 
 
 def compare(d: Path) -> None:
+    """Summaries of this probe's records and of kernel_check.py's, grouped by commit (the
+    contraction changed at 154f63b), GPU, mode and XLA flags."""
     recs = [json.loads(p.read_text()) for p in sorted(d.glob("*.json"))]
+    recs += [json.loads(gzip.decompress(p.read_bytes())) for p in sorted(d.glob("*.json.gz"))]
+    kernels = {}
+    for r in recs:
+        if "config" not in r:  # kernel_check.py
+            key = (r["env"]["commit"][:7], r["gpu"], r["xla_flags"])
+            g = kernels.setdefault(key, {"processes": 0, "repeats": 0, "differ": {}})
+            g["processes"] += 1
+            g["repeats"] += r["repeats"]
+            for op, v in r["result"].items():
+                g["differ"][op] = g["differ"].get(op, 0) + v["differ"]
+    for key, g in kernels.items():
+        print(f"kernels {key[0]} {key[1]} flags='{key[2]}': {g['processes']} processes x "
+              f"{g['repeats'] // g['processes']} repeats, differing: {g['differ']}")
     groups = {}
     for r in recs:
+        if "config" not in r:
+            continue
         c = r["config"]
         key = (c["model"], c["engine"], r["xla_flags"], c["n"], c["sigma"], c["alpha"],
-               c["iterations"], c["seed"], c["fitness_seed"], r["gpu"])
+               c["iterations"], c["seed"], c["fitness_seed"], r["gpu"], r["env"]["commit"][:7])
         groups.setdefault(key, []).append(r)
     for key, rs in groups.items():
         reps = [rep for r in rs for rep in r["replays"]]
@@ -205,7 +223,10 @@ def compare(d: Path) -> None:
         n_upd = sum(len(rep["update_differs"]) for rep in reps)
         worst = max((x["max_diff"] / max(x["max_abs"], 1e-30)
                      for rep in reps for x in rep["sum_differs"]), default=0.0)
-        print(f"{key[0]} engine={key[1]} flags='{key[2]}' {key[-1]}: {len(rs)} processes, "
+        bad = sum(any(rep["sum_differs"] or rep["update_differs"] for rep in r["replays"])
+                  for r in rs)
+        print(f"{key[-1]} {key[0]} engine={key[1]} flags='{key[2]}' {key[-2]}: {len(rs)} "
+              f"processes ({bad} with differences), "
               f"{len(reps)} replays, {n_sum} differing sums, {n_upd} differing updates, "
               f"largest relative difference {worst:.3g}, digests {digests}")
 
