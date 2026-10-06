@@ -49,3 +49,7 @@ Held-out reward of the current weights, mean over iterations 0-9 / 10-19 / 20-29
 Scoring the arms' final weights on held-out prompts (`heldout-121-160/README.md`) found
 the per-leaf ES update intermittently nondeterministic in this setup. The live runs
 above had it too; s1e-3 and s2e-3 cannot be rebuilt from their fitness logs.
+The cause, found 2026-10-06 (`update-check/README.md`): on the H200 the jitted scan that
+sums the members' noise returned wrong values in about 0.4% of calls, in most processes,
+in JAX alone. In those processes about 0.4% of these runs' leaf updates carried stretches
+of wrong values of update size. Fixed in 154f63b (one jitted step per member).

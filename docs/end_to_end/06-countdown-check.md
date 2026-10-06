@@ -86,3 +86,16 @@ running both implementations side by side (`es_vllm/countdown_pod.sh`). Iteratio
 read from the first iterations on the pods; a run that projects past $15 is stopped and
 the plan revisited. Both drivers were run end to end on the laptop at toy shapes first
 (4 members, 2 iterations, 64 tokens); those runs are wiring checks, not results.
+
+## Result, 2026-10-06
+
+All four runs completed (details and curves: `experiments/end_to_end/runs/countdown-README.md`).
+**Gate G2 fails, on the high side**: mean evaluation reward over updates 5 to 100 is 0.182
+for ours and 0.159 for es-at-scale, a difference of +0.024 against a bound of 0.020; the
+reference learned (gains 0.18), so the check is not inconclusive. Our backend learns the
+task faster than the reference and reaches the same level by 100 updates (last four
+evaluations: 0.234 and 0.239 against 0.229 and 0.220). The most direct candidate for the
+speed difference is es-at-scale adding each update into bf16 weights, where an update of
+about 1e-4 per element is comparable to one bf16 step; ours keeps an f32 master. As
+preregistered, the next step is decided with Andres.
+

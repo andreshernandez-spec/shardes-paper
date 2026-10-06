@@ -86,3 +86,12 @@ on replay for checkpoints or resume until this is fixed.
 
 The es-s5e-4 record says `dirty_worktree: true`: `diag_rebuild.py` sat untracked in
 `experiments/end_to_end/` on the pod while it ran. The scorer does not import it.
+
+## Later finding, 2026-10-06
+
+The cause is found and fixed (`../update-check/README.md`): on the H200 the jitted
+`lax.scan` in `stream.contracted_leaf` returned different bits from the same inputs in
+about 0.4% of calls, in most processes, in JAX alone, with vLLM playing no part. Computing
+the sum as one jitted step per member (154f63b) removes it and gives the scan's correct
+bits; with it, every replay reached the same digest.
+
