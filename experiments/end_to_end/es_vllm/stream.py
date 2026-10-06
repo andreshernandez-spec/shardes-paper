@@ -9,7 +9,8 @@ calling the library's own noise functions, so peak memory is one leaf:
   `coupling(leaf_streams(base_key, L)[k], member_id, size, dtype)`, exactly as
   `member_noise` builds each leaf and `SeedRegenerated.apply` combines them;
 - update: `master - (lr / (n * sigma)) * sum_i w_i * eps_i`, the f32 sum taken over
-  members in order with a `lax.scan`, as `SeedRegenerated.contract` does per leaf.
+  members in order, as `SeedRegenerated.contract`'s scan does per leaf, one step per
+  call (below).
 
 The view is the master cast to bf16 (`ShardedES._view`), recomputed per leaf rather than
 stored. `tests/end_to_end/test_e2e_stream.py` holds both functions bit-identical to the
@@ -41,17 +42,24 @@ def member_leaf(master_leaf, stream, member_id, sigma, coupling=GAUSSIAN):
 
 
 @partial(jax.jit, static_argnames=("coupling",))
+def _member_term(acc, stream, member_id, weight, coupling=GAUSSIAN):
+    """One step of `SeedRegenerated.contract`'s scan: `acc + w_i * eps_i`, in f32."""
+    eps = coupling(stream, member_id, acc.size, COMPUTE).reshape(acc.shape)
+    return acc + weight * eps.astype(jnp.float32)
+
+
 def contracted_leaf(master_leaf, stream, member_ids, weights, coupling=GAUSSIAN):
-    """sum_i w_i * eps_i for one leaf, in f32, members in order (`SeedRegenerated.contract`)."""
-    view = master_leaf.astype(COMPUTE)
+    """sum_i w_i * eps_i for one leaf, in f32, members in order (`SeedRegenerated.contract`).
 
-    def step(acc, iw):
-        i, wi = iw
-        eps = coupling(stream, i, view.size, view.dtype).reshape(view.shape)
-        return acc + wi * eps.astype(jnp.float32), None
-
-    acc, _ = jax.lax.scan(step, jnp.zeros_like(view, dtype=jnp.float32),
-                          (member_ids, weights.astype(jnp.float32)))
+    The library's scan, one jitted step per member from Python. On the H200 the scan as a
+    device-side while loop gave different bits from the same inputs in about 0.4% of calls,
+    in some processes, in JAX alone; one step per call gave none in 6,000 and the rolled
+    scan's correct bits (runs/update-check/README.md).
+    """
+    acc = jnp.zeros(master_leaf.shape, jnp.float32)
+    w = weights.astype(jnp.float32)
+    for k in range(member_ids.shape[0]):
+        acc = _member_term(acc, stream, member_ids[k], w[k], coupling=coupling)
     return acc
 
 
