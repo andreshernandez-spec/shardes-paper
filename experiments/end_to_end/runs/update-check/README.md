@@ -14,7 +14,8 @@ Python, gives no differences and the scan's correct bits; that is the fix, `154f
 The RTX 3080 laptop GPU and the A100 never showed it.
 
 Every number below: `python -m es_vllm.update_check --compare runs/update-check`, from the
-gzipped records in this directory. H200 SXM, Secure Cloud US-CO-1, driver 580.178.04 (the
+records in this directory (each `.json` beside its per-leaf checksums in
+`.checksums.json.gz`). H200 SXM, Secure Cloud US-CO-1, driver 580.178.04 (the
 driver of the H200 where the rebuilds diverged), jax 0.11.2, vLLM 0.30.0, one pod
 (`d1smeoq5nw324h`, 14:57 to 16:36 UTC; a first pod never came up and was deleted after
 12 minutes). Logs: `h200-uc.log`, `h200-kc-summary.log`, `h200-kc.log.gz`,

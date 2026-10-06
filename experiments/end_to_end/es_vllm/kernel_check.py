@@ -34,7 +34,6 @@ PKG = Path(__file__).resolve().parent
 E2E = PKG.parent
 sys.path.insert(0, str(E2E))
 sys.path.insert(0, str(E2E.parent))
-import harness  # noqa: E402
 from provenance import env_block  # noqa: E402
 
 SHAPE = (14336, 4096)
@@ -119,7 +118,8 @@ def main(argv=None) -> int:
     print(f"{args.repeats} repeats in {seconds:.0f}s: "
           + "; ".join(f"{k} {r['differ']} differ ({r['distinct']} distinct)"
                       for k, r in res.items()), flush=True)
-    harness.write_atomic(out, {
+    from es_vllm.update_check import write_record  # noqa: PLC0415
+    write_record(out, {
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "env": env_block(E2E, ["runs"], ("jax", "jaxlib")),
         "xla_flags": os.environ.get("XLA_FLAGS", ""), "gpu": jax.devices()[0].device_kind,

@@ -191,11 +191,35 @@ def run(args) -> dict:
     return {"gpu": jax.devices()[0].device_kind, "names": names, "replays": replays}
 
 
+def write_record(out: Path, rec: dict) -> None:
+    """The record as JSON, where the provenance audit reads it, and its per-leaf checksum
+    arrays (most of its size) beside it in `<name>.checksums.json.gz`."""
+    rec = json.loads(json.dumps(rec))
+    arrays = {}
+    if "checksums" in rec:  # kernel_check.py
+        arrays["checksums"] = rec.pop("checksums")
+    for i, rep in enumerate(rec.get("replays", [])):
+        if "checksums" in rep:
+            arrays[f"replay{i}"] = rep.pop("checksums")
+    harness.write_atomic(out, rec)
+    if arrays:
+        side = out.with_name(out.stem + ".checksums.json.gz")
+        side.write_bytes(gzip.compress(json.dumps(arrays).encode()))
+
+
+def split(d: Path) -> None:
+    """Re-encode whole gzipped records as write_record stores them. Lossless."""
+    for p in sorted(d.glob("*.json.gz")):
+        if p.name.endswith(".checksums.json.gz"):
+            continue
+        write_record(p.with_suffix(""), json.loads(gzip.decompress(p.read_bytes())))
+        p.unlink()
+
+
 def compare(d: Path) -> None:
     """Summaries of this probe's records and of kernel_check.py's, grouped by commit (the
     contraction changed at 154f63b), GPU, mode and XLA flags."""
     recs = [json.loads(p.read_text()) for p in sorted(d.glob("*.json"))]
-    recs += [json.loads(gzip.decompress(p.read_bytes())) for p in sorted(d.glob("*.json.gz"))]
     kernels = {}
     for r in recs:
         if "config" not in r:  # kernel_check.py
@@ -245,9 +269,13 @@ def main(argv=None) -> int:
     ap.add_argument("--util", type=float, default=0.4)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--compare", type=Path)
+    ap.add_argument("--split", type=Path, help="re-encode gzipped records (one-off)")
     args = ap.parse_args(argv)
     if args.compare:
         compare(E2E / args.compare)
+        return 0
+    if args.split:
+        split(E2E / args.split)
         return 0
     if args.out is None:
         ap.error("--out is required")
@@ -255,7 +283,7 @@ def main(argv=None) -> int:
     if out.exists():
         raise SystemExit(f"{out} exists")
     res = run(args)
-    harness.write_atomic(out, {
+    write_record(out, {
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib")),
         "xla_flags": os.environ.get("XLA_FLAGS", ""),
