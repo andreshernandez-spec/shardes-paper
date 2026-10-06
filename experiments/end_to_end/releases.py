@@ -95,7 +95,16 @@ TULU31_DATA = Repo(
 )
 TULU31_OPEN_INSTRUCT = "3f37c29ddc97d2c108a7658692d2d2c3708ef182"
 
+# ---------------------------------------------------------------- Countdown check (T2)
+
+QWEN25_05B = Repo(
+    "Qwen/Qwen2.5-0.5B-Instruct", "model", "7ae557604adf67be50417f59c2c2f167def9a775",
+    "main, unchanged since 2024-09-25",
+)
+# VsonicV/es-at-scale: v1.0.0 plus #50, which makes its evaluation schedule fire.
+ES_AT_SCALE = "574a9d134da1ffce2a8bb812019899e5c96b588a"
+
 ALL_REPOS = (
     OLMO3_BASE, OLMO3_IF_RL, OLMO3_IF_SOURCE, OLMO3_IF_DOLCI, OLMO3_INSTRUCT,
-    TULU31_START, TULU31_RL, TULU31_DATA,
+    TULU31_START, TULU31_RL, TULU31_DATA, QWEN25_05B,
 )
