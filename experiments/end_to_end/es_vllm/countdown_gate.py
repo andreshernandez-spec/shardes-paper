@@ -18,6 +18,7 @@ before any T2 result existed; the rule is not a parameter.
 """
 
 import argparse
+import gzip
 import json
 import re
 import sys
@@ -57,10 +58,15 @@ def compact(run: Path) -> Path:
 
 
 def curve(run: Path) -> dict:
+    """{updates: eval reward} from eval.jsonl, or eval.jsonl.gz as committed."""
     path = run / "eval.jsonl"
-    if not path.exists():
+    if path.exists():
+        text = path.read_text()
+    elif path.with_suffix(".jsonl.gz").exists():
+        text = gzip.decompress(path.with_suffix(".jsonl.gz").read_bytes()).decode()
+    else:
         return {}
-    return {r["updates"]: r["reward"] for r in map(json.loads, path.read_text().splitlines())}
+    return {r["updates"]: r["reward"] for r in map(json.loads, text.splitlines())}
 
 
 def evaluate(ours: dict, ref: dict) -> dict:

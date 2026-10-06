@@ -58,3 +58,10 @@ def test_compact_reads_es_at_scale_outputs(tmp_path):
     assert [r["updates"] for r in recs] == [0, 5, 10]
     assert [r["solved"] for r in recs] == [0.0, 0.5, 1.0]
     assert abs(recs[1]["reward"] - 0.58) < 1e-12 and recs[0]["mean_len"] == 512
+
+
+def test_curve_reads_the_committed_gzip(tmp_path):
+    import gzip
+    lines = "".join(json.dumps({"updates": u, "reward": 0.05 + u / 1000}) + "\n" for u in (0, 5))
+    (tmp_path / "eval.jsonl.gz").write_bytes(gzip.compress(lines.encode()))
+    assert gate.curve(tmp_path) == {0: 0.05, 5: 0.055}
