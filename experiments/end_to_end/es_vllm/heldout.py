@@ -43,30 +43,8 @@ sys.path.insert(0, str(E2E))
 sys.path.insert(0, str(E2E.parent))
 import harness  # noqa: E402
 import releases as R  # noqa: E402
-from es_vllm.run_tulu import Verifier, render  # noqa: E402
+from es_vllm.run_tulu import Verifier, heldout_rows, render  # noqa: E402
 from provenance import env_block  # noqa: E402
-from tulu31_data import row_hash  # noqa: E402
-
-
-def heldout_rows(first: int, last: int) -> list:
-    """The rows of stream steps [first, last), checked against the recorded hashes."""
-    import pyarrow.parquet as pq  # noqa: PLC0415
-    from huggingface_hub import HfFileSystem  # noqa: PLC0415
-
-    data = E2E / "data" / "tulu31"
-    tset = json.loads((data / "training-set.json").read_text())
-    stream = json.loads((data / "prompt-stream.json").read_text())
-    f = (f"datasets/{R.TULU31_DATA.repo}@{R.TULU31_DATA.commit}"
-         "/data/train-00000-of-00001.parquet")
-    rows = pq.read_table(f, filesystem=HfFileSystem()).to_pylist()
-    out = []
-    for s in range(first, last):
-        for pos in stream["stream"][s]:
-            row = rows[tset["kept_indices"][pos]]
-            if row_hash(row) != tset["row_sha256"][pos]:
-                raise SystemExit(f"row {tset['kept_indices'][pos]} does not match the record")
-            out.append(row)
-    return out
 
 
 def rl_revision(branch: str) -> str:
@@ -170,6 +148,7 @@ def main(argv=None) -> int:
             "stream_steps": cfg["stream_steps"], "prompts": len(rows),
             "reward": float(np.mean(rewards)),
             "reward_se": float(np.std(rewards, ddof=1) / np.sqrt(len(rewards))),
+            "per_prompt": [float(x) for x in rewards],  # in heldout_rows order, for pairing
             "by_source": {k: {"reward": float(np.mean(v)), "n": len(v)}
                           for k, v in sorted(by.items())},
             "mean_len": float(np.mean([len(o.outputs[0].token_ids) for o in outs])),

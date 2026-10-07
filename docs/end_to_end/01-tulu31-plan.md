@@ -112,3 +112,11 @@ outputs differ between A100 and H100).
    H100 takes ~1.6 days against ~3.8, halving the exposure to a community host reclaiming
    the pod, and the run resumes from its fitness log either way. Leaning H100; confirmed
    at the pilot by availability.
+
+## Decisions (Andres, 2026-10-07)
+
+5. **T2's high-side fail is read as "the backend works"** (`06`): our backend learns
+   Countdown faster than es-at-scale under the same settings and reaches the same level.
+6. **The longer arm next** (`07`): the pilot's s5e-4 arm to 120 iterations (RL step 480)
+   with a control at the same sigma, scored on held-out prompts against the RL branches at
+   matched points, before any run matched to `step_1920`.

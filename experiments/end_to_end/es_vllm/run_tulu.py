@@ -18,6 +18,11 @@ iterations is what a rebuild is checked against.
 `reward: random` is the control: members get seeded uniform fitness and nothing is
 generated for them, so it costs only the updates.
 
+With `heldout: {stream_steps: [a, b], every: k}`, the view is also decoded on the prompts
+of stream steps [a, b), which must lie beyond every step the run trains on, before the
+first iteration, every k iterations and after the last (`heldout.jsonl`): `heldout.py`'s
+measurement, with per-prompt rewards so models can be compared prompt by prompt.
+
 With `eval_center`, each iteration first decodes the current weights (the view) on the
 iteration's own prompts, before any member sees them. In the first epoch those prompts
 are new to the run, so this is a held-out measurement of the weights so far, and the one
@@ -88,6 +93,27 @@ def load_prompts(data_dir: Path, needed_steps: int, per_member: int):
                 batch.append(row)
         iterations.append(batch)
     return iterations
+
+
+def heldout_rows(first: int, last: int) -> list:
+    """The rows of stream steps [first, last), checked against the recorded hashes."""
+    import pyarrow.parquet as pq  # noqa: PLC0415
+    from huggingface_hub import HfFileSystem  # noqa: PLC0415
+
+    data = E2E / "data" / "tulu31"
+    tset = json.loads((data / "training-set.json").read_text())
+    stream = json.loads((data / "prompt-stream.json").read_text())
+    f = (f"datasets/{R.TULU31_DATA.repo}@{R.TULU31_DATA.commit}"
+         "/data/train-00000-of-00001.parquet")
+    rows = pq.read_table(f, filesystem=HfFileSystem()).to_pylist()
+    out = []
+    for s in range(first, last):
+        for pos in stream["stream"][s]:
+            row = rows[tset["kept_indices"][pos]]
+            if row_hash(row) != tset["row_sha256"][pos]:
+                raise SystemExit(f"row {tset['kept_indices'][pos]} does not match the record")
+            out.append(row)
+    return out
 
 
 def render(tok, row) -> list:
@@ -164,29 +190,78 @@ def main(argv=None) -> int:
     info = llm.collective_rpc("es_init", args=(model_dir, N, sigma, lr, cfg["seed"]))[0]
     print(f"es_init {info}", flush=True)
 
-    # Resume: replay the logged updates. No generation, only the noise and the contraction.
+    # Resume: replay the logged updates, no generation, checking every digest the log holds
+    # on the way (since 154f63b the update is deterministic, runs/update-check/README.md).
     for rec in done:
         llm.collective_rpc("es_ask")
         llm.collective_rpc("es_tell", args=(rec["fitness"],))
+        if "digest" in rec and llm.collective_rpc("es_digest")[0] != rec["digest"]:
+            raise SystemExit(f"replay departs from the log at iteration {rec['iteration']}")
     if done:
         llm.collective_rpc("es_restore")
-        digest = llm.collective_rpc("es_digest")[0]
-        last = next((r["digest"] for r in reversed(done) if "digest" in r), None)
-        if last is not None and done[-1].get("digest") and digest != done[-1]["digest"]:
-            raise SystemExit("replayed state does not match the log's last digest")
+        check = llm.collective_rpc("es_check", args=(None,))[0]
+        if not check["ok"]:
+            raise SystemExit(f"engine weights are not the replayed view: {check}")
         print(f"resumed after {len(done)} iterations", flush=True)
 
     tok = AutoTokenizer.from_pretrained(repo, revision=revision)
     iterations = load_prompts(E2E / cfg["data"], cfg["iterations"], P)
     greedy = SamplingParams(temperature=0.0, max_tokens=cfg["max_tokens"])
     center = cfg.get("eval_center", False)
-    verifier = None if random_control and not center else \
+    heldout = cfg.get("heldout")
+    verifier = None if random_control and not center and not heldout else \
         Verifier(REPO / ".venv-verify" / "bin" / "python")
+    if heldout:
+        trained = cfg["iterations"] * (P // 48)  # stream steps [0, trained) are trained on
+        if heldout["stream_steps"][0] < trained:
+            raise SystemExit(f"held-out steps {heldout['stream_steps']} overlap the "
+                             f"{trained} steps this run trains on")
+        if args.smoke:
+            heldout = {**heldout, "every": 1}
+        h_rows = heldout_rows(*heldout["stream_steps"])[: cfg.get("smoke_prompts")
+                                                         if args.smoke else None]
+        h_ids = [render(tok, r) for r in h_rows]
+        h_path = out / "heldout.jsonl"
+        h_done = {json.loads(x)["iteration"] for x in h_path.read_text().splitlines()} \
+            if h_path.exists() else set()
+
+    def heldout_eval(g):
+        """The weights after g updates (the view, checked after every restore) on prompts
+        no iteration trains on: `heldout.py`'s measurement, per prompt for pairing."""
+        if not heldout or g % heldout["every"] or g in h_done:
+            return
+        t1 = time.perf_counter()
+        outs = llm.generate([{"prompt_token_ids": i} for i in h_ids], greedy, use_tqdm=False)
+        rewards = verifier.score([{"text": o.outputs[0].text, "ground_truth": r["ground_truth"],
+                                   "dataset": r["dataset"],
+                                   "stopped": o.outputs[0].finish_reason == "stop"}
+                                  for o, r in zip(outs, h_rows)])
+        if len(rewards) != len(h_rows):  # the work asked for is the work done
+            raise SystemExit(f"{len(rewards)} rewards for {len(h_rows)} held-out prompts")
+        by = {}
+        for r, rw in zip(h_rows, rewards):
+            by.setdefault(r["dataset"], []).append(rw)
+        rec = {"iteration": g, "stream_steps": heldout["stream_steps"], "prompts": len(h_rows),
+               "reward": float(np.mean(rewards)),
+               "reward_se": float(np.std(rewards, ddof=1) / np.sqrt(len(rewards))),
+               "by_source": {k: {"reward": float(np.mean(v)), "n": len(v)}
+                             for k, v in sorted(by.items())},
+               "mean_len": float(np.mean([len(o.outputs[0].token_ids) for o in outs])),
+               "capped": int(sum(o.outputs[0].finish_reason == "length" for o in outs)),
+               "seconds": time.perf_counter() - t1,
+               "per_prompt": [float(x) for x in rewards]}
+        with h_path.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+        h_done.add(g)
+        print(f"held-out after {g} updates: {rec['reward']:.3f} +- {rec['reward_se']:.3f} "
+              f"{ {k: round(v['reward'], 2) for k, v in rec['by_source'].items()} } "
+              f"{rec['seconds']:.0f}s", flush=True)
     rng = np.random.default_rng(cfg["seed"])
     for _ in range(len(done)):
         rng.uniform(size=N)  # keep the control's stream aligned across resumes
 
     for g in range(len(done), cfg["iterations"]):
+        heldout_eval(g)
         t0 = time.perf_counter()
         llm.collective_rpc("es_ask")
         rows = iterations[g][: cfg.get("smoke_prompts")] if args.smoke else iterations[g]
@@ -262,6 +337,7 @@ def main(argv=None) -> int:
               f"{record['mean_fitness']:.3f} {record.get('reward_by_source', '')} "
               f"{record['seconds']:.0f}s", flush=True)
 
+    heldout_eval(cfg["iterations"])
     if verifier is not None:
         verifier.close()
     print("done", flush=True)

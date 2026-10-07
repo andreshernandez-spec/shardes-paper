@@ -99,3 +99,6 @@ speed difference is es-at-scale adding each update into bf16 weights, where an u
 about 1e-4 per element is comparable to one bf16 step; ours keeps an f32 master. As
 preregistered, the next step is decided with Andres.
 
+
+**Decision, Andres, 2026-10-07:** the high-side fail is read as "the backend works". The
+longer Tulu arm (`07-tulu31-long.md`) runs next.

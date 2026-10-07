@@ -1,0 +1,21 @@
+# The longer Tulu 3.1 arm, preregistered in docs/end_to_end/07-tulu31-long.md, committed
+# before its run: the pilot's s5e-4 arm to 120 iterations (RL steps 1 to 480 in prompts and
+# rollouts), with the fixed contraction (154f63b), scored on held-out prompts every 30.
+model: TULU31_START
+data: data/tulu31
+population: 16            # the RL run's 16 samples per prompt: rollouts match per step
+prompts_per_member: 192   # RL steps 4g+1 to 4g+4, in the run's order
+sigma: 0.0005
+alpha: 0.0005             # Qiu et al.'s step; lr = alpha * sigma
+reward: verifiers
+iterations: 120           # RL steps 1 to 480
+seed: 0                   # the pilot's: iterations 0-29 should reproduce its log
+max_tokens: 2048          # the run's --response_length
+max_model_len: 4096
+gpu_memory_utilization: 0.5
+check_members: [0]
+digest_every: 5
+eval_center: true
+heldout:
+  stream_steps: [480, 520]  # RL steps 481 to 520: 1,920 prompts no iteration trains on
+  every: 30                 # after 0, 30, 60, 90, 120 updates = RL steps 0, 120, ..., 480

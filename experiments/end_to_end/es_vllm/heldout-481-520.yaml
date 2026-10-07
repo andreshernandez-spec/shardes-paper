@@ -1,0 +1,12 @@
+# The RL side of docs/end_to_end/07-tulu31-long.md, committed before its run: the DPO start
+# and the RL run's branches at the ES arm's comparison points, on the same 1,920 held-out
+# prompts (RL steps 481 to 520, stream steps [480, 520)) and with the same measurement as
+# the ES arm's in-run evaluations. Greedy, cap 2,048, the run's verifiers.
+stream_steps: [480, 520]
+max_tokens: 2048
+models:
+  - {name: dpo-start, kind: hf, release: TULU31_START}
+  - {name: rl-step120, kind: hf, release: TULU31_RL, branch: step_120}
+  - {name: rl-step240, kind: hf, release: TULU31_RL, branch: step_240}
+  - {name: rl-step360, kind: hf, release: TULU31_RL, branch: step_360}
+  - {name: rl-step480, kind: hf, release: TULU31_RL, branch: step_480}
