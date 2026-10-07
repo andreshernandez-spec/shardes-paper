@@ -154,9 +154,24 @@ def split_reliability(delta: np.ndarray, parts: int, rng, draws=2000) -> float:
     return float(np.mean(rs)) if rs else 0.0
 
 
+def bootstrap(delta: np.ndarray, rng, draws=1000) -> dict:
+    """90% intervals for v_member and the reliability at 192 prompts, resampling members
+    and prompts (16 members make these rough)."""
+    n, p = delta.shape
+    vs, rel = [], []
+    for _ in range(draws):
+        d = delta[rng.integers(0, n, n)][:, rng.integers(0, p, p)]
+        v = variance_parts(d)
+        vs.append(v["v_member"])
+        rel.append(v["reliability"]["192"])
+    q = lambda x: [float(np.percentile(x, 5)), float(np.percentile(x, 95))]  # noqa: E731
+    return {"v_member_90": q(vs), "reliability_192_90": q(rel)}
+
+
 def analyze(rec: dict) -> dict:
     rng = np.random.default_rng(0)
     c = np.asarray(rec["center"])
+    datasets = np.asarray(rec["datasets"])
     out = {"center_mean": float(c.mean()), "sigmas": {}}
     for s, rows in rec["members"].items():
         r = np.asarray(rows)
@@ -165,6 +180,12 @@ def analyze(rec: dict) -> dict:
         res = {"member_mean_change": float(delta.mean()),
                "member_sd": float(r.mean(axis=1).std(ddof=1)),
                "pairs_changed": float((delta != 0).mean()),
+               "pairs_up": float((delta > 0).mean()), "pairs_down": float((delta < 0).mean()),
+               "bootstrap": bootstrap(delta, rng),
+               "by_source": {k: {"prompts": int((datasets == k).sum()),
+                                 **variance_parts(delta[:, datasets == k]),
+                                 "pairs_changed": float((delta[:, datasets == k] != 0).mean())}
+                             for k in sorted(set(datasets))},
                **parts,
                "split_reliability": {"192": split_reliability(delta, 4, rng),
                                      "384": split_reliability(delta, 2, rng)},
