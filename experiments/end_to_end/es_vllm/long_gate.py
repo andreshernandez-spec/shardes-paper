@@ -98,11 +98,33 @@ def evaluate(arm: dict, control: dict, rl_runs: dict, arm_center=None, control_c
     return res
 
 
-def main() -> int:
+def table(res: dict) -> str:
+    """Markdown: means at each comparison point, and the paired differences with their SE."""
+    m = res["means"]
+    f = lambda x: "" if x is None else f"{x:.3f}"  # noqa: E731
+    pd = lambda p: "" if p is None else f"{p['d']:+.3f} +- {p['se']:.3f}"  # noqa: E731
+    lines = ["| updates (RL step) | ES arm | control | RL branch | arm - start | arm - control "
+             "| RL - arm |", "|---|---|---|---|---|---|---|"]
+    for g in POINTS:
+        rl_key = "dpo-start" if g == 0 else f"rl-step{4 * g}"
+        lines.append(f"| {g} ({4 * g}) | {f(m['arm'].get(g))} | {f(m['control'].get(g))} | "
+                     f"{f(m['rl'].get(rl_key))} | {pd(res['vs_start'].get(g)) if g else ''} | "
+                     f"{pd(res['vs_control'].get(g))} | {pd(res['rl_minus_es'].get(g))} |")
+    return "\n".join(lines)
+
+
+def main(argv=None) -> int:
+    import argparse  # noqa: PLC0415
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--table", action="store_true")
+    args = ap.parse_args(argv)
     runs = E2E / "runs"
     res = evaluate(heldout(runs / ARM), heldout(runs / CONTROL), rl(runs / RL),
                    center(runs / ARM), center(runs / CONTROL))
     res["reproduces_pilot"] = reproduction(runs / ARM, runs / "tulu-pilot-s5e-4")
+    if args.table:
+        print(table(res))
+        return 0
     (runs / "long-gate.json").write_text(json.dumps(res, indent=2, sort_keys=True) + "\n")
     print(json.dumps({k: res[k] for k in ("status", "g4", "reproduces_pilot",
                                           "measurement_check", "center_slope") if k in res},
