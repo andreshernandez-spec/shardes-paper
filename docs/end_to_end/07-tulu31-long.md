@@ -65,3 +65,18 @@ and then the control (about 30 s per iteration, 1 to 1.5 hours), about $9. About
 all. If the arm's measured iteration time projects the total past $60, it is stopped and
 the plan revisited. Each run checkpoints by its fitness log, which replays exactly since
 154f63b (the driver now checks every logged digest on a resume).
+
+## Result, 2026-10-07
+
+All three parts completed (`experiments/end_to_end/runs/tulu-long-README.md`). **G4 passes
+as preregistered**: after 120 updates the arm is 0.260 +- 0.091 above the control on the
+held-out prompts, paired (2.9 SE). **The arm also ends 0.250 +- 0.087 below its start**
+(5.255 against 5.505): the pass comes from the control degrading faster, not from the
+model improving, and the gate did not ask for more. RL at step 480 is 2.12 above the arm
+at matched prompts and rollouts (7.370). The first 30 iterations reproduce the pilot's
+s5e-4 arm bit for bit, and the in-run and `heldout.py` measurements agree on every
+prompt. The diagnosis (`experiments/end_to_end/runs/grad-check/README.md`): about nine
+tenths of each iteration's member ranking is noise at this configuration, and neither
+sampled fitness, mirrored pairs nor the budget split changes that. The next step is
+decided with Andres.
+
