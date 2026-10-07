@@ -51,3 +51,34 @@ Implied gain is first order for z-scored weights: `(alpha / sigma) sqrt(v * reli
 
 Caveat: 16 members make each sigma's estimate rough (the 90% intervals above, resampling
 members and prompts). The conclusion that most of the ranking is noise holds across them.
+
+## Sampled fitness is no better per rollout (`start-sampled.json`)
+
+Approved by Andres the same day as the next diagnostic. The same members on the arm's
+192 iteration-0 prompts, each prompt sampled 8 times at temperature 1.0 (the RL run's),
+once with common random numbers (every member samples prompt j with the same seed) and
+once with independent seeds per member (a44cd57; one Secure Cloud H200 in EU-FR-1,
+driver 580.159.04, 16:41 to 17:25 UTC, about $3.50). Numbers:
+`python -m es_vllm.grad_check --analyze runs/grad-check/start-sampled.json --greedy runs/grad-check/start.json`.
+Reliability is the split-half correlation of the members' means at a given number of
+rollouts per member, spent as prompts x samples:
+
+| rollouts per member | greedy (prompts x 1) | sampled, common seeds | sampled, independent seeds |
+|---|---|---|---|
+| 96 | 0.074 | 0.054 (96x1), 0.054 (48x2), 0.063 (24x4), 0.045 (12x8) | 0.017, 0.014, 0.017, 0.021 |
+| 192 (the run's) | 0.130 | 0.113 (96x2), 0.090 (48x4), 0.084 (24x8) | 0.037, 0.031, 0.022 |
+| 384 | 0.241 | 0.192 (96x4), 0.152 (48x8) | 0.080, 0.065 |
+
+- The members' true effects are the same size under both measures (sd 0.061 sampled
+  with common seeds, 0.063 greedy, estimated as the covariance of their means between
+  disjoint prompt halves). Sampling adds per-rollout noise without adding signal, so the
+  best split is the most prompts with the fewest samples, which greedy already is.
+- Common random numbers matter: they triple the reliability against independent seeds,
+  which only brings sampling back to about greedy's level.
+- Sampling at temperature 1.0 scores the start at 4.90 on these prompts (greedy 5.00),
+  with responses of about 350 tokens.
+
+At matched rollouts, then, neither the decoding nor mirrored pairs nor the split of the
+budget changes the picture: on this task a perturbation of the size ES needs moves the
+reward by little next to the outcome noise of a few hundred rollouts, and about nine
+tenths of each ranking is noise.
