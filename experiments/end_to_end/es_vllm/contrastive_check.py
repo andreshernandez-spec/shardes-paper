@@ -51,7 +51,7 @@ import harness  # noqa: E402
 import releases as R  # noqa: E402
 from provenance import env_block  # noqa: E402
 
-N, P_RUN, SEED, SIGMA, K = 16, 192, 0, 5e-4, 16
+N, P_RUN, SEED, SIGMA, ALPHA, K = 16, 192, 0, 5e-4, 5e-4, 16
 LAMBDAS = (0.25, 0.5, 1.0)
 RANDOM_NORMS = (0.4756, 0.9513)   # nominal; effective 0.28 and 0.73
 SAMPLE_SEED = 30_000
@@ -85,7 +85,7 @@ def collect(args) -> dict:
               gpu_memory_utilization=0.4 if args.smoke else 0.5, max_model_len=4096,
               enable_prefix_caching=False, worker_extension_cls="es_vllm.worker.ESWorker")
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
-    rpc("es_init", get(repo, revision), n, SIGMA, 5e-4 * SIGMA, SEED)
+    rpc("es_init", get(repo, revision), n, SIGMA, ALPHA * SIGMA, SEED)
     rpc("es_ask")  # the arm's iteration-0 members
     d = rpc("dc_count")
     tok = AutoTokenizer.from_pretrained(repo, revision=revision)
@@ -178,6 +178,11 @@ def objective(rec, logp) -> np.ndarray:
     return out
 
 
+def zscore(x: np.ndarray) -> np.ndarray:
+    """As `group_relative` on (n, 1): population standard deviation, zero if none."""
+    return (x - x.mean()) / x.std() if x.std() > 0 else 0 * x
+
+
 def analyze(rec: dict, draws=2000) -> dict:
     rng = np.random.default_rng(0)
     pts = rec["points"]
@@ -185,7 +190,7 @@ def analyze(rec: dict, draws=2000) -> dict:
     members = np.asarray([objective(rec, p["logp"]) for p in pts if p["kind"] == "member"])
     dm = members - f0[None]                       # members x contrast prompts
     n, P = dm.shape
-    rel, cov = [], []
+    rel, cov, held = [], [], []
     for _ in range(draws):
         perm = rng.permutation(P)
         a, b = perm[: P // 2], perm[P // 2: 2 * (P // 2)]
@@ -193,6 +198,14 @@ def analyze(rec: dict, draws=2000) -> dict:
         cov.append(np.cov(x, y)[0, 1])
         if x.std() > 0 and y.std() > 0:
             rel.append(np.corrcoef(x, y)[0, 1])
+        held += [np.mean(zscore(x) * y), np.mean(zscore(y) * x)]
+    # One ES update ranked by this fitness, judged on prompts it was not ranked on. The
+    # update is (alpha/N) sum_m z_m eps_m, so to first order it moves the objective by
+    # (alpha/sigma) mean_m z_m delta_m; sum z = 0 cancels what all members share. Its
+    # random part is sqrt(N) times shorter than a member, so it pays the members' mean
+    # change (the curvature) over N.
+    gain = ALPHA / SIGMA * float(np.mean(held))
+    cost, cost_se = float(dm.mean()) / n, float(dm.mean(1).std(ddof=1)) / np.sqrt(n) / n
     per_prompt = float(dm.var(axis=0, ddof=1).mean())   # deterministic: all of it is effect
     shared = float(np.mean(cov))
     again = [p for p in pts if p["kind"] == "start_again"]
@@ -203,6 +216,11 @@ def analyze(rec: dict, draws=2000) -> dict:
                        "split_half_reliability": float(np.mean(rel)) if rel else 0.0,
                        "per_prompt_effect_variance": per_prompt, "shared_variance": shared,
                        "cross_prompt_correlation": shared / per_prompt if per_prompt else None},
+           "es_update": {"first_order_gain_held_out": gain,
+                         "first_order_gain_in_sample": ALPHA / SIGMA * float(np.mean(
+                             zscore(dm.mean(1)) * dm.mean(1))),
+                         "curvature_cost": cost, "curvature_cost_se": cost_se,
+                         "net_held_out": gain + cost},
            "directions": []}
     for p in pts:
         if p["kind"] in ("random", "rl120"):
