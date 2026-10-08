@@ -14,11 +14,13 @@ wrong answers are kept. A model's contrastive fitness is the mean over those pro
     mean log p(right answers) - mean log p(wrong answers)
 
 (sequence log-probabilities, teacher-forced on the fixed answers; nothing is generated, so
-nothing is redrawn). Its gradient at the start is the RL run's REINFORCE gradient with a
-group baseline on these samples. Scored: the start; the arm's 16 iteration-0 members at
+nothing is redrawn). Its gradient at the start is, prompt by prompt, the RL run's
+REINFORCE gradient with a group baseline on these samples, up to a weight per prompt
+(K p(1-p) for a share p right). Scored: the start; the arm's 16 iteration-0 members at
 sigma 5e-4; the RL run's direction at lambda 0.25, 0.5, 1 (as in `direction_check.py`);
 two random member directions at nominal norms 0.476 and 0.951 (effective 0.28 and 0.73
-after bf16 rounding, runs/rl-geometry/effective-norm.json).
+after bf16 rounding, runs/rl-geometry/effective-norm.json); the start again after the
+restore, for the scoring's own noise.
 
 `--analyze`: the ranking's split-half reliability over disjoint contrast prompts, the
 per-prompt effects and their cross-prompt correlation (as `why_analysis.py` does for the
@@ -161,6 +163,7 @@ def collect(args) -> dict:
     rpc("es_restore")
     if not rpc("es_check", None)["ok"]:
         raise SystemExit("engine weights are not the start after restore")
+    point("start_again")  # the scoring's own noise: should match "start" to the bit
     rec["seconds"] = time.perf_counter() - t0
     return rec
 
@@ -192,7 +195,10 @@ def analyze(rec: dict, draws=2000) -> dict:
             rel.append(np.corrcoef(x, y)[0, 1])
     per_prompt = float(dm.var(axis=0, ddof=1).mean())   # deterministic: all of it is effect
     shared = float(np.mean(cov))
+    again = [p for p in pts if p["kind"] == "start_again"]
     out = {"contrast_prompts": P, "start_objective": float(f0.mean()),
+           "rescore_max_abs_logp_diff": float(np.abs(np.subtract(again[0]["logp"], pts[0]["logp"])).max())
+           if again else None,
            "members": {"mean_change": float(dm.mean()), "member_sd": float(dm.mean(1).std(ddof=1)),
                        "split_half_reliability": float(np.mean(rel)) if rel else 0.0,
                        "per_prompt_effect_variance": per_prompt, "shared_variance": shared,
