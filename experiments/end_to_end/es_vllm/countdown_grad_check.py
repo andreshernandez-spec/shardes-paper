@@ -3,7 +3,10 @@
 
     python -m es_vllm.countdown_grad_check --setting qwen0.5b --out runs/grad-check/countdown-qwen0.5b.json
     python -m es_vllm.countdown_grad_check --setting tulu8b --out runs/grad-check/countdown-tulu8b.json
-    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-tulu8b.json
+    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-tulu8b.json \
+        --tulu runs/grad-check/start-sampled.json
+    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-qwen0.5b.json \
+        --t2 runs/countdown-s1/log.jsonl
 
 On Tulu a random perturbation moves each uncertain prompt's success probability by about
 8 points, but its effects on two prompts correlate 0.0095 (`why_analysis.py`), and the
@@ -142,33 +145,44 @@ def collect(args) -> dict:
     return rec
 
 
-def analyze(rec: dict, draws=2000) -> dict:
-    """As `why_analysis.effects` and `grad_check.analyze` do for Tulu, so the numbers compare."""
-    from es_vllm.grad_check import split_reliability, variance_parts  # noqa: PLC0415
-
-    rng = np.random.default_rng(0)
-    out = {"setting": rec["setting"], "prompts": rec["prompts"], "n": rec["n"]}
-    # true per-prompt effects and their cross-prompt correlation, from the independent
-    # samples; rewards scaled to [0, 1] (format 0.1 + answer 1.0) for the uncertain set
-    s = rec["sampled"]
-    r = np.concatenate([np.asarray(s["center"])[None], np.asarray(s["members"])]) / 1.1
+def effects(center, members, scale, draws=2000) -> dict:
+    """True per-prompt effects of the members and how much of them prompts share, from
+    independent samples (`center` prompts x K, `members` n x prompts x K). Two normalizations:
+    over the prompts whose success probability is between 0.05 and 0.95 (`why_analysis`'s,
+    for Tulu), and over all prompts, which needs no threshold on a partial-credit reward."""
+    r = np.concatenate([np.asarray(center)[None], np.asarray(members)]) / scale
     cell = r.mean(axis=2)
     p = cell.mean(axis=0)
     noise = r.var(axis=2, ddof=1).mean(axis=0) / r.shape[2]
     excess = cell.var(axis=0, ddof=1) - noise
     unc = (p > 0.05) & (p < 0.95)
     d = cell[1:] - cell[0][None]
+    rng = np.random.default_rng(0)
     cov = []
     for _ in range(draws):
         perm = rng.permutation(cell.shape[1])
         a, b = perm[: len(perm) // 2], perm[len(perm) // 2:]
         cov.append(np.cov(d[:, a].mean(1), d[:, b].mean(1))[0, 1])
-    shared, per = float(np.mean(cov)), float(excess[unc].mean())
-    out["sampled"] = {"sigma": s["sigma"], "center": float(np.asarray(s["center"]).mean()),
-                      "uncertain_prompts": int(unc.sum()), "per_prompt_true_variance": per,
-                      "per_prompt_true_sd": float(np.sqrt(max(per, 0))),
-                      "shared_variance": shared, "shared_sd": float(np.sqrt(max(shared, 0))),
-                      "cross_prompt_correlation": shared / per * (cell.shape[1] / unc.sum()) ** 2}
+    shared = float(np.mean(cov))
+    per_unc = float(excess[unc].mean()) if unc.any() else float("nan")
+    return {"uncertain_prompts": int(unc.sum()), "per_prompt_true_variance_uncertain": per_unc,
+            "per_prompt_true_variance_all": float(excess.mean()), "shared_variance": shared,
+            "cross_prompt_correlation_uncertain": shared / per_unc * (cell.shape[1] / unc.sum()) ** 2
+            if unc.sum() >= 10 else None,
+            "cross_prompt_correlation_all": shared / float(excess.mean())}
+
+
+def analyze(rec: dict, t2_log: list | None = None, tulu: dict | None = None, draws=2000) -> dict:
+    """As `why_analysis.effects` and `grad_check.analyze` do for Tulu, so the numbers compare.
+    `t2_log`: T2's seed-1 log, whose iteration-0 members are the qwen0.5b setting's. `tulu`:
+    the Tulu probe's sampled record (`grad_check.py --sampled`), put through `effects`."""
+    from es_vllm.grad_check import split_reliability, variance_parts  # noqa: PLC0415
+
+    rng = np.random.default_rng(0)
+    s = rec["sampled"]
+    out = {"setting": rec["setting"], "prompts": rec["prompts"], "n": rec["n"],
+           "sampled": {"sigma": s["sigma"], "center": float(np.asarray(s["center"]).mean()),
+                       **effects(s["center"], s["members"], 1.1, draws)}}
     g = rec["greedy"]
     c = np.asarray(g["center"])
     out["greedy"] = {"center": float(c.mean()),
@@ -176,9 +190,15 @@ def analyze(rec: dict, draws=2000) -> dict:
                      "center_full_format": float(np.mean(np.asarray(g["center_format"]) == 1.0)),
                      "sigmas": {}}
     for key, rows_ in g["members"].items():
-        delta = np.asarray(rows_) - c[None]
+        sigma, delta = float(key), np.asarray(rows_) - c[None]
         parts = variance_parts(delta)
         v_m, v_e = parts["v_member"], parts["v_resid"]
+        rel = v_m / (v_m + v_e / delta.shape[1]) if v_m + v_e > 0 else 0.0
+        # first order, z-scored weights, as `grad_check`; the update's random part is
+        # alpha / (sigma sqrt(N)) of a member's length, so it pays that squared of a
+        # member's mean change (`why_analysis.curvature`)
+        gain = ALPHA / sigma * float(np.sqrt(v_m * rel))
+        cost = float(delta.mean()) * ALPHA ** 2 / (sigma ** 2 * delta.shape[0])
         out["greedy"]["sigmas"][key] = {
             "member_mean_change": float(delta.mean()),
             "member_full_format": float(np.mean(np.asarray(g["formats"][key]) == 1.0)),
@@ -187,8 +207,19 @@ def analyze(rec: dict, draws=2000) -> dict:
             "pairs_up": float((delta > 0).mean()), "pairs_down": float((delta < 0).mean()),
             "true_effect_sd": float(np.sqrt(v_m)), "residual": v_e,
             "reliability_192": v_m / (v_m + v_e / 192) if v_m + v_e > 0 else 0.0,
-            "reliability_all": v_m / (v_m + v_e / delta.shape[1]) if v_m + v_e > 0 else 0.0,
-            "split_halves": split_reliability(delta, 2, rng)}
+            "reliability_all": rel, "split_halves": split_reliability(delta, 2, rng),
+            "implied_gain_per_iteration": gain, "random_walk_cost_per_iteration": cost}
+    if t2_log is not None:
+        probe = np.asarray(g["members"][str(rec["sigmas"][0])]).mean(1)
+        logged = np.asarray(t2_log[0]["fitness"])
+        fit = np.asarray([r["mean_fitness"] for r in t2_log])
+        out["t2"] = {"corr_probe_logged_fitness": float(np.corrcoef(probe, logged)[0, 1]),
+                     "max_abs_diff": float(np.abs(probe - logged).max()),
+                     "mean_fitness_slope": {f"0-{hi}": float(np.polyfit(np.arange(hi + 1), fit[: hi + 1], 1)[0])
+                                            for hi in (20, 50, len(fit) - 1)}}
+    if tulu is not None:
+        ind = tulu["sampled"]["independent"]
+        out["tulu_on_tulu"] = effects(ind["center"], ind["members"], 10.0, draws)
     return out
 
 
@@ -198,11 +229,15 @@ def main(argv=None) -> int:
     ap.add_argument("--analyze", type=Path)
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--setting", choices=sorted(SETTINGS), default="qwen0.5b")
+    ap.add_argument("--t2", type=Path, help="with --analyze: T2's seed-1 log.jsonl")
+    ap.add_argument("--tulu", type=Path, help="with --analyze: the Tulu probe's start-sampled.json")
     ap.add_argument("--es-at-scale", type=Path,
                     default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
     if args.analyze:
-        print(json.dumps(analyze(json.loads((E2E / args.analyze).read_text())), indent=2))
+        t2 = [json.loads(x) for x in (E2E / args.t2).read_text().splitlines()] if args.t2 else None
+        tulu = json.loads((E2E / args.tulu).read_text()) if args.tulu else None
+        print(json.dumps(analyze(json.loads((E2E / args.analyze).read_text()), t2, tulu), indent=2))
         return 0
     if args.out is None:
         ap.error("--out or --analyze")
