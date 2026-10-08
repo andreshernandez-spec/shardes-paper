@@ -2,7 +2,8 @@
 """ES with RL's contrast as its fitness: noise or dimension? Andres's proposal, measured.
 
     python -m es_vllm.contrastive_check --out runs/contrastive-check/start.json   # on the GPU
-    python -m es_vllm.contrastive_check --analyze runs/contrastive-check/start.json
+    python -m es_vllm.contrastive_check --analyze runs/contrastive-check/start.json \
+        --reward runs/grad-check/start.json
     python -m es_vllm.contrastive_check --out ... --smoke                         # laptop wiring
 
 ES ranked its members by greedy reward, which is mostly redraws and prompt-specific effects
@@ -168,14 +169,21 @@ def collect(args) -> dict:
     return rec
 
 
-def objective(rec, logp) -> np.ndarray:
-    """Per contrast prompt: mean log p(right) - mean log p(wrong)."""
-    lp, lab, grp = np.asarray(logp), np.asarray(rec["labels"]), np.asarray(rec["group_of"])
-    out = np.zeros(len(rec["groups"]))
-    for g in range(len(out)):
+def objective(rec, logp, per_token=False) -> np.ndarray:
+    """Per contrast prompt: mean log p(right) - mean log p(wrong), per answer or per token."""
+    right, wrong = by_label(rec, logp, per_token)
+    return right - wrong
+
+
+def by_label(rec, logp, per_token=False) -> tuple:
+    """Per contrast prompt: the mean log p of its right answers and of its wrong ones."""
+    lp = np.asarray(logp) / (np.asarray(rec["answer_lengths"]) if per_token else 1)
+    lab, grp = np.asarray(rec["labels"]), np.asarray(rec["group_of"])
+    right, wrong = np.zeros(len(rec["groups"])), np.zeros(len(rec["groups"]))
+    for g in range(len(right)):
         sel = grp == g
-        out[g] = lp[sel & (lab == "good")].mean() - lp[sel & (lab == "bad")].mean()
-    return out
+        right[g], wrong[g] = lp[sel & (lab == "good")].mean(), lp[sel & (lab == "bad")].mean()
+    return right, wrong
 
 
 def zscore(x: np.ndarray) -> np.ndarray:
@@ -183,12 +191,10 @@ def zscore(x: np.ndarray) -> np.ndarray:
     return (x - x.mean()) / x.std() if x.std() > 0 else 0 * x
 
 
-def analyze(rec: dict, draws=2000) -> dict:
-    rng = np.random.default_rng(0)
-    pts = rec["points"]
-    f0 = objective(rec, pts[0]["logp"])
-    members = np.asarray([objective(rec, p["logp"]) for p in pts if p["kind"] == "member"])
-    dm = members - f0[None]                       # members x contrast prompts
+def ranking(dm: np.ndarray, rng, draws: int) -> dict:
+    """How much of the members' ranking is shared across prompts. `dm` is members x
+    prompts, the change from the start. Scoring is deterministic, so all of a cell is the
+    member's effect on that prompt; what disjoint prompt halves agree on is shared."""
     n, P = dm.shape
     rel, cov, held = [], [], []
     for _ in range(draws):
@@ -199,35 +205,76 @@ def analyze(rec: dict, draws=2000) -> dict:
         if x.std() > 0 and y.std() > 0:
             rel.append(np.corrcoef(x, y)[0, 1])
         held += [np.mean(zscore(x) * y), np.mean(zscore(y) * x)]
-    # One ES update ranked by this fitness, judged on prompts it was not ranked on. The
-    # update is (alpha/N) sum_m z_m eps_m, so to first order it moves the objective by
+    per_prompt, shared = float(dm.var(axis=0, ddof=1).mean()), float(np.mean(cov))
+    half = float(np.mean(rel)) if rel else 0.0
+    # One ES update ranked on one half, judged on the other. The update is
+    # (alpha/N) sum_m z_m eps_m, so to first order it moves the objective by
     # (alpha/sigma) mean_m z_m delta_m; sum z = 0 cancels what all members share. Its
-    # random part is sqrt(N) times shorter than a member, so it pays the members' mean
-    # change (the curvature) over N.
-    gain = ALPHA / SIGMA * float(np.mean(held))
-    cost, cost_se = float(dm.mean()) / n, float(dm.mean(1).std(ddof=1)) / np.sqrt(n) / n
-    per_prompt = float(dm.var(axis=0, ddof=1).mean())   # deterministic: all of it is effect
-    shared = float(np.mean(cov))
+    # random part is sqrt(N) times shorter than a member, so its second-order change is
+    # the members' mean change over N.
+    return {"mean_change": float(dm.mean()), "member_sd": float(dm.mean(1).std(ddof=1)),
+            "split_half_reliability": half,
+            "reliability_all_prompts": 2 * half / (1 + half),   # Spearman-Brown, 2 halves
+            "per_prompt_effect_variance": per_prompt, "shared_variance": shared,
+            "cross_prompt_correlation": shared / per_prompt if per_prompt else None,
+            "es_update": {"first_order_gain_held_out": ALPHA / SIGMA * float(np.mean(held)),
+                          "first_order_gain_in_sample": ALPHA / SIGMA * float(np.mean(
+                              zscore(dm.mean(1)) * dm.mean(1))),
+                          "second_order": float(dm.mean()) / n,
+                          "second_order_se": float(dm.mean(1).std(ddof=1)) / np.sqrt(n) / n}}
+
+
+def analyze(rec: dict, reward: dict | None = None, draws=2000) -> dict:
+    """`reward`: the gradient probe's record (`grad_check.py`), whose sigma-5e-4 members are
+    these members, greedy-decoded on 768 prompts; the first 384 are these prompts."""
+    rng = np.random.default_rng(0)
+    pts = rec["points"]
+    lens, lab = np.asarray(rec["answer_lengths"]), np.asarray(rec["labels"])
+    f0, f0_tok = objective(rec, pts[0]["logp"]), objective(rec, pts[0]["logp"], True)
+    mem = [p for p in pts if p["kind"] == "member"]
+    dm = np.asarray([objective(rec, p["logp"]) for p in mem]) - f0[None]
+    dm_tok = np.asarray([objective(rec, p["logp"], True) for p in mem]) - f0_tok[None]
+    lp0 = np.asarray(pts[0]["logp"])
+
+    def moved(p) -> dict:
+        """Mean change of the right and wrong answers' log p per contrast prompt, and the
+        mean over all kept answers. The start sampled them, so minus that last one
+        estimates KL(start || this model) per answer on these prompts."""
+        right, wrong = by_label(rec, np.asarray(p["logp"]) - lp0)
+        return {"right": float(right.mean()), "wrong": float(wrong.mean()),
+                "kl_per_answer": float(-(np.asarray(p["logp"]) - lp0).mean())}
+
+    kl = np.asarray([moved(p)["kl_per_answer"] for p in mem])
     again = [p for p in pts if p["kind"] == "start_again"]
-    out = {"contrast_prompts": P, "start_objective": float(f0.mean()),
-           "rescore_max_abs_logp_diff": float(np.abs(np.subtract(again[0]["logp"], pts[0]["logp"])).max())
+    out = {"contrast_prompts": len(f0), "answers": {
+               "right": int((lab == "good").sum()), "wrong": int((lab == "bad").sum()),
+               "median_length_right": float(np.median(lens[lab == "good"])),
+               "median_length_wrong": float(np.median(lens[lab == "bad"]))},
+           "start_objective": float(f0.mean()), "start_objective_per_token": float(f0_tok.mean()),
+           "rescore_max_abs_logp_diff": float(np.abs(np.subtract(again[0]["logp"], lp0)).max())
            if again else None,
-           "members": {"mean_change": float(dm.mean()), "member_sd": float(dm.mean(1).std(ddof=1)),
-                       "split_half_reliability": float(np.mean(rel)) if rel else 0.0,
-                       "per_prompt_effect_variance": per_prompt, "shared_variance": shared,
-                       "cross_prompt_correlation": shared / per_prompt if per_prompt else None},
-           "es_update": {"first_order_gain_held_out": gain,
-                         "first_order_gain_in_sample": ALPHA / SIGMA * float(np.mean(
-                             zscore(dm.mean(1)) * dm.mean(1))),
-                         "curvature_cost": cost, "curvature_cost_se": cost_se,
-                         "net_held_out": gain + cost},
+           "members": ranking(dm, rng, draws) | {
+               "moved": {k: float(np.mean([moved(p)[k] for p in mem]))
+                         for k in ("right", "wrong", "kl_per_answer")},
+               "corr_fitness_kl": float(np.corrcoef(dm.mean(1), kl)[0, 1])},
+           "members_per_token": ranking(dm_tok, rng, draws),
            "directions": []}
     for p in pts:
         if p["kind"] in ("random", "rl120"):
             dp = objective(rec, p["logp"]) - f0
             out["directions"].append({k: p[k] for k in p if k != "logp"} | {
                 "change": float(dp.mean()), "change_se": float(dp.std(ddof=1) / np.sqrt(len(dp))),
-                "share_of_prompts_up": float((dp > 0).mean())})
+                "share_of_prompts_up": float((dp > 0).mean())} | moved(p))
+    if reward is not None:
+        dr = np.asarray(reward["members"]["0.0005"]) - np.asarray(reward["center"])[None]
+        prompts = np.asarray([g["prompt"] for g in rec["groups"]])
+        fresh = np.arange(rec["rows"], dr.shape[1])   # prompts the contrast never saw
+        out["reward"] = {
+            "fresh_prompts": len(fresh),
+            "corr_fitness_reward_fresh": float(np.corrcoef(dm.mean(1), dr[:, fresh].mean(1))[0, 1]),
+            "corr_fitness_reward_same_prompts": float(np.corrcoef(
+                dm.mean(1), dr[:, prompts].mean(1))[0, 1]),
+            "corr_cells_same_prompts": float(np.corrcoef(dm.ravel(), dr[:, prompts].ravel())[0, 1])}
     return out
 
 
@@ -235,10 +282,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path)
     ap.add_argument("--analyze", type=Path)
+    ap.add_argument("--reward", type=Path, help="with --analyze: the gradient probe's record")
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args(argv)
     if args.analyze:
-        print(json.dumps(analyze(json.loads((E2E / args.analyze).read_text())), indent=2))
+        reward = json.loads((E2E / args.reward).read_text()) if args.reward else None
+        print(json.dumps(analyze(json.loads((E2E / args.analyze).read_text()), reward), indent=2))
         return 0
     if args.out is None:
         ap.error("--out or --analyze")
