@@ -82,3 +82,60 @@ At matched rollouts, then, neither the decoding nor mirrored pairs nor the split
 budget changes the picture: on this task a perturbation of the size ES needs moves the
 reward by little next to the outcome noise of a few hundred rollouts, and about nine
 tenths of each ranking is noise.
+
+## On Countdown, where ES learns, the members' effects are shared (`countdown-*.json`)
+
+Asked by Andres on 2026-10-08: if ES fails on Tulu because a perturbation's effects are
+specific to each prompt, the same measurement should come out differently where ES works.
+`es_vllm/countdown_grad_check.py` at e5edc41, with the prediction in its docstring
+committed before the run, on Countdown's 200 training prompts with es-at-scale's raw
+prompts and grader, greedy plus 4 samples per prompt at temperature 1.0 with independent
+seeds per member. Two settings: `qwen0.5b`, T2's seed-1 iteration-0 members (N = 30,
+sigma 1e-3), and `tulu8b`, this probe's start and 16 members (seed 0) at sigma 5e-4 and
+1e-3, so that only the task differs from the Tulu numbers above. One Secure Cloud H200
+(US-CO-1, driver 580.178.04, 10:42 to 11:06 UTC; a first pod in US-NC-1 that never came
+up was deleted after 4 minutes), about $2.20. Logs `pod-log-countdown-*.txt.gz`. Numbers:
+
+    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-tulu8b.json \
+        --tulu runs/grad-check/start-sampled.json
+    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-qwen0.5b.json \
+        --t2 runs/countdown-s1/log.jsonl
+
+The 0.5B members' means correlate 0.96 with T2's logged iteration-0 fitness (T2 ran on
+A100s, whose greedy outputs differ from the H200's; the largest difference is 0.009).
+
+| | cross-prompt correlation, all prompts (uncertain prompts) | outcomes changed | ranking reliability at ~200 prompts | implied gain per iteration | random-walk cost per iteration |
+|---|---|---|---|---|---|
+| Tulu 8B on Tulu, sigma 5e-4 (above) | 0.004 (0.0095) | 10% | 0.12 | 0.021 of 10 | -0.0038 |
+| Tulu 8B on Tulu, sigma 1e-3 (above) | | 13% | 0.01 | 0.001 | -0.0034 |
+| Tulu 8B on Countdown, sigma 5e-4 | 0.30 (0.49) | 66% | 0.42 | 0.011 of 1.1 | -0.0018 |
+| Tulu 8B on Countdown, sigma 1e-3 | | 75% | 0.68 | 0.012 | -0.0004 |
+| Qwen 0.5B on Countdown, sigma 1e-3, N = 30 (T2) | 1.06 | 66% | 0.94 | 0.0064 | -0.00001 |
+
+The correlation over all prompts needs no threshold, which the 0.5B needs: its start gets
+partial format credit only (0.044, nothing correct), so 1 of its 200 prompts is
+"uncertain" by the Tulu definition. Implied gain is `grad_check`'s first-order
+`(alpha / sigma) sqrt(v * reliability)` with alpha 5e-4; the random walk's cost is the
+members' mean change times `alpha^2 / (sigma^2 N)` (`../why/`). For Tulu on Tulu at
+sigma 1e-3 the cost uses the members' -0.22 from the table at the top.
+
+- The prediction holds in both settings (0.5B: reliability at least 0.5, correlation at
+  least 0.05; Tulu 8B at 5e-4: at least 0.3 and 0.03). With the same model and the same
+  16 noise directions, the members' effects on two Countdown prompts correlate 0.30, on
+  two Tulu prompts 0.004, and their ranking over about 200 prompts is 42% to 68% their
+  own effect on Countdown against 1% to 12% on Tulu.
+- On Countdown a perturbation changes two thirds of the outcomes and many of them the
+  same way: the Tulu start writes the full format on 5% of the prompts, members on 7%
+  (5e-4) and 21% (1e-3). On Tulu it changes a tenth, each prompt in its own way.
+- The implied gain overstates what ES realizes on Countdown too. T2's members' mean
+  fitness rose 0.0022 per iteration over its 100 iterations (0.0012 over the first 20),
+  a third of the 0.0064 implied; the Tulu arm beat its control by 0.0022 per iteration,
+  a tenth of its 0.021 (`docs/end_to_end/07`). The shortfall is not
+  particular to Tulu. What differs is the margin: on T2 the random walk's cost is a
+  six-hundredth of the implied gain, on Tulu a sixth, so a realized third leaves T2 far
+  ahead of its cost and a realized tenth leaves the Tulu arm short of it: it beats its
+  control and ends below its start.
+- At the Tulu arm's alpha = sigma = 5e-4 the Tulu 8B on Countdown has about the same
+  ratio of implied gain to cost as on Tulu (6), because its members lose 0.029 of a
+  0.17 reward; at es-at-scale's sigma 1e-3 (alpha = sigma / 2) the ratio is 29 on
+  Countdown and 0.3 on Tulu.
