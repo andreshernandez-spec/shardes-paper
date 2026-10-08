@@ -1,17 +1,30 @@
 #!/usr/bin/env python
 """The gradient probe on Countdown, where ES learns: are its members' effects shared across prompts?
 
-    python -m es_vllm.countdown_grad_check --out runs/grad-check/countdown-start.json
-    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-start.json
+    python -m es_vllm.countdown_grad_check --setting qwen0.5b --out runs/grad-check/countdown-qwen0.5b.json
+    python -m es_vllm.countdown_grad_check --setting tulu8b --out runs/grad-check/countdown-tulu8b.json
+    python -m es_vllm.countdown_grad_check --analyze runs/grad-check/countdown-tulu8b.json
 
 On Tulu a random perturbation moves each uncertain prompt's success probability by about
-8 points, but its effects on two prompts correlate 0.01 (`why_analysis.py`), so the mean
-over prompts that ES ranks members by carries little. The explanation predicts that ES
-learns where the correlation is high. On Countdown at 0.5B (T2) it learned fast; there
-the start mostly fails on format, which every prompt shares. This measures the same
-quantities there: T2's seed-1 iteration-0 members (N = 30, sigma 1e-3) and the start on
-the 200 training prompts, greedy, and K samples each at temperature 1.0 with independent
-seeds per member, with es-at-scale's grader (reward 0.1 format + answer).
+8 points, but its effects on two prompts correlate 0.0095 (`why_analysis.py`), and the
+greedy ranking of the 16 members over 192 prompts is 12% their own effect (`grad_check.py`).
+The explanation offered: ES needs an improvement that many prompts share, and Tulu's
+prompts after DPO offer little of it, while on Countdown the start mostly fails on a
+format that every prompt shares. This measures the same quantities on Countdown's 200
+training prompts, with es-at-scale's raw prompts (no chat template, as es-at-scale gives
+them to every model) and grader (format and answer), greedy and K samples per prompt at
+temperature 1.0 with independent seeds per member:
+
+- `qwen0.5b`: T2's seed-1 iteration-0 members (N = 30, sigma 1e-3), where ES learned.
+- `tulu8b`: the Tulu arm's iteration-0 members (seed 0, N = 16) at sigma 5e-4 and 1e-3,
+  the start and members of `grad_check.py`. Only the task differs from the Tulu probes.
+
+Prediction, committed before the run. If the explanation holds:
+- qwen0.5b: the greedy ranking's reliability at 192 prompts is at least 0.5 (Tulu 0.12)
+  and the cross-prompt correlation of the members' true effects at least 0.05 (Tulu 0.0095).
+- tulu8b at sigma 5e-4: reliability at least 0.3 and correlation at least 0.03.
+If tulu8b on Countdown looks like Tulu on Tulu, the explanation is wrong or holds only
+for the small model, and the difference lies in the model or the regime, not the task.
 """
 
 import os
@@ -39,29 +52,39 @@ import releases as R  # noqa: E402
 from provenance import env_block  # noqa: E402
 
 K = 4
+SETTINGS = {  # release, members, sigmas (sampled at the first), seed
+    "qwen0.5b": ("QWEN25_05B", 30, (1e-3,), 1),
+    "tulu8b": ("TULU31_START", 16, (5e-4, 1e-3), 0),
+}
+ALPHA = 5e-4
 
 
 def collect(args) -> dict:
     from huggingface_hub import snapshot_download  # noqa: PLC0415
     from vllm import LLM, SamplingParams  # noqa: PLC0415
 
+    from es_vllm.direction_check import worker_methods  # noqa: PLC0415
     from es_vllm.run_countdown import Grader, es_at_scale, rows  # noqa: PLC0415
+    from es_vllm.worker import ESWorker  # noqa: PLC0415
 
+    for k, fn in worker_methods().items():
+        setattr(ESWorker, k, fn)
     cfg = yaml.safe_load((PKG / "countdown-s1.yaml").read_text())
+    release, n, sigmas, seed = SETTINGS[args.setting]
     clone = es_at_scale(args.es_at_scale)
     train = rows(clone, "train")[: 16 if args.smoke else None]
     grader = Grader(cfg["grader_timeout"])  # forks: before CUDA exists here
-    n = 4 if args.smoke else cfg["population"]
-    rel = getattr(R, cfg["model"])
+    n = 4 if args.smoke else n
+    rel = getattr(R, release)
     llm = LLM(model=rel.repo, revision=rel.commit, dtype="bfloat16", seed=0,
               gpu_memory_utilization=0.4 if args.smoke else cfg["gpu_memory_utilization"],
               max_model_len=cfg["max_model_len"], enable_prefix_caching=False,
               worker_extension_cls="es_vllm.worker.ESWorker")
     model_dir = snapshot_download(rel.repo, revision=rel.commit,
                                   allow_patterns=["*.safetensors", "*.json"])
-    llm.collective_rpc("es_init", args=(model_dir, n, cfg["sigma"], cfg["alpha"] * cfg["sigma"],
-                                        cfg["seed"]))
-    llm.collective_rpc("es_ask")  # T2 seed 1's iteration-0 members
+    rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
+    rpc("es_init", model_dir, n, sigmas[0], ALPHA * sigmas[0], seed)
+    rpc("es_ask")  # the run's iteration-0 members
     cap = 64 if args.smoke else cfg["max_tokens"]
     prompts = [r["context"] for r in train]
 
@@ -75,72 +98,97 @@ def collect(args) -> dict:
         k = len(texts[0])
         reward = [[scores[j * k + s][0] for s in range(k)] for j in range(len(train))]
         answer = [[scores[j * k + s][1] for s in range(k)] for j in range(len(train))]
-        return reward, answer
+        fmt = [[scores[j * k + s][2] for s in range(k)] for j in range(len(train))]
+        return reward, answer, fmt
 
     greedy = SamplingParams(temperature=0.0, max_tokens=cap)
     sampled = lambda m: [SamplingParams(n=K, temperature=1.0, top_p=1.0, max_tokens=cap,  # noqa: E731
                                         seed=20_000 + j + 1_000_003 * (m + 2))
                          for j in range(len(train))]
     t0 = time.perf_counter()
-    rec: dict = {"greedy": {"members": [], "answers": []}, "sampled": {"members": [], "answers": []}}
-    r, a = decode(greedy)
-    rec["greedy"].update({"center": [x[0] for x in r], "center_answer": [x[0] for x in a]})
-    r, a = decode(sampled(-1))
+    rec: dict = {"greedy": {"members": {}, "answers": {}, "formats": {}},
+                 "sampled": {"sigma": sigmas[0], "members": [], "answers": []}}
+    r, a, f = decode(greedy)
+    rec["greedy"].update({"center": [x[0] for x in r], "center_answer": [x[0] for x in a],
+                          "center_format": [x[0] for x in f]})
+    r, a, _ = decode(sampled(-1))
     rec["sampled"].update({"center": r, "center_answer": a})
-    for m in range(n):
-        llm.collective_rpc("es_perturb", args=(m,))
-        if m == 0 and not llm.collective_rpc("es_check", args=(0,))[0]["ok"]:
-            raise SystemExit("engine weights are not member 0")
-        r, a = decode(greedy)
-        rec["greedy"]["members"].append([x[0] for x in r])
-        rec["greedy"]["answers"].append([x[0] for x in a])
-        r, a = decode(sampled(m))
-        rec["sampled"]["members"].append(r)
-        rec["sampled"]["answers"].append(a)
-        print(f"member {m}: greedy {np.mean(rec['greedy']['members'][-1]):.4f} "
-              f"{time.perf_counter() - t0:.0f}s", flush=True)
-    llm.collective_rpc("es_restore")
+    for i, sigma in enumerate(sigmas):
+        key = str(sigma)
+        for part in ("members", "answers", "formats"):
+            rec["greedy"][part][key] = []
+        rpc("dc_sigma", sigma)
+        for m in range(n):
+            rpc("es_perturb", m)
+            if i == 0 and m == 0 and not rpc("es_check", 0)["ok"]:
+                raise SystemExit("engine weights are not member 0")
+            r, a, f = decode(greedy)
+            rec["greedy"]["members"][key].append([x[0] for x in r])
+            rec["greedy"]["answers"][key].append([x[0] for x in a])
+            rec["greedy"]["formats"][key].append([x[0] for x in f])
+            if i == 0:
+                r, a, _ = decode(sampled(m))
+                rec["sampled"]["members"].append(r)
+                rec["sampled"]["answers"].append(a)
+            print(f"sigma {sigma} member {m}: greedy {np.mean(rec['greedy']['members'][key][-1]):.4f} "
+                  f"{time.perf_counter() - t0:.0f}s", flush=True)
+    rpc("es_restore")
+    if not rpc("es_check", None)["ok"]:
+        raise SystemExit("engine weights are not the start after restore")
     grader.close()
-    rec.update({"n": n, "k": K, "sigma": cfg["sigma"], "seed": cfg["seed"], "prompts": len(train),
+    rec.update({"setting": args.setting, "model": release, "n": n, "k": K, "sigmas": list(sigmas),
+                "seed": seed, "prompts": len(train), "max_tokens": cap,
                 "seconds": time.perf_counter() - t0})
     return rec
 
 
 def analyze(rec: dict, draws=2000) -> dict:
+    """As `why_analysis.effects` and `grad_check.analyze` do for Tulu, so the numbers compare."""
+    from es_vllm.grad_check import split_reliability, variance_parts  # noqa: PLC0415
+
     rng = np.random.default_rng(0)
-    out = {}
-    # per-prompt true effects and their cross-prompt correlation, from the independent samples
+    out = {"setting": rec["setting"], "prompts": rec["prompts"], "n": rec["n"]}
+    # true per-prompt effects and their cross-prompt correlation, from the independent
+    # samples; rewards scaled to [0, 1] (format 0.1 + answer 1.0) for the uncertain set
     s = rec["sampled"]
-    r = np.concatenate([np.asarray(s["center"])[None], np.asarray(s["members"])])  # models x prompts x K
+    r = np.concatenate([np.asarray(s["center"])[None], np.asarray(s["members"])]) / 1.1
     cell = r.mean(axis=2)
+    p = cell.mean(axis=0)
     noise = r.var(axis=2, ddof=1).mean(axis=0) / r.shape[2]
     excess = cell.var(axis=0, ddof=1) - noise
-    active = cell.std(axis=0) > 0
+    unc = (p > 0.05) & (p < 0.95)
     d = cell[1:] - cell[0][None]
     cov = []
     for _ in range(draws):
         perm = rng.permutation(cell.shape[1])
         a, b = perm[: len(perm) // 2], perm[len(perm) // 2:]
         cov.append(np.cov(d[:, a].mean(1), d[:, b].mean(1))[0, 1])
-    shared, per = float(np.mean(cov)), float(excess[active].mean())
-    out["sampled"] = {"active_prompts": int(active.sum()), "per_prompt_true_variance": per,
-                      "shared_variance": shared,
-                      "cross_prompt_correlation": shared / per * (cell.shape[1] / active.sum()) ** 2,
-                      "mean_reward_center": float(np.asarray(s["center"]).mean())}
-    # greedy: the ranking's split-half reliability at half the prompts
+    shared, per = float(np.mean(cov)), float(excess[unc].mean())
+    out["sampled"] = {"sigma": s["sigma"], "center": float(np.asarray(s["center"]).mean()),
+                      "uncertain_prompts": int(unc.sum()), "per_prompt_true_variance": per,
+                      "per_prompt_true_sd": float(np.sqrt(max(per, 0))),
+                      "shared_variance": shared, "shared_sd": float(np.sqrt(max(shared, 0))),
+                      "cross_prompt_correlation": shared / per * (cell.shape[1] / unc.sum()) ** 2}
     g = rec["greedy"]
-    gm = np.asarray(g["members"])
-    rel = []
-    for _ in range(draws):
-        perm = rng.permutation(gm.shape[1])
-        a, b = perm[: len(perm) // 2], perm[len(perm) // 2:]
-        x, y = gm[:, a].mean(1), gm[:, b].mean(1)
-        if x.std() > 0 and y.std() > 0:
-            rel.append(np.corrcoef(x, y)[0, 1])
     c = np.asarray(g["center"])
-    out["greedy"] = {"center": float(c.mean()), "member_mean_change": float(gm.mean() - c.mean()),
-                     "pairs_changed": float((gm != c[None]).mean()),
-                     "split_half_reliability_100_prompts": float(np.mean(rel)) if rel else 0.0}
+    out["greedy"] = {"center": float(c.mean()),
+                     "center_correct": float(np.mean(np.asarray(g["center_answer"]) > 0)),
+                     "center_full_format": float(np.mean(np.asarray(g["center_format"]) == 1.0)),
+                     "sigmas": {}}
+    for key, rows_ in g["members"].items():
+        delta = np.asarray(rows_) - c[None]
+        parts = variance_parts(delta)
+        v_m, v_e = parts["v_member"], parts["v_resid"]
+        out["greedy"]["sigmas"][key] = {
+            "member_mean_change": float(delta.mean()),
+            "member_full_format": float(np.mean(np.asarray(g["formats"][key]) == 1.0)),
+            "member_sd": float(delta.mean(1).std(ddof=1)),
+            "pairs_changed": float((delta != 0).mean()),
+            "pairs_up": float((delta > 0).mean()), "pairs_down": float((delta < 0).mean()),
+            "true_effect_sd": float(np.sqrt(v_m)), "residual": v_e,
+            "reliability_192": v_m / (v_m + v_e / 192) if v_m + v_e > 0 else 0.0,
+            "reliability_all": v_m / (v_m + v_e / delta.shape[1]) if v_m + v_e > 0 else 0.0,
+            "split_halves": split_reliability(delta, 2, rng)}
     return out
 
 
@@ -149,6 +197,7 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path)
     ap.add_argument("--analyze", type=Path)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--setting", choices=sorted(SETTINGS), default="qwen0.5b")
     ap.add_argument("--es-at-scale", type=Path,
                     default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
