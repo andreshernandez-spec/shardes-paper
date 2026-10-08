@@ -3,6 +3,7 @@
 
     python -m es_vllm.step_check --out runs/step-check/start.json   # on the GPU
     python -m es_vllm.step_check --analyze runs/step-check/start.json
+    python -m es_vllm.step_check --predict      # the predictions, from runs/grad-check/
     python -m es_vllm.step_check --out ... --smoke                  # wiring
 
 The gradient probe (`grad_check.py`) implies a first-order gain of about 0.021 reward
@@ -204,12 +205,61 @@ def analyze(rec: dict) -> dict:
     return out
 
 
+def predict(draws=1000) -> dict:
+    """The first-order gains the gradient probe predicts for these rankings, per unit update,
+    and how much of each comes from the odd part of the members' effects (what changes sign
+    with the noise, `(f(+eps) - f(-eps)) / 2`, from the mirrored members), the only part an
+    update can inherit; the even part (`(f(+eps) + f(-eps)) / 2 - f`) cancels in it."""
+    from es_vllm.grad_check import variance_parts  # noqa: PLC0415
+
+    g = json.loads((E2E / "runs/grad-check/start.json").read_text())
+    c = np.asarray(g["center"])
+    plus = np.asarray(g["members"]["0.0005"]) - c[None]
+    minus = np.asarray(g["mirrored"]["0.0005"]) - c[None]
+    odd, even = (plus - minus) / 2, (plus + minus) / 2
+    z = lambda x: (x - x.mean()) / x.std()  # noqa: E731
+    ranks = rankings()
+    rng = np.random.default_rng(0)
+    splits = [rng.permutation(plus.shape[1]) for _ in range(draws)]
+    half_n = plus.shape[1] // 2
+    v = {k: variance_parts(x) for k, x in (("plus", plus), ("odd", odd), ("even", even))}
+    # a ranking on all 768 prompts: the same covariance over a smaller observed spread
+    scale = (np.sqrt(v["plus"]["v_member"] + v["plus"]["v_resid"] / half_n)
+             / np.sqrt(v["plus"]["v_member"] + v["plus"]["v_resid"] / plus.shape[1]))
+
+    def judged(members, x):
+        """A ranking on one half of the prompts, judged on the other, over the splits."""
+        return float(np.mean([np.mean(z(plus[members][:, q[:half_n]].mean(1))
+                                      * x[members][:, q[half_n:]].mean(1)) for q in splits]))
+
+    parts = {}
+    for k, x in (("total", plus), ("odd", odd), ("even", even)):
+        full = judged(np.arange(N), x)
+        loo = np.asarray([judged(np.delete(np.arange(N), i), x) for i in range(N)])
+        parts[k] = {"ranking_on_384_judged_on_384": full, "ranking_on_768": full * scale,
+                    "ranking_on_768_se": float(np.sqrt((N - 1) / N * ((loo - loo.mean()) ** 2).sum()))
+                    * scale}  # jackknife over members
+    return {
+        "variance_of_member_effects": {k: {"true": x["v_member"], "residual": x["v_resid"]}
+                                       for k, x in v.items()},
+        "gain": parts,
+        "arm_on_its_other_576": float(np.mean(z(np.asarray(ranks["arm"])) * plus[:, 192:].mean(1))),
+        "arm_odd_on_its_other_576": float(np.mean(z(np.asarray(ranks["arm"])) * odd[:, 192:].mean(1))),
+        "control_on_768": float(np.mean(z(np.asarray(ranks["control"])) * plus.mean(1))),
+        "control_odd_on_768": float(np.mean(z(np.asarray(ranks["control"])) * odd.mean(1))),
+        "even_per_unit2": float(plus.mean()) / N}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path)
     ap.add_argument("--analyze", type=Path)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--predict", action="store_true", help="the gradient probe's predictions")
     args = ap.parse_args(argv)
+    if args.predict:
+        print(json.dumps(predict(), indent=2))
+        return 0
     if args.analyze:
         print(json.dumps(analyze(json.loads((E2E / args.analyze).read_text())), indent=2))
         return 0
