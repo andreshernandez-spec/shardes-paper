@@ -133,11 +133,16 @@ class Verifier:
             raise SystemExit(f"verifier failed to start: {first}")
         self.env = first["ready"]
 
-    def score(self, items) -> list:
-        for it in items:
-            self.p.stdin.write(json.dumps(it) + "\n")
-        self.p.stdin.flush()
-        return [json.loads(self.p.stdout.readline())["reward"] for _ in items]
+    def score(self, items, chunk=1024) -> list:
+        # In chunks: past about 4,000 unread replies the server's stdout pipe fills while
+        # we are still writing, and both processes block.
+        out = []
+        for i in range(0, len(items), chunk):
+            for it in items[i:i + chunk]:
+                self.p.stdin.write(json.dumps(it) + "\n")
+            self.p.stdin.flush()
+            out += [json.loads(self.p.stdout.readline())["reward"] for _ in items[i:i + chunk]]
+        return out
 
     def close(self):
         self.p.stdin.close()
