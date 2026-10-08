@@ -222,15 +222,20 @@ def collect(args) -> dict:
 
 def analyze(rec: dict) -> dict:
     c = np.asarray(rec["center"])
+    ds = np.asarray(rec["datasets"])
     out = {"center": float(c.mean()), "rl_norm": rec["rl_norm"], "d": rec["d"], "points": []}
     for p in rec["points"]:
         r = np.asarray(p["rewards"])
+        diff = r - c  # paired, prompt by prompt
         out["points"].append({k: p[k] for k in p if k != "rewards"} | {
-            "reward": float(r.mean()), "change": float(r.mean() - c.mean()),
-            "up": float(((r > c)).mean()), "down": float(((r < c)).mean())})
+            "reward": float(r.mean()), "change": float(diff.mean()),
+            "change_se": float(diff.std(ddof=1) / np.sqrt(len(diff))),
+            "change_per_unit_norm": float(diff.mean() / p["norm"]),
+            "up": float(((r > c)).mean()), "down": float(((r < c)).mean()),
+            "by_source": {k: float(diff[ds == k].mean()) for k in sorted(set(ds))}})
     dv = rec["divergence"]
     allm = np.concatenate([np.asarray(m) for m in dv["center_margins"] if len(m)])
-    out["margins"] = {"median": float(np.median(allm)),
+    out["margins"] = {"median": float(np.median(allm)), "exact_ties": float((allm == 0).mean()),
                       "share_below": {str(x): float((allm < x).mean()) for x in (0.1, 0.5, 1.0)}}
     out["departures"] = []
     for run in dv["runs"]:
@@ -243,7 +248,11 @@ def analyze(rec: dict) -> dict:
             "median_position_share": float(np.median([f / max(lens[j], 1) for j, f in firsts]))
             if firsts else None,
             "median_margin_at_departure": float(np.median(at)) if at else None,
-            "share_departures_below_0.5": float(np.mean(np.asarray(at) < 0.5)) if at else None})
+            "share_departures_below_0.5": float(np.mean(np.asarray(at) < 0.5)) if at else None,
+            # how much likelier a departure is at a near tie than at a position drawn at random
+            "near_tie_enrichment": float(np.mean(np.asarray(at) < 0.5) / (allm < 0.5).mean())
+            if at else None,
+            "departures_at_exact_ties": float(np.mean(np.asarray(at) == 0)) if at else None})
     return out
 
 
