@@ -67,6 +67,8 @@ NS = (128, 512, 1024)
 LENGTHS = (44.7, 111.7)        # the dense probe's |lambda u| at lambda 4 and 10
 HELDOUT = ((120, 160), (480, 520))
 CHUNK, CHECK, VERIFIERS = 64, 32, 8
+# the dense update's cost per unit length squared: -0.0038 at |u| 11.17 (runs/step-check/)
+DENSE_COST_PER_NORM2 = -0.0037638 / 11.1688 ** 2
 
 
 def setting(smoke: bool) -> dict:
@@ -304,6 +306,7 @@ def analyze(rec: dict, mem: dict | None = None) -> dict:
     for n in rec["ns"]:
         p = rec["predictions"]["by_n"][str(n)]
         res = {"unit_norm": p["unit_norm"], "predicted_cost_per_unit2": p["cost_per_unit2"],
+               "dense_cost_scaled_per_unit2": DENSE_COST_PER_NORM2 * p["unit_norm"] ** 2,
                "predicted_gain_per_unit_half_ranking": p["gain_per_unit_half_ranking"], "lambdas": {}}
         for lam in p["lambdas"]:
             plus = np.asarray(next(q for q in pts if q.get("n") == n and q["lam"] == lam)["rewards"])
@@ -315,10 +318,17 @@ def analyze(rec: dict, mem: dict | None = None) -> dict:
                 "gain_per_unit_se": float(odd.std(ddof=1) / np.sqrt(odd.size) / lam),
                 "cost_per_unit2": float(even.mean() / lam ** 2),
                 "cost_per_unit2_se": float(even.std(ddof=1) / np.sqrt(even.size) / lam ** 2),
-                "plus": float(plus.mean()), "minus": float(minus.mean())}
+                "plus": float(plus.mean()), "minus": float(minus.mean()),
+                # one step's net change, no model: theta_0 + lambda u against theta_0
+                "net_change": float((plus - start).mean()),
+                "net_change_se": float((plus - start).std(ddof=1) / np.sqrt(plus.size))}
         far = res["lambdas"][f"{p['lambdas'][-1]:.2f}"]
         if far["cost_per_unit2"] < 0:
-            res["best_net_per_update"] = far["gain_per_unit"] ** 2 / (4 * -far["cost_per_unit2"])
+            g, c = far["gain_per_unit"], -far["cost_per_unit2"]
+            res["best_net_per_update"] = g ** 2 / (4 * c)
+            res["best_net_per_update_se"] = g ** 2 / (4 * c) * float(np.hypot(
+                2 * far["gain_per_unit_se"] / g, far["cost_per_unit2_se"] / c))
+            res["best_length"] = g / (2 * c) * p["unit_norm"]
         out["by_n"][str(n)] = res
     ca, cm = rec["check_adapters"], rec["check_merged"]
     out["check"] = {}
