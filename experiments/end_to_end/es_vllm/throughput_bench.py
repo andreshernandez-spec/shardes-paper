@@ -192,9 +192,32 @@ def analyze(out: Path) -> dict:
         caps[str(t)] = {"answers_longer": float((lm > t).mean()),
                         "tokens_beyond": float(np.clip(lm - t, 0, None).sum() / lm.sum()),
                         "reward_changes_involving_a_longer_answer": float((differs & long_).sum() / max(differs.sum(), 1))}
+    rate = lambda part, seqs=512: next(t["tokens_per_s"] for t in tp  # noqa: E731
+                                       if t["part"] == part and t.get("seqs") == seqs)
+    train = next(t for t in tp if t["part"] == "train")
+    seq_tokens = train["forward_backward"]["tokens"] / (2 * train["forward_backward"]["micro_batches"])
+    answer = float(np.mean(a["base"]["lengths"]))
+    # GPU-seconds per 192 prompts at these single-GPU rates (no communication, no idling):
+    # RL's four steps decode 3,072 answers and take a gradient and a reference forward on
+    # each; one ES update at 512 members decodes 98,304. Gains per 192 prompts: RL 0.040
+    # (runs/heldout-*: step 120 over 30), ES 0.0365 (runs/lowrank-check/, best net at
+    # 512); the screen's rollout share 0.535 (lowrank_run.py --screen-check, 64 members).
+    rl = {"decode": 3072 * answer / rate("plain"),
+          "gradient": 3072 * seq_tokens / train["forward_backward"]["tokens_per_s"],
+          "reference": 3072 * seq_tokens / train["forward_no_grad"]["tokens_per_s"]}
+    es_tokens = 512 * 192 * float(lm.mean())
+    es = {"lora": es_tokens / rate("lora-members"), "base_rate": es_tokens / rate("plain")}
+    rl_total = sum(rl.values())
+    per_gain = lambda gpu_s, gain: gpu_s / gain  # noqa: E731
+    cmp = {k: per_gain(v, 0.0365) / per_gain(rl_total, 0.040) for k, v in
+           {"es_lora": es["lora"], "es_lora_screen": 0.535 * es["lora"],
+            "es_base_rate": es["base_rate"], "es_base_rate_screen": 0.535 * es["base_rate"]}.items()}
     return {"throughput": tp, "member_answers": int(lm.size), "member_mean_length": float(lm.mean()),
             "member_at_cap": float((lm >= a["cap"]).mean()),
-            "member_reward_changes": float(differs.mean()), "length_caps": caps}
+            "member_reward_changes": float(differs.mean()), "length_caps": caps,
+            "per_192_prompts_gpu_seconds": {"rl": rl, "rl_total": rl_total, "rl_sequence_tokens": seq_tokens,
+                                            "es_512": es},
+            "es_over_rl_gpu_seconds_per_gain": cmp}
 
 
 def main(argv=None) -> int:
