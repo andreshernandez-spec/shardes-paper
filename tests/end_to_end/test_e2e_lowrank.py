@@ -81,3 +81,16 @@ def test_generations_reuse_the_probe_seeds_first_then_differ():
     name = SHAPES[0][0]
     assert np.array_equal(probe[name][0], first[name][0])
     assert not np.array_equal(probe[name][0], later[name][0])
+
+
+def test_screen_check_counts_prompts_no_member_changes():
+    from es_vllm.lowrank_run import screen_check
+
+    rng = np.random.default_rng(0)
+    r = np.zeros((128, 10))
+    r[:, :4] = rng.integers(0, 2, size=(128, 4)) * 10.0   # four live prompts
+    r[100, 5] = 10.0                                        # live only for one late member
+    out = screen_check({"rewards": r.tolist(), "start": [0.0] * 10}, n=128)
+    assert out["dead_for_all_1024"] == 5
+    assert out["16"]["prompts_kept"] == 4                  # the late one is missed by the screen
+    assert out["128"]["prompts_kept"] == 5

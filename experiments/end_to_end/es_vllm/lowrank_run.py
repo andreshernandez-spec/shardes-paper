@@ -92,7 +92,8 @@ def run(args) -> int:
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
     conf = {"seed": SEED, "sigma": SIGMA, "alpha": ALPHA, "rank": RANK, "step": STEP,
-            "smoke": args.smoke, **{k: v for k, v in cfg.items() if k not in ("verifiers", "chunk")}}
+            "smoke": args.smoke, **{k: v for k, v in cfg.items() if k not in ("verifiers", "chunk")},
+            **({"screen": args.screen} if args.screen else {})}
     if (out / "run.json").exists():
         if json.loads((out / "run.json").read_text())["config"] != conf:
             raise SystemExit(f"{out} holds a run with another configuration")
@@ -155,18 +156,34 @@ def run(args) -> int:
         t1 = time.perf_counter()
         rows = batches[g][: cfg["prompts"]]
         ids = [render(tok, r) for r in rows]
-        rewards, lens = [], []
-        for c0 in range(0, n, cfg["chunk"]):
-            ms = list(range(c0, min(n, c0 + cfg["chunk"])))
-            outs = llm.generate([{"prompt_token_ids": i} for _ in ms for i in ids], greedy,
-                                lora_request=[LoRARequest(f"g{g}m{m}", g * n + m + 1, str(template))
-                                              for m in ms for _ in ids], use_tqdm=False)
-            r = vs.score(items(outs, rows * len(ms)))
-            rewards += [r[k * len(ids):(k + 1) * len(ids)] for k in range(len(ms))]
-            lens += [float(np.mean([len(o.outputs[0].token_ids) for o in outs[k * len(ids):(k + 1) * len(ids)]]))
-                     for k in range(len(ms))]
+        rewards = [[None] * len(rows) for _ in range(n)]
+        lengths = [[None] * len(rows) for _ in range(n)]
+
+        def decode(ms, cols):
+            for c0 in range(0, len(ms), cfg["chunk"]):
+                part = ms[c0:c0 + cfg["chunk"]]
+                outs = llm.generate([{"prompt_token_ids": ids[j]} for _ in part for j in cols], greedy,
+                                    lora_request=[LoRARequest(f"g{g}m{m}", g * n + m + 1, str(template))
+                                                  for m in part for _ in cols], use_tqdm=False)
+                r = vs.score(items(outs, [rows[j] for j in cols] * len(part)))
+                for k, m in enumerate(part):
+                    for q, j in enumerate(cols):
+                        rewards[m][j] = r[k * len(cols) + q]
+                        lengths[m][j] = len(outs[k * len(cols) + q].outputs[0].token_ids)
+
+        # --screen S: the first S members decode every prompt; the rest decode only the
+        # prompts on which those S did not all score the same, and every member is ranked
+        # on those. A prompt everyone scores alike adds the same to every fitness.
+        s = min(args.screen, n) if args.screen else n
+        decode(list(range(s)), list(range(len(rows))))
+        live = list(range(len(rows)))
+        if s < n:
+            sc = np.asarray(rewards[:s])
+            live = [j for j in range(len(rows)) if np.unique(sc[:, j]).size > 1] or live
+            decode(list(range(s, n)), live)
+        lens = [float(np.mean([x for x in row if x is not None])) for row in lengths]
         decode_s = time.perf_counter() - t1
-        fitness = np.asarray(rewards).mean(1)
+        fitness = np.asarray([[row[j] for j in live] for row in rewards]).mean(1)
         k = list(STEP * lowrank.coefficients(fitness, n, ALPHA, RANK))
         rpc("lr_factors", SEED, RANK, pairs, shapes, lowrank.generation_of(g))
         norm = rpc("lr_norm", k)
@@ -176,6 +193,8 @@ def run(args) -> int:
             raise SystemExit(f"engine weights are not the f32 copy after update {g + 1}")
         append(log, {"iteration": g, "fitness": fitness.tolist(), "mean_fitness": float(fitness.mean()),
                      "sd_fitness": float(fitness.std()), "mean_len": lens, "rewards": rewards,
+                     "lengths": lengths, "live": live, "screen": s,
+                     "rollouts": int(sum(x is not None for row in rewards for x in row)),
                      "update_norm": norm, "digest": rpc("lr_digest"), "check": check["ok"],
                      "decode_seconds": decode_s, "seconds": time.perf_counter() - t1})
         print(f"[{g}] fitness {fitness.mean():.3f} sd {fitness.std():.3f} |update| {norm:.1f} "
@@ -183,6 +202,26 @@ def run(args) -> int:
     heldout(args.iterations)
     vs.close()
     return 0
+
+
+def screen_check(rec: dict, n: int = N) -> dict:
+    """What a screen would have kept on `lowrank_check.py`'s members (the same prompts and
+    generation-0 members as this run's first iteration): for S screening members, the
+    prompts on which they do not all score alike, the share of every member's outcome
+    changes those prompts hold, how closely the ranking on them follows the full one, and
+    the rollouts an iteration of `n` members then needs."""
+    r, s0 = np.asarray(rec["rewards"]), np.asarray(rec["start"])
+    full = r[:n].mean(1)
+    changes = (r[:n] != s0[None]).sum(0)
+    out = {}
+    for s in (16, 32, 64, 128):
+        live = np.asarray([np.unique(r[:s, j]).size > 1 for j in range(r.shape[1])])
+        out[str(s)] = {"prompts_kept": int(live.sum()), "share_kept": float(live.mean()),
+                       "share_of_outcome_changes": float(changes[live].sum() / changes.sum()),
+                       "corr_fitness": float(np.corrcoef(r[:n, live].mean(1), full)[0, 1]),
+                       "rollouts_share": float((s * r.shape[1] + (n - s) * live.sum()) / (n * r.shape[1]))}
+    out["dead_for_all_1024"] = int(sum(np.unique(r[:, j]).size == 1 for j in range(r.shape[1])))
+    return out
 
 
 def analyze(out: Path) -> dict:
@@ -208,7 +247,12 @@ def main(argv=None) -> int:
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--iterations", type=int, default=ITERATIONS)
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/lowrank-run"))
+    ap.add_argument("--screen", type=int, default=0, help="screening members (0: off)")
+    ap.add_argument("--screen-check", type=Path, help="lowrank_check.py's members record")
     args = ap.parse_args(argv)
+    if args.screen_check:
+        print(json.dumps(screen_check(json.loads((E2E / args.screen_check).read_text())), indent=2))
+        return 0
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))
         return 0
