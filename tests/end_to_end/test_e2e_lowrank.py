@@ -72,3 +72,12 @@ def test_targets_are_the_attention_and_mlp_matrices():
           "model.layers.0.self_attn.q_proj.bias", "model.norm.weight"]
     assert all(lowrank.TARGETS.fullmatch(x) for x in yes)
     assert not any(lowrank.TARGETS.fullmatch(x) for x in no)
+
+
+def test_generations_reuse_the_probe_seeds_first_then_differ():
+    probe = lowrank.pair_factors(0, 2, SHAPES, 1)
+    first = lowrank.pair_factors(0, 2, SHAPES, 1, lowrank.generation_of(0))
+    later = lowrank.pair_factors(0, 2, SHAPES, 1, lowrank.generation_of(3))
+    name = SHAPES[0][0]
+    assert np.array_equal(probe[name][0], first[name][0])
+    assert not np.array_equal(probe[name][0], later[name][0])
