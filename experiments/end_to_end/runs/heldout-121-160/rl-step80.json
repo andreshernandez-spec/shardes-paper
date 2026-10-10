@@ -1,0 +1,57 @@
+{
+  "by_source": {
+    "MATH": {
+      "n": 447,
+      "reward": 5.033557046979865
+    },
+    "gsm8k": {
+      "n": 517,
+      "reward": 8.762088974854933
+    },
+    "ifeval": {
+      "n": 956,
+      "reward": 5.7635983263598325
+    }
+  },
+  "capped": 32,
+  "date": "2026-09-27T05:52:06+00:00",
+  "env": {
+    "commit": "dc9625a29672ccb9d982e1ec962c82c3849ebbba",
+    "dirty_worktree": false,
+    "hostname": "97bfb8c9396e",
+    "packages": {
+      "jax": "0.11.2",
+      "torch": "2.13.0",
+      "transformers": "5.17.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "mean_len": 343.9671875,
+  "model": {
+    "branch": "step_80",
+    "kind": "hf",
+    "name": "rl-step80",
+    "release": "TULU31_RL"
+  },
+  "prompts": 1920,
+  "reward": 6.401041666666667,
+  "reward_se": 0.10956611156118856,
+  "seconds": 182.13360540894791,
+  "source": {
+    "branch": "step_80",
+    "repo": "allenai/Llama-3.1-Tulu-3.1-8B",
+    "revision": "3717881c953fb1f8e57432accbb7b6538f066ff6"
+  },
+  "stream_steps": [
+    120,
+    160
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "config": {
+    "alpha": 0.0005,
+    "cap": 2048,
+    "eval_every": 4,
+    "gpu": 0.6,
+    "heldout": null,
+    "n": 512,
+    "prompts": 192,
+    "rank": 1,
+    "repo": "allenai/Llama-3.1-Tulu-3-8B-DPO",
+    "revision": "a7beb67e33ffd01cc87ac3b46cadc1000985b8db",
+    "seed": 0,
+    "sigma": 0.0005,
+    "smoke": false,
+    "step": 15.4
+  },
+  "env": {
+    "commit": "33b33b1ec3670300f4af6038e011424025d0255b",
+    "dirty_worktree": false,
+    "hostname": "5026af424e90",
+    "packages": {
+      "torch": "2.13.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "started": "2026-10-09T16:41:24+00:00"
+}

@@ -1,0 +1,14 @@
+# T2, the implementation check against es-at-scale (docs/end_to_end/06-countdown-check.md):
+# es-at-scale's Countdown example at 0.5B, our backend, seed 1.
+model: QWEN25_05B
+population: 30
+sigma: 0.001
+alpha: 0.0005             # es-at-scale's default, sigma / 2; lr = alpha * sigma
+iterations: 100
+max_tokens: 512
+eval_every: 5
+seed: 1
+grader_timeout: 10        # es-at-scale train.py --reward-function-timeout
+max_model_len: 2048
+gpu_memory_utilization: 0.5
+check_members: [0]
