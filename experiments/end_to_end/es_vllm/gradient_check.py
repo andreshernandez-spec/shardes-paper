@@ -138,11 +138,15 @@ def phase_sample(args, cfg) -> None:
     rew = np.asarray(rewards).reshape(len(rows), k)
     sd = rew.std(axis=1, ddof=1)                                   # torch.std's correction
     adv = (rew - rew.mean(axis=1, keepdims=True)) / (sd[:, None] + 1e-8)
+    synthetic = args.smoke and not (sd > 0).any()   # wiring only: a small model rarely scores
+    if synthetic:
+        adv = np.random.default_rng(0).standard_normal(adv.shape)
     samples = [{"prompt": j, "tokens": list(o.token_ids), "reward": float(rew[j, s]),
                 "advantage": float(adv[j, s]), "stopped": o.finish_reason == "stop"}
                for j, out in enumerate(outs) for s, o in enumerate(out.outputs)]
     rec = {"prompts": len(rows), "k": k, "datasets": [r["dataset"] for r in rows],
            "prompt_tokens": ids, "samples": samples, "live_groups": int((sd > 0).sum()),
+           "synthetic_advantages": bool(synthetic),
            "mean_reward": float(rew.mean()),
            "mean_len": float(np.mean([len(s["tokens"]) for s in samples])),
            "seconds": time.perf_counter() - t0}
@@ -208,6 +212,8 @@ def phase_gradient(args, cfg) -> None:
         kinds[leaf_kind(n)] = kinds.get(leaf_kind(n), 0.0) + s2
     matrices = {n for n, _ in lowrank.leaf_shapes(get_dir(cfg["repo"], cfg["revision"]))}
     total = sum(stats.values())
+    if total == 0:
+        raise SystemExit("the gradient is zero: no group in the batch has unequal rewards")
     save_file({n: g.contiguous().cpu() for n, g in grads.items()}, str(args.workdir / "grad.safetensors"))
     harness.write_atomic(E2E / args.out / "gradient.json", {
         "sequences": len(seqs), "micro_batches": len(micro), "micro": MICRO, "tokens": tokens,
