@@ -29,6 +29,15 @@ import numpy as np
 
 TARGETS = re.compile(r"model\.layers\.\d+\.(self_attn\.[qkvo]_proj|mlp\.(gate|up|down)_proj)\.weight")
 PACKED = {"qkv_proj": ("q_proj", "k_proj", "v_proj"), "gate_up_proj": ("gate_proj", "up_proj")}
+KINDS = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
+
+
+def kind(name: str):
+    """Which of the seven matrix types a perturbed leaf is, or None."""
+    for k in KINDS:
+        if f".{k}." in name:
+            return k
+    return None
 
 
 def leaf_shapes(model_dir) -> list:
@@ -142,8 +151,16 @@ def worker_methods():
                     if name in names:
                         self._lr_base[name] = st.get_tensor(name).to("cuda", torch.float32)
         self._lr_k = None
+        self._lr_scale = None
         lr_factors(self, seed, r, pairs, shapes, generation)
         return len(self._lr_base)
+
+    def lr_scale(self, by_kind):
+        """A multiplier on the update per matrix type (`kind`), 1 where unset; None clears.
+        Applies to every later `lr_norm`, `lr_load`, `lr_step` and `lr_check`."""
+        self._lr_scale = None if by_kind is None else {n: float(by_kind.get(kind(n), 1.0))
+                                                       for n in self._lr_base}
+        return self._lr_scale is not None
 
     def lr_factors(self, seed, r, pairs, shapes, generation=None):
         """Replace the factors with those of `pairs` pairs of a generation."""
@@ -159,10 +176,13 @@ def worker_methods():
         self._lr_b = {n: torch.from_numpy(x).cuda() for n, x in b_all.items()}
 
     def delta(self, name, k):
-        """sum_j k_j a_j b_j^T on one leaf, f32."""
+        """sum_j k_j a_j b_j^T on one leaf, f32, times the leaf's type's multiplier."""
+        scale = 1.0 if self._lr_scale is None else self._lr_scale[name]
+        if scale == 0.0:
+            return torch.zeros_like(self._lr_base[name])
         kk = torch.as_tensor(k, dtype=torch.float32, device="cuda").repeat_interleave(self._lr_r)
         p = kk.numel()
-        return (self._lr_a[name][:, :p] * kk) @ self._lr_b[name][:, :p].T
+        return scale * ((self._lr_a[name][:, :p] * kk) @ self._lr_b[name][:, :p].T)
 
     def lr_norm(self, k):
         return float(math.sqrt(sum(float((delta(self, n, k) ** 2).sum()) for n in self._lr_base)))
@@ -238,5 +258,5 @@ def worker_methods():
                 seen += 1
         return {"checked": seen, "mismatched": bad[:10], "ok": seen == len(self._lr_base) and not bad}
 
-    return {"lr_setup": lr_setup, "lr_factors": lr_factors, "lr_norm": lr_norm,
+    return {"lr_setup": lr_setup, "lr_factors": lr_factors, "lr_scale": lr_scale, "lr_norm": lr_norm,
             "lr_load": lr_load, "lr_step": lr_step, "lr_check": lr_check, "lr_digest": lr_digest}

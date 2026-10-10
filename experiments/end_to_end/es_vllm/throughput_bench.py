@@ -86,7 +86,8 @@ def part_decode(args, lora: bool) -> None:
     from es_vllm.lowrank_check import Verifiers, items  # noqa: PLC0415
 
     repo, rev, rows, ids = setup(args.smoke)
-    copies = 4 if args.smoke else COPIES
+    copies = 4 if args.smoke else args.copies
+    chunk = min(copies, args.chunk)
     cap = 64 if args.smoke else CAP
     kw = {}
     if lora:
@@ -94,25 +95,43 @@ def part_decode(args, lora: bool) -> None:
         shapes = lowrank.leaf_shapes(model_dir)
         template = lowrank.write_template(Path(args.workdir) / "adapter", RANK, repo)
         lowrank.install_adapters(template, SEED, shapes, RANK, SIGMA)
-        kw = {"enable_lora": True, "max_lora_rank": RANK, "max_loras": 64, "max_cpu_loras": 64}
+        kw = {"enable_lora": True, "max_lora_rank": RANK, "max_loras": chunk, "max_cpu_loras": copies}
     llm = LLM(model=repo, revision=rev, dtype="bfloat16", seed=0, max_model_len=4096,
               gpu_memory_utilization=0.4 if args.smoke else 0.85, enable_prefix_caching=False,
               max_num_seqs=args.seqs, **kw)
     params = SamplingParams(temperature=0.0, max_tokens=cap)
     all_ids = [i for _ in range(copies) for i in ids]
     out = E2E / args.out
-    outs, base = timed_generate(llm, all_ids, params)
-    append(out / "throughput.jsonl", {"part": "lora-engine-base" if lora else "plain",
-                                      "seqs": args.seqs, **base})
-    print(json.dumps(base), flush=True)
+    if lora and args.no_base:
+        outs = None
+    else:
+        outs, base = timed_generate(llm, all_ids, params)
+        append(out / "throughput.jsonl", {"part": "lora-engine-base" if lora else "plain",
+                                          "seqs": args.seqs, "copies": copies, **base})
+        print(json.dumps(base), flush=True)
     if not lora:
         return
     template = Path(args.workdir) / "adapter"
-    members = [LoRARequest(f"member{m}", m + 1, str(template)) for m in range(copies) for _ in ids]
-    m_outs, mem = timed_generate(llm, all_ids, params, members)
-    append(out / "throughput.jsonl", {"part": "lora-members", "seqs": args.seqs, **mem})
+    # members in chunks of `chunk` adapters per generate call, as the run decodes them
+    import torch  # noqa: PLC0415
+
+    torch.cuda.synchronize()
+    t = time.perf_counter()
+    m_outs = []
+    for c0 in range(0, copies, chunk):
+        ms = range(c0, min(copies, c0 + chunk))
+        m_outs += llm.generate([{"prompt_token_ids": i} for _ in ms for i in ids], params,
+                               lora_request=[LoRARequest(f"member{m}", m + 1, str(template)) for m in ms for _ in ids],
+                               use_tqdm=False)
+    torch.cuda.synchronize()
+    sec = time.perf_counter() - t
+    toks = sum(len(o.outputs[0].token_ids) for o in m_outs)
+    mem = {"seconds": sec, "sequences": len(m_outs), "tokens": toks, "tokens_per_s": toks / sec,
+           "sequences_per_s": len(m_outs) / sec}
+    append(out / "throughput.jsonl", {"part": "lora-members", "seqs": args.seqs, "copies": copies,
+                                      "chunk": chunk, **mem})
     print(json.dumps(mem), flush=True)
-    if (out / "answers.json").exists():
+    if (out / "answers.json").exists() or outs is None:
         return
     vs = Verifiers(2 if args.smoke else 8)
     base_one = outs[: len(ids)]
@@ -223,7 +242,10 @@ def analyze(out: Path) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--part", choices=("plain", "lora", "train"))
-    ap.add_argument("--seqs", type=int, default=512)
+    ap.add_argument("--seqs", type=int, default=512, help="sequences in flight (max_num_seqs)")
+    ap.add_argument("--copies", type=int, default=COPIES, help="members (and copies of the prompts)")
+    ap.add_argument("--chunk", type=int, default=COPIES, help="lora: adapters per generate call")
+    ap.add_argument("--no-base", action="store_true", help="lora: skip the base model's timing")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--analyze", type=Path)
     ap.add_argument("--smoke", action="store_true")
