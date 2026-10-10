@@ -231,12 +231,23 @@ def analyze(out: Path) -> dict:
     res = {"heldout": [], "iterations": [{"iteration": r["iteration"], "mean_fitness": r["mean_fitness"],
                                          "update_norm": r["update_norm"], "seconds": r["seconds"]}
                                         for r in log]}
+    # the held-out rows' sources, in the same order (lowrank_check.py scored the same rows)
+    ds = np.asarray(json.loads((E2E / "runs/lowrank-check/steps.json").read_text())["datasets"])
+    if ds.size != base.size:
+        ds = None
     for r in h:
         d = np.asarray(r["per_prompt"]) - base
-        res["heldout"].append({"iteration": r["iteration"], "reward": r["reward"],
-                               "change": float(d.mean()),
-                               "change_se": float(d.std(ddof=1) / np.sqrt(d.size)) if r is not h[0] else 0.0,
-                               "mean_len": r["mean_len"]})
+        se = lambda x: float(x.std(ddof=1) / np.sqrt(x.size)) if r is not h[0] else 0.0  # noqa: E731
+        row = {"iteration": r["iteration"], "reward": r["reward"], "change": float(d.mean()),
+               "change_se": se(d), "prompts_up": int((d > 0).sum()), "prompts_down": int((d < 0).sum()),
+               "mean_len": r["mean_len"],
+               "by_set": {f"steps {a + 1}-{b}": float(d[k * 1920:(k + 1) * 1920].mean())
+                          for k, (a, b) in enumerate(HELDOUT)} if d.size == 3840 else None}
+        if ds is not None:
+            row["by_source"] = {k: {"change": float(d[ds == k].mean()), "change_se": se(d[ds == k])}
+                                for k in sorted(set(ds))}
+            row["steps_121_160_by_source"] = {k: float(d[:1920][ds[:1920] == k].mean()) for k in sorted(set(ds))}
+        res["heldout"].append(row)
     return res
 
 
