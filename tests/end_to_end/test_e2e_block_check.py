@@ -24,7 +24,7 @@ def test_analysis_recovers_gains_and_costs_by_type(tmp_path):
     """Two types with known slopes and curvatures: the per-type G and C, their sums against
     the full update, and the reweighted best net come out as constructed."""
     rng = np.random.default_rng(0)
-    P = 6000
+    P = 20000
     start = (rng.random(P) < 0.5) * 10.0
     norms = {"full": 2.0, "v_proj": 1.0, "down_proj": np.sqrt(3.0)}
     for k in lowrank.KINDS:
@@ -32,8 +32,9 @@ def test_analysis_recovers_gains_and_costs_by_type(tmp_path):
     params = {"full": 100, "v_proj": 25, "down_proj": 75}
     for k in lowrank.KINDS:
         params.setdefault(k, 0)
-    slope = {"v_proj": 0.05, "down_proj": 0.01, "full": None}
-    curv = {"v_proj": -0.0004, "down_proj": -0.0001, "full": None}
+    # slopes small enough that each type's shorter length stays within a point of the start
+    slope = {"v_proj": 0.02, "down_proj": 0.005, "full": None}
+    curv = {"v_proj": -0.001, "down_proj": -0.0001, "full": None}   # v's longer point breaks
     # the full update: gain sum a_t |u_t|, cost sum b_t |u_t|^2, at its own length
     G = sum(slope[t] * norms[t] for t in ("v_proj", "down_proj"))
     C = sum(curv[t] * norms[t] ** 2 for t in ("v_proj", "down_proj"))
@@ -59,5 +60,11 @@ def test_analysis_recovers_gains_and_costs_by_type(tmp_path):
     # by construction: uniform (G^2 / 4C) against sum_t G_t^2 / 4 C_t
     uniform = G ** 2 / (4 * -C)
     rew = sum((slope[t] * norms[t]) ** 2 / (4 * -curv[t] * norms[t] ** 2) for t in ("v_proj", "down_proj"))
-    assert abs(a["best_net"]["ratio"] - rew / uniform) < 0.35 * rew / uniform
-    assert a["multipliers"]["v_proj"] > a["multipliers"]["down_proj"]
+    assert abs(a["best_net"]["ratio"] - rew / uniform) < 0.5 * rew / uniform
+    assert a["by_type"]["v_proj"]["length_used"] == 20.0      # 40 moved the reward by over 2
+    assert a["by_type"]["down_proj"]["length_used"] == 40.0
+    # the multipliers: each type's G / C against the full update's, within a quarter
+    full_ratio = G / -C
+    for t in ("v_proj", "down_proj"):
+        want = (slope[t] * norms[t] / (-curv[t] * norms[t] ** 2)) / full_ratio
+        assert abs(a["multipliers"][t] - want) < 0.25 * want

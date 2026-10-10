@@ -65,3 +65,19 @@ GPU-seconds per 192 prompts at these rates (four RL steps, one ES update at 512 
   broadcasts to the inference engine and generation and training waiting on each other;
   ES's members are independent and exchange only their fitness numbers. Both effects
   favour ES in wall clock, by amounts not measured here.
+
+## Batching, 2026-10-10 (`docs/end_to_end/09`, stage A2)
+
+Members decoded in chunks of adapters per generate call, `--copies 64 --chunk 64 --seqs
+1024` and `--copies 128 --chunk 128 --seqs 1024` (b9720b3 plus the chunk options at
+481597f), on the stage-A pod (Secure Cloud H200, US-CO-1, driver 580.178.04), appended to
+`throughput.jsonl`:
+
+| adapters per call | sequences in flight | answers/s | tokens/s |
+|---|---|---|---|
+| 32, one call (above) | 512 | 20.7 | 6,970 |
+| 64 | 1,024 | 20.9 | 7,070 |
+| 128 | 1,024 | 16.4 | 5,590 |
+
+More sequences in flight change nothing; twice the adapters per call is 21% slower. The
+run's setting (64 adapters, 512 in flight) stays.

@@ -185,15 +185,25 @@ def analyze(out: Path) -> dict:
                 "b_se": float(even.std(ddof=1) / np.sqrt(even.size) / length ** 2)}
         if not rows:
             continue
-        far = rows[max(rows, key=float)]
+        # a length is usable when neither sign moved the reward by more than two points:
+        # beyond that the points are broken models (v_proj at 56: reward 1.6 and 1.8). The
+        # longest usable length gives the smallest errors.
+        for r in rows.values():
+            r["linear_regime"] = bool(abs(r["plus"] - start.mean()) < 2.0 and abs(r["minus"] - start.mean()) < 2.0)
+        ok = [L for L in rows if rows[L]["linear_regime"]]
+        if not ok:
+            continue
+        used = max(ok, key=float)
+        far = rows[used]
         norm = meta["norms"][t]
         res["by_type"][t] = {"norm": norm, "params": meta["params"][t],
                              "param_share": meta["params"][t] / meta["params"]["full"],
-                             "lengths": rows,
-                             # the unit update's gain and cost from this type, from the
-                             # longer length (smaller errors), with the shorter as a check
+                             "lengths": rows, "length_used": float(used),
                              "G": far["a"] * norm, "G_se": far["a_se"] * norm,
-                             "C": far["b"] * norm ** 2, "C_se": far["b_se"] * norm ** 2}
+                             "C": far["b"] * norm ** 2, "C_se": far["b_se"] * norm ** 2,
+                             # a cost within two standard errors of zero makes G^2 / C and
+                             # the multiplier unreliable
+                             "cost_resolved": bool(far["b"] < -2 * far["b_se"])}
     kinds = [t for t in lowrank.KINDS if t in res["by_type"]]
     if "full" in res["by_type"] and kinds:
         full = res["by_type"]["full"]
@@ -213,8 +223,15 @@ def analyze(out: Path) -> dict:
                            "types_with_positive_gain": sorted(parts)}
         if uniform:
             lam_u = full["G"] / (2 * -full["C"])
-            res["multipliers"] = {t: (G[t] / (2 * -C[t])) / lam_u if C[t] < 0 and G[t] > 0 else 0.0
-                                  for t in kinds}
+            raw = {t: (G[t] / (2 * -C[t])) / lam_u if C[t] < 0 and G[t] > 0 else 0.0 for t in kinds}
+            res["multipliers"] = raw
+            # as docs/end_to_end/09 applies them: clipped to [0.25, 4]
+            res["multipliers_clipped"] = {t: float(min(4.0, max(0.25, m))) for t, m in raw.items()}
+            res["unreliable"] = sorted(t for t in kinds if not res["by_type"][t]["cost_resolved"])
+            # the best net with the clipped multipliers at the uniform best step, per type
+            net = {t: m * lam_u * G[t] + (m * lam_u) ** 2 * C[t] for t, m in res["multipliers_clipped"].items()}
+            res["best_net"]["with_clipped_multipliers"] = sum(net.values())
+            res["best_net"]["with_clipped_multipliers_by_type"] = net
     return res
 
 
