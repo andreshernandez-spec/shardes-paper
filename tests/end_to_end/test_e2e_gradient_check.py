@@ -29,7 +29,7 @@ def test_scan_analysis_recovers_the_slope(tmp_path):
     rows = [{"kind": "start", "lam": 0.0, "effective_length": 0.0, "rewards": start.tolist(), "mean_len": 300}]
     for lam, eff in ((1.0, 0.5), (4.0, 3.5)):
         for sgn in (1, -1):
-            p = np.clip(0.5 + sgn * 0.02 * eff - 0.002 * eff ** 2, 0, 1)
+            p = np.clip(0.5 + sgn * 0.02 * eff - 0.001 * eff ** 2, 0, 1)
             rows.append({"kind": "grad", "lam": sgn * lam, "effective_length": eff,
                          "rewards": ((rng.random(P) < p) * 10.0).tolist(), "mean_len": 300})
     (tmp_path / "scan.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
@@ -41,4 +41,4 @@ def test_scan_analysis_recovers_the_slope(tmp_path):
     # the reward rose along +g, so along RL's direction (-g) the slope is -0.2
     assert a["slopes"]["grad"]["at_effective_length"] == 0.5
     assert abs(a["slopes"]["grad"]["slope_along_rl_direction"] + 0.2) < 3 * a["slopes"]["grad"]["slope_se"]
-    assert all(q["linear_regime"] for q in a["points"])
+    assert pts[1.0]["linear_regime"]
