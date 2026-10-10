@@ -38,4 +38,7 @@ def test_scan_analysis_recovers_the_slope(tmp_path):
     assert abs(pts[1.0]["D_per_effective_length"] - 0.2) < 3 * pts[1.0]["D_se"]
     assert abs(pts[4.0]["D_per_effective_length"] - 0.2) < 3 * pts[4.0]["D_se"]
     assert pts[4.0]["even"] < 0
-    assert a["ceiling"]["at_effective_length"] == 0.5
+    # the reward rose along +g, so along RL's direction (-g) the slope is -0.2
+    assert a["slopes"]["grad"]["at_effective_length"] == 0.5
+    assert abs(a["slopes"]["grad"]["slope_along_rl_direction"] + 0.2) < 3 * a["slopes"]["grad"]["slope_se"]
+    assert all(q["linear_regime"] for q in a["points"])

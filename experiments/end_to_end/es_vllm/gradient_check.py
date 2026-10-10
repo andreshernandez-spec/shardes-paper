@@ -401,7 +401,16 @@ def worker_methods():
         nnz = sum(int((v != 0).sum()) for v in self._gd_dir.values())
         self._gd_sign_scale = 1.0 / float(np.sqrt(nnz))
         self._gd_rows = None
-        return {"norm_matrices": float(np.sqrt(norm2)), "nonzero": nnz}
+        # how concentrated the unit gradient is: elements above a size, and their share
+        # of the norm; a Gaussian direction of this dimension has rms 1.2e-5 and nothing
+        # above 1e-4
+        conc = {}
+        for t in (1e-5, 1e-4, 1e-3, 1e-2):
+            cnt = sum(int((v.abs() > t).sum()) for v in self._gd_dir.values())
+            share = sum(float((v[v.abs() > t].double() ** 2).sum()) for v in self._gd_dir.values())
+            conc[f"{t:g}"] = {"elements": cnt, "share_of_norm2": share}
+        conc["max_abs"] = max(float(v.abs().max()) for v in self._gd_dir.values())
+        return {"norm_matrices": float(np.sqrt(norm2)), "nonzero": nnz, "concentration": conc}
 
     def rows(self):
         if self._gd_rows is None:
@@ -519,16 +528,31 @@ def analyze(out: Path) -> dict:
                     "D_per_effective_length": float(odd.mean() / eff),
                     "D_se": float(odd.std(ddof=1) / np.sqrt(odd.size) / eff),
                     "even_per_effective_length2": float(even.mean() / eff ** 2)})
-        grad = [q for q in res["scan"]["points"] if q["kind"] == "grad"]
-        if grad:
-            d = min(grad, key=lambda q: q["effective_length"])
-            # a perfectly ranked ES at N members: gain alpha D per unit, cost c_N per unit^2
-            res["scan"]["ceiling"] = {
-                "D": d["D_per_effective_length"], "at_effective_length": d["effective_length"],
-                "gain_per_unit_perfect_ranking": ALPHA * d["D_per_effective_length"],
-                "measured_gain_per_unit_N1024": 0.0047,
-                "implied_rho_if_es_direction_as_steep": 0.0047 / (ALPHA * d["D_per_effective_length"]),
-                "best_net_per_update_perfect_ranking_N1024": (ALPHA * d["D_per_effective_length"]) ** 2 / (4 * 7.7e-5)}
+        # g is the loss gradient: RL descends it, so its direction is -g and a reward slope
+        # along RL's direction is -D. A point is in the linear regime when neither sign has
+        # moved the reward by more than a point; beyond it the odd part is the asymmetry
+        # of two broken models and says nothing about the slope at the start.
+        for q in res["scan"]["points"]:
+            q["linear_regime"] = abs(q["plus"] - res["scan"]["start"]) < 1.0 and abs(q["minus"] - res["scan"]["start"]) < 1.0
+            q["slope_along_rl_direction"] = -q["D_per_effective_length"]
+            q["slope_se"] = q["D_se"]
+        res["scan"]["slopes"] = {}
+        for kind in ("grad", "sign"):
+            ok = [q for q in res["scan"]["points"] if q["kind"] == kind and q["linear_regime"]]
+            if ok:
+                d = min(ok, key=lambda q: q["effective_length"])
+                res["scan"]["slopes"][kind] = {"slope_along_rl_direction": d["slope_along_rl_direction"],
+                                               "slope_se": d["slope_se"], "at_effective_length": d["effective_length"],
+                                               "even_per_effective_length2": d["even_per_effective_length2"]}
+        # ES's useful component is at most alpha long per unit update (E[u] = alpha rho g_hat),
+        # so its measured gain per unit implies a slope along its own expected direction
+        es_slope = 0.0047 / ALPHA
+        res["scan"]["es"] = {"measured_gain_per_unit_N1024": 0.0047, "slope_along_es_direction_at_least": es_slope}
+        if "grad" in res["scan"]["slopes"]:
+            D = res["scan"]["slopes"]["grad"]["slope_along_rl_direction"]
+            res["scan"]["es"]["ceiling_perfect_ranking_of_rl_gradient"] = {
+                "gain_per_unit": ALPHA * D, "best_net_per_update_N1024": (ALPHA * D) ** 2 / (4 * 7.7e-5),
+                "against_measured_gain_per_unit": ALPHA * D / 0.0047}
     return res
 
 
@@ -539,6 +563,7 @@ def main(argv=None) -> int:
     ap.add_argument("--analyze", type=Path)
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/gradient-check"))
+    ap.add_argument("--lambdas", help="scan: these lambdas along the gradient only, e.g. 0.03,0.1")
     args = ap.parse_args(argv)
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))
@@ -553,6 +578,8 @@ def main(argv=None) -> int:
                                    "smoke": args.smoke,
                                    "env": env_block(E2E, ["runs"], ("vllm", "torch", "transformers", "jax"))}))
     cfg = setting(args.smoke)
+    if args.lambdas:
+        cfg = {**cfg, "grad_lambdas": tuple(float(x) for x in args.lambdas.split(",")), "sign_lambdas": ()}
     {"sample": phase_sample, "gradient": phase_gradient, "project": phase_project,
      "scan": phase_scan}[args.phase](args, cfg)
     return 0
