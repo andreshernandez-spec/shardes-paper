@@ -4,6 +4,8 @@
     python -m es_vllm.lowrank_run --out runs/lowrank-run          # on the GPU, resumable
     python -m es_vllm.lowrank_run --analyze runs/lowrank-run
     python -m es_vllm.lowrank_run --out ... --smoke --iterations 1   # wiring, then 2 to resume
+    python -m es_vllm.lowrank_run --out runs/lowrank-run-1024 --members 1024 --step 30.5 \
+        --screen 128 --type-steps '{"v_proj": 2.0}'                 # docs/end_to_end/09
 
 One update from the start, at 512 low-rank mirrored members and its best step, gains
 0.036 +- 0.010 held-out reward points net of its random part's cost (runs/lowrank-check/),
@@ -64,10 +66,10 @@ def setting(smoke: bool) -> dict:
     if smoke:
         return {"repo": "Qwen/Qwen2.5-0.5B-Instruct", "revision": None, "cap": 64, "n": 8,
                 "eval_every": 1, "prompts": 16, "heldout": 24, "chunk": 4, "verifiers": 2,
-                "gpu": 0.4}
+                "gpu": 0.4, "seqs": 512}
     return {"repo": R.TULU31_START.repo, "revision": R.TULU31_START.commit, "cap": 2048,
             "n": N, "eval_every": EVAL_EVERY, "prompts": P_RUN, "heldout": None, "chunk": 64,
-            "verifiers": 8, "gpu": 0.6}
+            "verifiers": 8, "gpu": 0.6, "seqs": 512}
 
 
 def lines(path: Path) -> list:
@@ -89,17 +91,26 @@ def run(args) -> int:
     from es_vllm.worker import ESWorker  # noqa: PLC0415
 
     cfg = setting(args.smoke)
+    if not args.smoke:
+        cfg = {**cfg, "n": args.members, "chunk": args.chunk, "seqs": args.seqs}
+    step = args.step
+    type_steps = json.loads(args.type_steps) if args.type_steps else None
+    if type_steps and set(type_steps) - set(lowrank.KINDS):
+        raise SystemExit(f"unknown matrix types in --type-steps: {set(type_steps) - set(lowrank.KINDS)}")
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
-    conf = {"seed": SEED, "sigma": SIGMA, "alpha": ALPHA, "rank": RANK, "step": STEP,
-            "smoke": args.smoke, **{k: v for k, v in cfg.items() if k not in ("verifiers", "chunk")},
+    # what the weights depend on; the engine's batching (chunk, seqs) is recorded apart
+    conf = {"seed": SEED, "sigma": SIGMA, "alpha": ALPHA, "rank": RANK, "step": step,
+            "type_steps": type_steps, "smoke": args.smoke,
+            **{k: v for k, v in cfg.items() if k not in ("verifiers", "chunk", "seqs")},
             **({"screen": args.screen} if args.screen else {})}
     if (out / "run.json").exists():
         if json.loads((out / "run.json").read_text())["config"] != conf:
             raise SystemExit(f"{out} holds a run with another configuration")
     else:
         harness.write_atomic(out / "run.json", {
-            "config": conf, "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "config": conf, "engine": {"chunk": cfg["chunk"], "seqs": cfg["seqs"]},
+            "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "env": env_block(E2E, ["runs"], ("vllm", "torch"))})
     log, h_log = out / "log.jsonl", out / "heldout.jsonl"
     done, h_done = lines(log), {r["iteration"] for r in lines(h_log)}
@@ -115,14 +126,15 @@ def run(args) -> int:
     llm = LLM(model=cfg["repo"], revision=cfg["revision"], dtype="bfloat16", seed=0,
               enable_lora=True, max_lora_rank=RANK, max_loras=cfg["chunk"], max_cpu_loras=n,
               gpu_memory_utilization=cfg["gpu"], max_model_len=4096,
-              enable_prefix_caching=False, max_num_seqs=512,
+              enable_prefix_caching=False, max_num_seqs=cfg["seqs"],
               worker_extension_cls="es_vllm.worker.ESWorker")
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
     rpc("lr_setup", model_dir, SEED, RANK, 0, shapes)
+    rpc("lr_scale", type_steps)      # a multiplier per matrix type on every update, or none
     t0 = time.perf_counter()
     for rec in done:  # replay: the factors regenerate from their seeds
         rpc("lr_factors", SEED, RANK, pairs, shapes, lowrank.generation_of(rec["iteration"]))
-        rpc("lr_step", list(STEP * lowrank.coefficients(rec["fitness"], n, ALPHA, RANK)))
+        rpc("lr_step", list(step * lowrank.coefficients(rec["fitness"], n, ALPHA, RANK)))
     if done:
         if rpc("lr_digest") != done[-1]["digest"]:
             raise SystemExit("the replayed weights are not the logged ones")
@@ -176,15 +188,16 @@ def run(args) -> int:
         # on those. A prompt everyone scores alike adds the same to every fitness.
         s = min(args.screen, n) if args.screen else n
         decode(list(range(s)), list(range(len(rows))))
-        live = list(range(len(rows)))
+        live, skipped = list(range(len(rows))), {}
         if s < n:
             sc = np.asarray(rewards[:s])
             live = [j for j in range(len(rows)) if np.unique(sc[:, j]).size > 1] or live
+            skipped = {str(j): float(sc[0, j]) for j in range(len(rows)) if j not in set(live)}
             decode(list(range(s, n)), live)
         lens = [float(np.mean([x for x in row if x is not None])) for row in lengths]
         decode_s = time.perf_counter() - t1
         fitness = np.asarray([[row[j] for j in live] for row in rewards]).mean(1)
-        k = list(STEP * lowrank.coefficients(fitness, n, ALPHA, RANK))
+        k = list(step * lowrank.coefficients(fitness, n, ALPHA, RANK))
         rpc("lr_factors", SEED, RANK, pairs, shapes, lowrank.generation_of(g))
         norm = rpc("lr_norm", k)
         rpc("lr_step", k)
@@ -193,7 +206,7 @@ def run(args) -> int:
             raise SystemExit(f"engine weights are not the f32 copy after update {g + 1}")
         append(log, {"iteration": g, "fitness": fitness.tolist(), "mean_fitness": float(fitness.mean()),
                      "sd_fitness": float(fitness.std()), "mean_len": lens, "rewards": rewards,
-                     "lengths": lengths, "live": live, "screen": s,
+                     "lengths": lengths, "live": live, "screen": s, "skipped": skipped,
                      "rollouts": int(sum(x is not None for row in rewards for x in row)),
                      "update_norm": norm, "digest": rpc("lr_digest"), "check": check["ok"],
                      "decode_seconds": decode_s, "seconds": time.perf_counter() - t1})
@@ -259,6 +272,11 @@ def main(argv=None) -> int:
     ap.add_argument("--iterations", type=int, default=ITERATIONS)
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/lowrank-run"))
     ap.add_argument("--screen", type=int, default=0, help="screening members (0: off)")
+    ap.add_argument("--members", type=int, default=N)
+    ap.add_argument("--step", type=float, default=STEP, help="multiple of the unit update")
+    ap.add_argument("--type-steps", help='JSON, a multiplier per matrix type, e.g. {"v_proj": 2}')
+    ap.add_argument("--chunk", type=int, default=64, help="adapters per generate call")
+    ap.add_argument("--seqs", type=int, default=512, help="sequences in flight")
     ap.add_argument("--screen-check", type=Path, help="lowrank_check.py's members record")
     args = ap.parse_args(argv)
     if args.screen_check:
