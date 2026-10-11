@@ -241,9 +241,17 @@ def analyze(out: Path) -> dict:
     h = sorted(lines(out / "heldout.jsonl"), key=lambda r: r["iteration"])
     log = lines(out / "log.jsonl")
     base = np.asarray(h[0]["per_prompt"])
-    res = {"heldout": [], "iterations": [{"iteration": r["iteration"], "mean_fitness": r["mean_fitness"],
-                                         "update_norm": r["update_norm"], "seconds": r["seconds"]}
-                                        for r in log]}
+    res = {"heldout": [], "iterations": [{
+        "iteration": r["iteration"], "mean_fitness": r["mean_fitness"], "update_norm": r["update_norm"],
+        "seconds": r["seconds"], "decode_seconds": r.get("decode_seconds"),
+        "rollouts": r.get("rollouts"), "live": len(r["live"]) if "live" in r else None,
+        # what the screen skipped: prompts every screening member scored alike, by that score
+        "skipped_all_right": sum(1 for v in r.get("skipped", {}).values() if v > 0),
+        "skipped_all_wrong": sum(1 for v in r.get("skipped", {}).values() if v <= 0)}
+        for r in log]}
+    if log and log[0].get("rollouts"):
+        res["rollouts_total"] = sum(r["rollouts"] for r in log)
+        res["seconds_total"] = sum(r["seconds"] for r in log)
     # the held-out rows' sources, in the same order (lowrank_check.py scored the same rows)
     ds = np.asarray(json.loads((E2E / "runs/lowrank-check/steps.json").read_text())["datasets"])
     if ds.size != base.size:
