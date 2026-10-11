@@ -76,3 +76,31 @@ member throughput.
 
 Stage A about 3 hours on one H200 ($5.29/h), about $17. Stage B about 14 hours, about
 $75. The program has spent about $330 of its first $350; this is the second budget.
+
+## Result, 2026-10-11
+
+**Stage A** (`experiments/end_to_end/runs/block-check/README.md`,
+`runs/throughput-bench/README.md`): the three A1 predictions held (v_proj's gain share 8.8
+times its parameter share; reweighted best net 2.4 times the uniform one, 1.5 over the
+types whose cost is resolved; sums within 1.6 and 0.3 standard errors), but the mechanism
+was not the one assumed: v_proj's curvature is 11 times the average per unit length, so
+its multiplier is 0.95, and the reweighting came from up_proj (2.5), the removal of q_proj
+(0.25) and two types with unresolved costs (gate 2.3, k clipped to 4). A2: 128 adapters per
+call were 21% slower than 64; the batching stayed. By the rules above the multipliers
+went into stage B.
+
+**Stage B** (`runs/lowrank-run-1024/README.md`): held-out -0.206 +- 0.063 after 4 updates
+and -0.323 +- 0.072 after 8, against the predicted +0.25 to +0.40. IFEval +0.65 (RL's own
+pace on these prompts), GSM8K -0.72, MATH -1.81. **The gate fails**: the gain is negative,
+so ES's compute per unit of gain is not within any multiple of RL's. The cause is in the
+one-update record and was averaged away by the pooled cost model: the random part's cost
+falls on MATH at five to six times the rate it falls on IFEval, so a step sized by the
+pooled cost over-steps the reasoning tasks, and the damage accumulates faster than eight
+single-step costs. The screen behaved as predicted (62% of the rollouts, the skipped
+prompts half all-right and half all-wrong for the screening members) and the live set grew
+as the model lost prompts it had been sure of.
+
+Reported as `09` fixed: the complete negative result. The best factor achieved on the
+pooled measure is none; on IFEval alone, which is not the measure, ES used 6.3 times RL's
+GPU-seconds per unit of gain while losing the reasoning tasks. The structural
+demonstration (`08`, step 3) is not worth costing on this evidence.

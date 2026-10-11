@@ -273,6 +273,15 @@ zeroth-order slowdown scales with the effective dimension of the problem (Mallad
   shorter than RL's by the factor the rollout count has to make up, and it damaged MATH
   while gaining IFEval where RL did not.
 
+Addendum, 2026-10-11 (`09`). The levers were applied: 1,024 members, a 128-member screen,
+and a step size per matrix type measured one update from the start. The useful part then
+gains IFEval at RL's own pace, and the random part, twice as long, loses MATH 1.8 points
+and GSM8K 0.7 in eight updates; held-out falls 0.32. The random part's cost is concentrated
+on the reasoning tasks, five to six times IFEval's per unit of length in the single-step
+record, so a step sized by the pooled cost over-steps them. The trade ES makes on this
+stream is the shared skill for the fragile ones, and more members at the step the pooled
+model picks make it worse.
+
 ## 11. Limitations
 
 - One seed per arm and one step size; the long arm, the eight-update run and every probe
