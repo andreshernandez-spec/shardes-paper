@@ -13,7 +13,8 @@ repository, branch `end-to-end-layout` (draft PR #11), worktree
 | `docs/end_to_end/review/01-goal-and-problems.md` | the goal, the decisions in order, the problems met and what each cost, the open questions | the context a paper would omit |
 | `docs/end_to_end/review/03-metrics-explained.md` | every measurement defined from scratch, with the numbers for both datasets | before reading results |
 | `docs/end_to_end/review/02-experiments-and-evidence.md` | one entry per experiment: question, design, record, code version, cost, result, what it established, caveats | the evidence itself |
-| `papers/end_to_end/draft.md` | the paper draft (markdown, numbers transcribed, see its header) | the argument as a paper |
+| `papers/end_to_end/draft.md` | the paper draft (markdown, numbers transcribed, see its header), revised after the review of 2026-10-11 | the argument as a paper |
+| `docs/end_to_end/10-when-does-es-work.md` | the preregistration of the next stage: a predictive rule for when ES is effective | where the program goes next |
 | `docs/end_to_end/08-why-rl-learns-and-es-does-not.md` | the synthesis written for the repository, section by probe | a second, longer telling of the chain |
 | `docs/end_to_end/09-best-achievable.md` | the preregistration and result of the last stage | an example of how runs are committed before data |
 | `docs/end_to_end/review/04-review-questions.md` | what feedback is wanted, the doubts the author already has, and the standard to apply | before writing the review |

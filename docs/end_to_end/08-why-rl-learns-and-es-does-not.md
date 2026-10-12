@@ -13,11 +13,11 @@ the data of 480 RL steps it ends 0.25 below its start on held-out prompts, while
 run is 1.9 above. The chain of measurements below says why, and the answer is not a bug,
 a bad fitness or a bad step size.
 
-An ES update is a zeroth-order estimate of the gradient. We measured, against the exact
-GRPO gradient of the same batch, that the estimate is right: its component along RL's
-gradient is 12% of the most a zeroth-order estimate can have, its expected direction is at
-least as steep as RL's gradient direction, and a perfect estimate of RL's gradient would
-gain 0.8 +- 0.15 of what ES's update already gains per unit. What ES lacks is length. The
+An ES update is a zeroth-order estimate of the gradient. Against the gradient of the run's
+loss on a reconstruction of its first batch, the update's component along that gradient
+is 12% of the most a zeroth-order estimate can have, in the direction of reward, and a
+zeroth-order estimate aligned with that gradient would gain, to first order, 0.8 +- 0.15
+of what the update already gains per unit. What ES lacks is length. The
 useful part of an update is at most `alpha` = 5e-4 long, beside a random part of
 `alpha sqrt(d / N)`: 11 at 16 members, 1.4 at 1,024. The random part costs reward in
 proportion to its length squared, and at 16 members that cost equals the useful part's
@@ -30,8 +30,11 @@ at 32 to 64 times RL's rollouts. On Countdown, where the improvement is one beha
 prompt shares, the same model's perturbations carry 75 times more signal per prompt, and
 ES learns as its literature reports. On a realistic post-training stream, whose gains are
 many small, prompt-specific behaviours, the zeroth-order variance is what separates the
-two methods, and no fitness, optimizer or variance-reduction technique recovers it; only
-rollouts do.
+two methods; none of the fitness variants, step rules or perturbation shapes tested
+recovered it, and the number of rollouts did, at a cost that fell on the reasoning tasks.
+The review of 2026-10-11 (`drafts/`, local) narrowed several of this document's claims;
+the paper draft carries the narrowed versions, and this document keeps its structure with
+the corrections marked below.
 
 Terms used throughout: a *member* is one perturbed copy of the model; its *fitness* is
 its mean greedy reward over the iteration's prompts; the *update* is the z-score-weighted
@@ -99,8 +102,9 @@ way (it writes the answer format or it does not).
 
 `runs/rl-geometry/`, `runs/direction-check/`: the released step-120 model is 0.476 from
 the start in weight space (step 480: 1.134), against 61 for ES after the same data and 45
-for a single ES member's perturbation. Along RL's direction the held-out reward rises +0.85
-at effective length 0.32 and +1.02 at 0.48 (the engine's bf16 rounding shortens small
+for a single ES member's perturbation. Along RL's direction the reward on the gradient
+probe's 768 training prompts (RL steps 1 to 16, which the step-120 model trained on)
+rises +0.85 at effective length 0.32 and +1.02 at 0.48 (the engine's bf16 rounding shortens small
 steps; lengths are given as what reached the model); random directions of the same lengths
 change nothing (six changes within 1.3 SE of zero), and flips along RL's direction are
 four to eight times as often up as down. The RL run keeps its direction (cosine 0.51
@@ -177,7 +181,7 @@ dead prompts give its update none). Every measured update was projected onto it:
 | update | rho_hat toward reward (noise sd for a ranking with no signal) |
 |---|---|
 | low-rank, 1,024 members | +0.120 (0.031) |
-| low-rank, 512 members, two independent decodes | +0.123, +0.116 (0.044) |
+| the first 512 of the same members; the same 512 directions decoded again | +0.123, +0.116 (0.044) |
 | dense, 16 members | unresolvable (0.25) |
 | the run's updates 1 to 7, on the start's gradient | +0.02 +- 0.02: the gradient moves |
 
@@ -194,25 +198,25 @@ The held-out reward along the gradient (`theta_0 -+ lambda g_hat`, bf16 rounding
   0.08. Adam's sign normalization is what makes RL's gradient usable: a tenth as steep,
   linear to length 0.6. ES's expected direction is a smoothed gradient, spread over all
   weights like the sign step; its first-order gain was linear to length 112.
-- ES's useful component is at most `alpha` = 5e-4 long per unit and delivers 0.0047, so
-  the slope along ES's expected direction is at least 9.4 per unit length. A perfect
-  zeroth-order estimate of RL's gradient would gain `alpha` x 7.3 = 0.0037 +- 0.0007 per
-  unit, 0.8 +- 0.15 of what ES's update already gains. No better fitness, control variate
-  or smooth objective can raise the gain per unit by more than that.
-- Neither can an optimizer. Adam's per-element normalization uses the update's own element
-  magnitudes, which are 99.97% noise of the same size everywhere, so it reduces to one
-  rescaling; momentum applies each random part once in total, spread over later steps;
-  Muon's orthogonalization transforms the noise and the tiny useful part together. One
-  ES iteration learns N numbers about an 8-billion-dimensional gradient, and no
-  post-processing knows more than that. The one reshaping that could help uses prior
-  knowledge of where the gradient lives: v_proj holds 27% of its squared norm in 2% of the
-  parameters, so per-matrix-type step sizes could raise the best net per update by up to
-  about 5 times if curvature is uniform across types, and by nothing if curvature tracks
-  the gradient's density. Untested.
-- RL's own displacement to step 120 has cosine 0.019 with this gradient: what 120 Adam
-  steps of length 0.045 that are nearly orthogonal to one another give (`sqrt(120) x 0.045`
-  = 0.49; the displacement is 0.476). A minibatch gradient is a small part of where RL
-  goes too; it is the exactness of each step, not the gradient's constancy, that RL has.
+- Under the model, ES's useful component is at most `alpha` = 5e-4 long per unit; its
+  odd response of 0.0047 would, if first order, imply a slope of at least 9.4 along its
+  expected direction. A zeroth-order estimate aligned with this gradient would gain
+  `alpha` x 7.3 = 0.0037 +- 0.0007 per unit, 0.8 +- 0.15 of the odd response the update
+  showed. The two are responses of different directions on different objectives, so this
+  compares the tested directions and bounds no other estimator (the review's finding F1;
+  an earlier version of this bullet called it a ceiling).
+- An optimizer that only rescales or averages the same estimate does not change its
+  useful fraction: Adam's per-element normalization sees element magnitudes that are
+  99.97% noise of equal size, momentum applies each random part once in total, and an
+  orthogonalization transforms the noise and the small useful part together. One that
+  changes the perturbation's covariance, as a step per matrix type does, changes the
+  cost term and is a different estimator; `09` tested one such step and it failed over
+  eight updates.
+- RL's own displacement to step 120 has cosine 0.019 with this gradient, consistent with
+  120 Adam steps of length 0.045 that are nearly orthogonal to one another (`sqrt(120) x
+  0.045` = 0.49; the displacement is 0.476), though the step norms were not measured. A
+  minibatch gradient is a small part of where RL goes too; it is the exactness of each
+  step, not the gradient's constancy, that RL has.
 
 ## 8. Where the time goes
 
@@ -256,10 +260,10 @@ zeroth-order slowdown scales with the effective dimension of the problem (Mallad
 
 ## 10. What ES would need, and what it would still lack
 
-- **Rollouts.** The only lever on the random part is N. The best useful step grows in
-  proportion to N: 0.0005 per update at 16 members, 0.015 at 1,024, RL's 0.045 at about
-  3,000, if the cost keeps falling as 1/N. Low-rank members make that affordable in compute
-  (`runs/lowrank-check/`), not in rollouts.
+- **Rollouts.** Among the changes tested, the lever on the random part is N. The fitted
+  best useful step grows in proportion to N: 0.0005 per update at 16 members, 0.015 at
+  1,024, RL's 0.045 at about 3,000, if the cost keeps falling as 1/N. Low-rank members
+  make that affordable in compute (`runs/lowrank-check/`), not in rollouts.
 - **Throughput.** The dead-prompt screen (about 1.9x, with the caveat of section 8), LoRA
   kernels (at most 1.5x), per-matrix-type step sizes (1 to 5x, untested), speculative
   decoding from other members' answers (1.3 to 2.5x, untested). Together plausibly 3 to 6x,
@@ -278,9 +282,12 @@ and a step size per matrix type measured one update from the start. The useful p
 gains IFEval at RL's own pace, and the random part, twice as long, loses MATH 1.8 points
 and GSM8K 0.7 in eight updates; held-out falls 0.32. The random part's cost is concentrated
 on the reasoning tasks, five to six times IFEval's per unit of length in the single-step
-record, so a step sized by the pooled cost over-steps them. The trade ES makes on this
-stream is the shared skill for the fragile ones, and more members at the step the pooled
-model picks make it worse.
+record, so a step sized by the pooled cost over-steps them; unequal task costs do not by
+themselves explain why the pooled additive model predicted a gain, so at least one of
+its assumptions fails over eight updates, and the records do not say which. The trade ES
+made on this stream in the tested configurations is the shared skill for the fragile ones,
+and more members at the step the pooled model picked made it worse; whether a step sized
+by the fragile tasks' cost does better is open (`10`).
 
 ## 11. Limitations
 

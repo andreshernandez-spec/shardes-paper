@@ -161,8 +161,10 @@ Record: `runs/lowrank-check/` (`members.json`, `steps.json`, `predictions.json`)
 decode the 192 iteration-0 prompts; the update from the first 128, 512, 1,024 measured as
 E13 at lengths 44.7 and 111.7. Result: gain per unit +0.0037 +- 0.0011, +0.0047 +- 0.0006,
 +0.0047 +- 0.0004; cost per unit squared -0.00054, -0.00015, -0.000077 (1.2 to 1.3 times
-a dense update's at the same length); best net 0.006, 0.036 +- 0.010, 0.071 +- 0.016
-against RL's 0.040 per four steps; adapters equal merged weights at correlation 0.997;
+a dense update's at the same length); fitted best net 0.006, 0.036 +- 0.010, 0.071 +-
+0.016 against RL's 0.040 mean per four steps, the one step scored near the 1,024 optimum
++0.057 +- 0.053; the populations nested; adapters agree with merged weights at
+correlation 0.997 and 0.995 on 32 answers;
 members decode at about 21 answers per second. The numeric cost predictions written before
 scoring had the wrong sign (the members' mean change was measured against one greedy
 redraw of the start). Established: the gain does not depend on N and the cost falls as
@@ -185,8 +187,9 @@ Record: `runs/throughput-bench/`. Result: base decoding 10,560 tokens/s on an H2
 members 6,970 (factor 1.5); more sequences in flight change nothing; 128 adapters per
 call 21% slower than 64; forward and backward 4,465 tokens/s, forward alone 16,400; RL's
 four steps per 192 prompts 784 GPU-s (decode 100, gradient 538, reference 146), one ES
-update at 512 members 4,744 GPU-s: 6.6 times RL's GPU-seconds per unit of gain on one
-update, 3.5 with the dead-prompt screen, 2.3 at the base model's decode rate as well; a
+update at 512 members 4,744 GPU-s: an estimated 6.6 times RL's GPU-seconds per unit of
+fitted one-update gain, 3.5 with the dead-prompt screen, 2.3 at the base model's decode
+rate as well (no optimizer, communication or pipeline idling timed on the RL side); a
 length cap gives up at least as large a share of ranking signal as of tokens.
 Established: where the time goes. Caveat: single-GPU rates; RL's pipeline overheads not
 measured.
@@ -219,10 +222,12 @@ with the full update as reference; a length counts when neither sign moved the r
 more than two points. Result: v_proj 17% of the gain with 2% of the parameters but 23% of
 the cost (curvature 11 times the average per unit length); up_proj 19% / 10%; q_proj no
 gain; k and gate costs unresolved; sums match the full update within 1.6 and 0.3 SE;
-reweighted best net 2.4 times uniform (1.5 over resolved types); multipliers q 0.25, k
-4.0 (clipped), v 0.95, o 0.99, gate 2.3, up 2.5, down 1.17. The three predictions held.
-Established: a per-type step helps on the pooled measure by about 2 in the one-step model;
-v_proj's cost tracks its gradient density.
+reweighted best net 2.4 times the full update's own fit, 1.5 times the uniform optimum
+from the same per-type sums, 1.0 over the resolved types on that baseline; multipliers q
+0.25, k 4.0 (clipped), v 0.95, o 0.99, gate 2.3, up 2.5, down 1.17. The three predictions
+held on the baseline they named. Established: a per-type step's fitted benefit is 1.5 on
+the like-for-like baseline and rests on two unresolved types; v_proj's cost tracks its
+gradient density.
 
 ## E19. Eight updates at 1,024 members with the screen and per-type steps (2026-10-11)
 
@@ -231,10 +236,14 @@ members, step 30.5 with the E18 multipliers (update length 80 to 86 against 43 u
 a 128-member screen, 64 adapters per call. Result: held-out -0.206 +- 0.063 after 4 and
 -0.323 +- 0.072 after 8 (predicted +0.25 to +0.40); IFEval +0.65 (0.09), GSM8K -0.72
 (0.14), MATH -1.81 (0.16); on RL steps 121 to 160 IFEval +0.73 against RL's +0.81 at step
-40; the screen kept 97 to 135 prompts (62% of the rollouts), skipping about half all-right
-and half all-wrong prompts, and the live set grew as the model lost prompts it had been
-sure of; 979,712 answers, 17.7 per second. The one-update record (E14) already showed the
-random part's cost at -1.07 on MATH, -0.48 on GSM8K, -0.19 on IFEval per step of length
-112. Established: the useful part delivers IFEval at RL's pace; the random part's cost
-concentrates on reasoning and a step set by the pooled cost over-steps it; the gate
-fails.
+40 (RL has 30,720 answers by then); the screen kept 97 to 135 prompts (62% of the
+rollouts), skipping about half all-right and half all-wrong prompts, and the live set grew
+as the model lost prompts it had been sure of; 979,712 answers, 17.7 per second of
+iteration time; on IFEval alone about 7.8 times RL's estimated GPU-seconds per unit of
+gain. The one-update record (E14) already showed the random part's cost at -1.07 on MATH,
+-0.48 on GSM8K, -0.19 on IFEval per step of length 112 (and the dense record of E13 at
+-0.78, -0.40, -0.25). Established: the odd response's task profile held (IFEval 0.081 per
+update against 0.058 at 512); the reasoning tasks fell further than the additive
+quadratic model allows, and which of its assumptions failed is not isolated; the gate
+fails for this configuration. The evaluation prompts also set the configuration, so they
+are validation data for it.

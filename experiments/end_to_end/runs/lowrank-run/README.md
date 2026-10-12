@@ -26,9 +26,10 @@ for bit. An iteration took 4,560 to 5,180 s.
 | 8 updates | 5.594 | +0.141 (0.061) | 298 / 244 | +0.29 |
 
 - The docstring's criterion was below +0.10 after 8 updates for "does not accumulate at
-  the one-update rate". The run is above it, and below the +0.29 a full one-update rate
-  would give: about +0.018 per update against 0.036. The two held-out sets agree (+0.13
-  and +0.15).
+  the one-update rate". The run is 0.04 above it, less than its standard error, so the
+  bound is not clearly crossed; it is below the +0.29 a full one-update rate would give.
+  "About +0.018 per update against 0.036" describes the point estimates, not a measured
+  accumulation law. The two held-out sets agree (+0.13 and +0.15).
 
 ## By task, against RL
 
@@ -41,9 +42,11 @@ for bit. An iteration took 4,560 to 5,180 s.
 - Eight updates see the prompts of RL's first 32 steps. ES gains on IFEval about half of
   what RL has by step 40, and loses on MATH, where RL holds level.
 - RL's 32 steps decode 24,576 answers; these 8 updates decoded 786,432, 32 times as many.
-  At the per-token rates of `../throughput-bench/` (4,744 GPU-seconds per ES update, 784
-  per four RL steps) and these gains (+0.018 per update against RL's +0.044 per four steps
-  to step 40), ES used about 15 times RL's GPU-seconds per unit of held-out gain.
+  At the per-token rates of `../throughput-bench/` (4,744 GPU-seconds per ES update
+  estimated, 784 per four RL steps estimated, no optimizer or communication timed) and
+  these gains (the pooled +0.018 per update against RL's +0.044 per four steps to step 40
+  on the first block), ES used about 15 times RL's GPU-seconds per unit of held-out gain;
+  with ES's measured iteration time and the first block's gains for both, about 16.
 
 ## What this does not show
 

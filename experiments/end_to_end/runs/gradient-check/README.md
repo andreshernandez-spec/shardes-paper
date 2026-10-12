@@ -15,17 +15,20 @@ every number below is given toward reward (along `-g`).
 
 ## The batch and the gradient
 
-The RL run's batch for the 192 iteration-0 prompts (RL steps 1 to 4): 16 answers each at
-temperature 1.0 (mean length 355, mean reward 4.83), the run's verifiers, GRPO's
-advantages `(score - group mean) / (group sd + 1e-8)`. 91 of the 192 groups have unequal
-rewards; 43 are all right and 58 all wrong, so 53% of the prompts give RL's first step no
-gradient at all, as ES's dead prompts give its update none (`../lowrank-check/`).
+A reconstruction of the RL run's batch for the 192 iteration-0 prompts (RL steps 1 to
+4): 16 answers each newly sampled by the start at temperature 1.0 with our seeds (mean
+length 355, mean reward 4.83), the run's verifiers, GRPO's advantages `(score - group
+mean) / (group sd + 1e-8)`. The run's own samples are not released, and the four rollout
+steps' prompts are pooled into one gradient. 91 of the 192 groups have unequal rewards; 43
+are all right and 58 all wrong, so 53% of the prompts give this gradient nothing, as ES's
+dead prompts give its update nothing (`../lowrank-check/`).
 
 The gradient at the start, as open-instruct 3f37c29 forms it: the token mean of
 `-A_i log p(y_t)` over each micro-batch of 2 (random pairing, seed 0), averaged over the
 1,536 micro-batches, f32 parameters under bf16 autocast, 2.39M tokens, 639 s. The ratio
-is 1 and the KL term's gradient is 0 at the start, so this is the run's whole first-step
-gradient. |g| = 0.549, of which the 224 attention and MLP matrices ES perturbs carry 96%
+is 1 and the KL term's gradient is 0 at the start, so this is the gradient of the run's
+loss at the start on this batch; the run's two optimizer minibatches per rollout batch and
+its Adam state are not modelled. |g| = 0.549, of which the 224 attention and MLP matrices ES perturbs carry 96%
 of the squared norm (down_proj 40%, v_proj 27%, o_proj 12%, up_proj 10%, gate_proj 5%;
 embeddings 2.4%, lm_head 1.5%, norms 0.1%).
 
@@ -50,15 +53,18 @@ noise of sd `1 / sqrt(N)`; the control ranking is that case.
 | `../step-check/` dense: arm, probe768, contrast, control | 16 | +0.21, +0.22, +0.05, +0.36 (0.25 each; the four share their 16 directions) |
 | `../lowrank-run/` iterations 1 to 7, on this gradient | 512 | +0.03, -0.02, +0.08, -0.09, -0.01, +0.08, +0.04 (0.044) |
 
-- The three independent measurements at N >= 512 agree: ES's first update has a
-  component along RL's gradient of 0.12 of the most a zeroth-order estimate can have, 3.9
-  standard errors from zero and toward reward. The prediction (0.1 to 0.3) holds.
+- The three measurements at N >= 512 agree, and they are one population, not three: the
+  512 members are the first half of the 1,024, and the run's iteration 0 decoded the same
+  directions again. ES's first update has a component along this gradient of 0.12 of the
+  most a zeroth-order estimate can have, 3.9 standard errors from zero over prompts and
+  toward reward. The prediction (0.1 to 0.3) holds.
 - Later updates, made at later weights, have no measurable component along the start's
   gradient (mean +0.02 +- 0.02). Nor does RL's own displacement to step 120: its cosine
-  with this gradient is 0.019, what 120 Adam steps of length 0.045 (lr 5e-7 times
-  sqrt(d)) that are nearly orthogonal to one another give (sqrt(120) x 0.045 = 0.49, and
-  the displacement is 0.476). A minibatch gradient at the start is a small part of where
-  RL goes.
+  with this gradient is 0.019, consistent with 120 Adam steps of length 0.045 (lr 5e-7
+  times sqrt(d)) that are nearly orthogonal to one another (sqrt(120) x 0.045 = 0.49, and
+  the displacement is 0.476), though the step norms themselves were not measured and
+  other paths give the same endpoint. A minibatch gradient at the start is a small part
+  of where RL goes.
 - ES's displacement after eight updates (83 long) has cosine 1e-5 with RL's.
 
 ## Along RL's gradient the reward is steep for a short way
@@ -78,10 +84,11 @@ engine rounds to bf16, so the effective length is what reached the model. Odd pa
 | sign | 1 | 0.598 | 5.688 | 4.784 | +0.452 (0.034) | -0.220 (0.049) | 0.76 (0.06) |
 | sign | 4 | 4.17 | 2.500 | 0.945 | +0.78 | -3.73 | broken |
 
-- Along RL's exact gradient the reward rises 7.3 +- 1.3 points per unit length at the
-  smallest length the rounding allows (0.022), and the model is broken by length 0.08: a
-  step along a direction this concentrated moves a few weights by a lot. The even part at
-  0.022 is already 14% of the odd part, so the slope at zero is somewhat higher.
+- Along this gradient the reward rises 7.3 +- 1.3 points per unit effective length at
+  the smallest usable length (0.022), and the model is broken by length 0.08: a step
+  along a direction this concentrated moves a few weights by a lot. The alignment of the
+  rounded displacement with the gradient was not recorded, and one signed point does not
+  give the slope at zero.
 - Along Adam's sign direction, every weight moves alike: the slope is a tenth, 0.76, and
   it holds to length 0.6 and beyond. RL's actual step (length 0.045) would gain about
   0.034 to first order, and its first 40 steps gained 0.44 on these prompts, 0.011 per
@@ -93,27 +100,28 @@ engine rounds to bf16, so the effective length is what reached the model. Odd pa
 
 ## What this says about ES
 
-ES's useful component per unit update is at most `alpha` = 5e-4 long (`E[u] = alpha rho
-g_hat_ES`, rho <= 1). It delivered 0.0047 +- 0.0004 held-out points per unit at N = 1,024
-(`../lowrank-check/`), so the slope along ES's expected direction is at least 9.4 per
-unit length.
+Under the model `E[u] = alpha rho g_hat_ES` with rho <= 1, the update's useful component
+per unit is at most `alpha` = 5e-4 long. Its odd response per unit was 0.0047 +- 0.0004 at
+N = 1,024 (`../lowrank-check/`); if that response were first order it would imply a slope
+of at least 9.4 along the update's expected direction. The odd response also carries
+higher odd-order terms and the realized random part's own signed response, so this is an
+inference from the model, not a measurement of that slope.
 
-- A perfect zeroth-order estimate of RL's gradient, `rho` = 1 along `-g_hat`, would gain
-  `alpha` x 7.3 = 0.0037 +- 0.0007 per unit, 0.8 +- 0.15 of what ES's update already
-  gains. The estimator is not losing anything to its ranking that a better fitness could
-  recover: ES's expected direction is at least as steep as RL's gradient direction, and it
-  is spread over all weights like Adam's step rather than concentrated like the raw
-  gradient, so it holds up at the lengths ES uses (the odd part was linear to length 112
-  in `../lowrank-check/`).
-- What separates the two is only the length of the useful step. RL moves 0.045 along its
-  direction every step, all of it useful. ES moves at most 5e-4 along its direction per
-  update, beside a random part of 1.4 at 1,024 members, whose cost falls as 1/N. The
-  remaining lever is N, which is to say rollouts; the ceiling of a better fitness is
-  about where ES is.
-- `rho_hat` = 0.12 bounds the cosine between ES's expected direction and RL's gradient
+- A zeroth-order estimate aligned with this gradient, `rho` = 1 along `-g_hat`, would gain
+  `alpha` x 7.3 = 0.0037 +- 0.0007 per unit to first order, 0.8 +- 0.15 of the odd
+  response the 1,024-member update showed. The two are responses of different directions
+  on different objectives (the run's sampled loss, ES's greedy fitness), so this compares
+  the tested directions and bounds no other estimator. Among the estimators tested
+  (sampled fitness, mirrored pairs, the log-probability contrast, a step per matrix type),
+  none raised the odd response per unit above the greedy reward's.
+- What the measurements leave as the difference between the two methods: RL's step is its
+  minibatch gradient, with sampling noise and the surrogate's bias but no exploration
+  component, 0.045 long each step; ES's update has a component along that gradient of
+  12% of the largest possible and a remainder of characteristic length 1.4 at 1,024
+  members, whose even response falls as 1/N.
+- `rho_hat` = 0.12 bounds the cosine between ES's expected direction and this gradient
   from below; `rho` itself, how well the ranking tracks ES's own gradient, is not
-  separated from that cosine here. Either way the update is a gradient estimate that
-  works, toward RL's gradient, with the variance zeroth-order estimation has.
+  separated from that cosine here.
 
 ## What this does not show
 

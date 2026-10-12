@@ -58,9 +58,12 @@ GPU-seconds per 192 prompts at these rates (four RL steps, one ES update at 512 
 
 - The gradient is 69% of RL's compute and the reference forward another 19%; ES pays
   neither. It pays instead for 32 times as many answers.
-- Per unit of gain, ES uses 6.6 times RL's GPU-seconds; with the 64-member dead-prompt
-  screen (`lowrank_run.py --screen-check`: 54% of the rollouts) 3.5 times; at the base
-  model's decoding rate as well, 2.3 times.
+- Per unit of fitted one-update gain, ES's estimated GPU-seconds are 6.6 times RL's (the RL
+  gain is a mean per four steps over its first 120); with the 64-member dead-prompt screen
+  (`lowrank_run.py --screen-check`: 54% of the rollouts) 3.5 times; at the base model's
+  decoding rate as well, 2.3 times. The RL side times a forward and backward pass on the
+  start's greedy answers in length-sorted micro-batches and a reference forward; it does
+  not time the optimizer, the sampled rollouts' lengths or the training pipeline.
 - These are single-GPU rates. RL on a real node adds gradient communication, weight
   broadcasts to the inference engine and generation and training waiting on each other;
   ES's members are independent and exchange only their fitness numbers. Both effects

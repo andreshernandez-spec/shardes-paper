@@ -80,9 +80,11 @@ $75. The program has spent about $330 of its first $350; this is the second budg
 ## Result, 2026-10-11
 
 **Stage A** (`experiments/end_to_end/runs/block-check/README.md`,
-`runs/throughput-bench/README.md`): the three A1 predictions held (v_proj's gain share 8.8
-times its parameter share; reweighted best net 2.4 times the uniform one, 1.5 over the
-types whose cost is resolved; sums within 1.6 and 0.3 standard errors), but the mechanism
+`runs/throughput-bench/README.md`): the three A1 predictions held on the baseline they
+named (v_proj's gain share 8.8 times its parameter share; reweighted best net 2.4 times
+the full update's own fit, 1.5 times the uniform optimum computed from the same per-type
+sums, and 1.0 over the types whose cost is resolved on that like-for-like baseline; sums
+within 1.6 and 0.3 standard errors), but the mechanism
 was not the one assumed: v_proj's curvature is 11 times the average per unit length, so
 its multiplier is 0.95, and the reweighting came from up_proj (2.5), the removal of q_proj
 (0.25) and two types with unresolved costs (gate 2.3, k clipped to 4). A2: 128 adapters per
@@ -91,16 +93,26 @@ went into stage B.
 
 **Stage B** (`runs/lowrank-run-1024/README.md`): held-out -0.206 +- 0.063 after 4 updates
 and -0.323 +- 0.072 after 8, against the predicted +0.25 to +0.40. IFEval +0.65 (RL's own
-pace on these prompts), GSM8K -0.72, MATH -1.81. **The gate fails**: the gain is negative,
-so ES's compute per unit of gain is not within any multiple of RL's. The cause is in the
-one-update record and was averaged away by the pooled cost model: the random part's cost
-falls on MATH at five to six times the rate it falls on IFEval, so a step sized by the
-pooled cost over-steps the reasoning tasks, and the damage accumulates faster than eight
-single-step costs. The screen behaved as predicted (62% of the rollouts, the skipped
-prompts half all-right and half all-wrong for the screening members) and the live set grew
-as the model lost prompts it had been sure of.
+pace on these prompts), GSM8K -0.72, MATH -1.81. **The gate fails** for this configuration: the
+pooled gain is negative. The random part's one-step cost is five to six times larger on
+MATH than on IFEval in the one-update record, which explains the trade between tasks but
+not the pooled loss: the additive quadratic model fitted to the same record predicted
++0.15 per update, so at least one of its assumptions (coefficients stable as the weights
+move, quadratic response at these lengths, additivity across matrix types, the screen's
+equivalence to the full ranking) failed over eight updates, and these records do not
+isolate which. The prediction above that MATH's loss would be smaller than the 512-member
+run's rested on an arithmetic error: at the uniform step the random part at 1,024 members
+is 43 long, sqrt(2) longer than that run's 31, not half, and the multipliers made it 85.
+The screen spent 62% of the rollouts, skipping prompts half all-right and half all-wrong
+for the screening members, and the live set grew as the model lost prompts it had been
+sure of; its effect on the update direction after iteration 0 was not measured against
+an unscreened run. The three eight-update runs differ in population, step, screen and
+per-type weighting at once and isolate none of them.
 
-Reported as `09` fixed: the complete negative result. The best factor achieved on the
-pooled measure is none; on IFEval alone, which is not the measure, ES used 6.3 times RL's
-GPU-seconds per unit of gain while losing the reasoning tasks. The structural
-demonstration (`08`, step 3) is not worth costing on this evidence.
+Reported as `09` fixed: the preregistered selected configuration failed its gate. The
+512-member run's +0.141 +- 0.061 (`runs/lowrank-run/`) remains the best pooled result, at
+about 15 times RL's estimated GPU-seconds per unit of gain; on IFEval alone, which is not
+the measure, the final run used about 7.8 times. The structural demonstration (`08`, step
+3) is not worth costing on this evidence. The evaluation prompts of this stage also set
+its step and multipliers, so they are validation prompts for its runs; a fresh test block
+is reserved from here on (`10`).

@@ -29,12 +29,17 @@ and cost `C_t = b_t |u_t|^2` from that type.
 | sum | | | 5.8e-3 | -7.4e-5 | | | |
 | full update | 100% | 111.7 | 4.67e-3 (4.4e-4) | -7.7e-5 (8.5e-6) | | | 1 |
 
-- **The predictions hold.** v_proj's share of the gain is 8.8 times its share of the
-  parameters (at least 5 predicted). The best net per update with a multiplier per type,
-  `sum_t G_t^2 / (4 C_t)`, is 2.4 times the uniform `G^2 / (4 C)` (1.5 to 3 predicted), 1.5
-  over the four types whose cost is resolved. The sums of `G_t` and `C_t` match the full
-  update's within 1.6 and 0.3 standard errors; the types measured at shorter lengths have
-  slightly larger slopes, as the full update does at 44.7 against 111.7.
+- **The predictions hold on the baseline they named, and barely on the right one.**
+  v_proj's share of the gain is 8.8 times its share of the parameters (at least 5
+  predicted). The best net per update with a multiplier per type, `sum_t G_t^2 / (4 C_t)`
+  = 0.170, is 2.4 times the full update's own fit `G^2 / (4 C)` = 0.071 (1.5 to 3
+  predicted), but the like-for-like comparison is with the uniform optimum computed from
+  the same per-type sums, `(sum G_t)^2 / (4 sum C_t)` = 0.112, which gives 1.5; over the
+  four types whose cost is resolved alone, 0.108, which gives 1.0. The whole improvement
+  on the like-for-like baseline comes from the two types whose cost is unresolved. The
+  sums of `G_t` and `C_t` match the full update's within 1.6 and 0.3 standard errors; the
+  types measured at shorter lengths have slightly larger slopes, as the full update does
+  at 44.7 against 111.7.
 - **Where the gain comes from is not where the prior said.** v_proj carries 17% of the
   gain with 2% of the parameters, but its curvature per unit length squared is 11 times
   the full update's (-4.4e-4 against -3.9e-5), so it carries 23% of the cost: in the most
@@ -44,10 +49,11 @@ and cost `C_t = b_t |u_t|^2` from that type.
   unresolved types, gate and k, whose costs are within two standard errors of zero and
   whose multipliers (2.3 and 10.8, clipped to 4) carry that uncertainty.
 - With the clipped multipliers at the uniform best step (30.5 times the unit update), the
-  model predicts a net of 0.15 per update against 0.071, with k_proj's 0.03 the least
-  certain part. If k_proj's cost is two standard errors larger than measured, its net at
+  model predicts a net of 0.15 per update against 0.112 on the same fit (0.071 on the
+  full update's), with k_proj's 0.03 the least certain part. If k_proj's cost is two standard errors larger than measured, its net at
   the clipped multiplier is still positive; gate_proj's would be about zero.
-- The multipliers go into stage B as `docs/end_to_end/09` fixed before this run: the ratio
-  is above 1.3 and the sums check. `--type-steps '{"q_proj": 0.25, "k_proj": 4.0,
+- The multipliers went into stage B as `docs/end_to_end/09` fixed before this run: the
+  ratio it named (against the full update's fit) is above 1.3 and the sums check. On the
+  like-for-like ratio the rule would have been met only with the unresolved types counted. `--type-steps '{"q_proj": 0.25, "k_proj": 4.0,
   "v_proj": 0.952, "o_proj": 0.985, "gate_proj": 2.336, "up_proj": 2.522, "down_proj":
   1.167}'`.

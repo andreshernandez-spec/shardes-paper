@@ -95,9 +95,10 @@ Tulu, per unit update:
 | RL, per 4 steps | | | 0.040 |
 
 The gain does not change with members; the cost falls as 1/N. At 16 members they cancel,
-which is why the run stayed flat. At 1,024 one update nets more than RL's four steps, at
-64 times the answers. On Countdown the margin of gain over cost was about 600 for the
-0.5B model and 6 to 29 for the Tulu 8B start, against about 6 on Tulu.
+which is why the run stayed flat. At 1,024 the fitted optimum exceeds RL's average
+four-step gain, at 64 times the answers; the one step scored near that optimum gave
++0.057 +- 0.053, so the optimum is a fit. On Countdown the margin of gain over cost was
+about 600 for the 0.5B model and 6 to 29 for the Tulu 8B start, against about 6 on Tulu.
 
 By task, at 1,024 members and one step of length 112, the cost is -1.07 on MATH, -0.48 on
 GSM8K and -0.19 on IFEval: the random piece damages reasoning five to six times more than
@@ -127,10 +128,11 @@ of 1.4.
 
 ## 9. Compute per unit of gain (GPU-seconds)
 
-On one H200, RL's four steps cost 784 GPU-seconds (100 decoding, 538 the gradient, 146
-the reference model) for +0.040; one ES update at 512 members costs 4,744 for +0.037. ES
-used 6.6 times RL's compute per unit of gain on one update, 15 over eight. Skipping the
-gradient saves RL's largest cost; ES pays 32 times more answers.
+On one H200, at per-token rates, RL's four steps are estimated at 784 GPU-seconds (100
+decoding, 538 the gradient, 146 the reference model; no optimizer or communication) for
++0.040 on average; one ES update at 512 members costs 4,744 for a fitted +0.037. ES used
+an estimated 6.6 times RL's compute per unit of gain on one update, about 15 over eight.
+Skipping the gradient saves RL's largest cost; ES pays 32 times more answers.
 
 ## 10. The two datasets side by side
 

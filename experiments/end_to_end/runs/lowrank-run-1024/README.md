@@ -33,15 +33,20 @@ GSM8K +0.20, MATH -0.05, all +0.44. The `../lowrank-run/` 512-member run (step l
 - `09` predicted +0.25 to +0.40 after 8 updates; the run gives -0.32 +- 0.07. The gate,
   ES's GPU-seconds per unit of held-out gain within 3 times RL's, fails: the gain is
   negative.
-- The useful part of the updates does what the one-update measurements said. IFEval
-  rises 0.08 per update, twice the 512-member run's 0.06 and about RL's own pace on these
-  prompts (+0.81 by step 40, 0.08 per four steps).
-- The random part destroys the reasoning tasks. Its cost is concentrated there: in the
-  one-update record (`../lowrank-check/`, N = 1,024 at length 112) the even part is -1.07
-  on MATH, -0.48 on GSM8K and -0.19 on IFEval. The pooled quadratic model that set the
-  step and the multipliers averaged that away, so the step it chose (length 85 per
-  update, 240 accumulated) is far past what MATH tolerates, and the accumulated damage
-  is larger than eight single-step costs would add to.
+- IFEval rises 0.081 per update over all held-out prompts, 1.4 times the 512-member run's
+  0.058 (1.75 times on the first block); the RL checkpoint at step 40 has +0.81 on the
+  first block, 0.08 per four steps, measured at 40 steps rather than at the 32 these
+  eight updates match.
+- The random part's cost is concentrated on the reasoning tasks: in the one-update record
+  (`../lowrank-check/`, N = 1,024 at length 112) the even part is -1.07 on MATH, -0.48 on
+  GSM8K and -0.19 on IFEval. That explains the trade between tasks, not the pooled loss:
+  the additive quadratic model fitted to the same record predicted +0.15 per update, so
+  at least one of its assumptions failed over eight updates (coefficients stable as the
+  weights move, quadratic response at these lengths, additivity across matrix types, the
+  screen's equivalence to the full ranking), and these records do not isolate which. The
+  preregistration's expectation of less MATH damage than at 512 members also rested on an
+  arithmetic error: at the uniform step the random part at 1,024 members is 43 long,
+  sqrt(2) longer than that run's 31, not half, and the multipliers made it 85.
 
 ## The screen
 
@@ -51,16 +56,23 @@ GSM8K +0.20, MATH -0.05, all +0.44. The `../lowrank-run/` 512-member run (step l
 | 1 to 6 | 97 to 116 | 34 to 51 | 37 to 47 | 111,488 to 128,512 |
 | 7 | 135 | 24 | 33 | 145,536 |
 
-979,712 rollouts in all, 62% of the 1,572,864 without the screen; 55,308 s of decoding,
-17.7 answers per second against 20.9 for the unscreened engine (two decoding phases per
-iteration, and the live set grew as the model moved: by iteration 7 the model had become
-uncertain on 36 prompts it had been sure of at iteration 0, mostly ones it used to get
-right).
+979,712 rollouts in all, 62% of the 1,572,864 without the screen; 55,308 s of iteration
+time (54,849 s decoding), 17.7 answers per second against 20.9 for the unscreened engine
+(two decoding phases per iteration, and the live set grew as the model moved: by
+iteration 7 the model had become uncertain on 36 prompts it had been sure of at iteration
+0, mostly ones it used to get right). On the iteration-0 population of
+`../lowrank-check/` the screened update's pair coefficients have cosine 0.997 with the
+unscreened ones at 128 screening members and 0.992 at 64
+(`python -m es_vllm.lowrank_run --screen-check runs/lowrank-check/members.json`); what the
+screen does to later updates, whose live sets differ, was not measured against an
+unscreened run.
 
 ## Cost against RL
 
-ES decoded 979,712 answers over 15.4 GPU-hours for a held-out change of -0.32; the RL run
-reaches +0.44 on the RL steps 121 to 160 prompts by step 40 (24,576 answers, about 2.2
-GPU-hours at the rates of `../throughput-bench/`). Counting IFEval alone, which is not
-what `09` fixed as the measure: ES +0.73 for 55,308 GPU-seconds, RL +0.81 for about
-7,800, 6.3 times RL's GPU-seconds per unit of IFEval gain, with the reasoning tasks lost.
+ES decoded 979,712 answers in 15.4 hours of iteration time on one H200 for a held-out
+change of -0.32; the RL checkpoint at step 40 has +0.44 on the first block (30,720
+answers, about 2.2 GPU-hours estimated from the per-token rates of
+`../throughput-bench/`, which time no optimizer, communication or pipeline idling).
+Counting IFEval alone on the first block, which is not the measure `09` fixed: ES +0.73
+in 55,308 s, RL +0.81 in about 7,845 s estimated, 7.8 times RL's GPU-seconds per unit of
+IFEval gain, with the reasoning tasks lost.

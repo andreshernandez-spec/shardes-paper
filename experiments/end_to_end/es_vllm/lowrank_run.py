@@ -226,12 +226,17 @@ def screen_check(rec: dict, n: int = N) -> dict:
     r, s0 = np.asarray(rec["rewards"]), np.asarray(rec["start"])
     full = r[:n].mean(1)
     changes = (r[:n] != s0[None]).sum(0)
+    k_full = lowrank.coefficients(full, n, ALPHA, RANK)
     out = {}
     for s in (16, 32, 64, 128):
         live = np.asarray([np.unique(r[:s, j]).size > 1 for j in range(r.shape[1])])
+        k_scr = lowrank.coefficients(r[:n, live].mean(1), n, ALPHA, RANK)
         out[str(s)] = {"prompts_kept": int(live.sum()), "share_kept": float(live.mean()),
                        "share_of_outcome_changes": float(changes[live].sum() / changes.sum()),
                        "corr_fitness": float(np.corrcoef(r[:n, live].mean(1), full)[0, 1]),
+                       # the screened update against the unscreened one, same factors: the
+                       # cosine of their pair coefficients (the factors' Gram is near identity)
+                       "update_cosine": float(k_full @ k_scr / np.linalg.norm(k_full) / np.linalg.norm(k_scr)),
                        "rollouts_share": float((s * r.shape[1] + (n - s) * live.sum()) / (n * r.shape[1]))}
     out["dead_for_all_1024"] = int(sum(np.unique(r[:, j]).size == 1 for j in range(r.shape[1])))
     return out

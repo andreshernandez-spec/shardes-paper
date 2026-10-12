@@ -41,14 +41,19 @@ prompts, at length 111.7 (44.7 in parentheses):
   scaled from `../step-check/`): a low-rank random part costs about what a dense one
   does per unit length.
 - The gain does not depend on N, and it is about the dense one. At 1,024 members it is 11
-  standard errors from zero: a ranking on 192 prompts carries a first-order signal that
-  transfers to prompts it never saw. With 16 members it was hidden in the +-0.011 that a
-  random weighting of 16 directions gives; with 1,024 it is about +-0.001.
-- So the best net per update grows in proportion to N, as the docstring predicted (about
-  0.07 at 1,024). The RL run gained 1.19 on these held-out prompts in its first 120
-  steps, 0.040 per four steps, which see the same 192 prompts as one ES update. Per
-  update, ES matches that at 512 members and exceeds it at 1,024: at 32 and 64 times RL's
-  3,072 rollouts.
+  standard errors from zero over prompts, for this one population (the 128 and 512 are
+  its first members): a ranking on 192 prompts carries a signed response that transfers
+  to prompts it never saw. With 16 members it was hidden in the +-0.011 that a random
+  weighting of 16 directions gives; with 1,024 it is about +-0.001. The response per unit
+  falls from 0.0056 at length 44.7 to 0.0047 at 111.7 and the even coefficient from
+  -1.2e-4 to -7.7e-5, so the quadratic fit is local and the errors of gain and cost, from
+  the same prompts, are not independent.
+- So the fitted best net per update grows in proportion to N, as the docstring predicted
+  (about 0.07 at 1,024). The RL run gained 1.19 on these held-out prompts in its first
+  120 steps, 0.040 per four steps on average, which see the same 192 prompts as one ES
+  update. The fitted optimum at 512 members (0.036 +- 0.010) is about that average and
+  at 1,024 (0.071 +- 0.016) above it, at 32 and 64 times RL's 3,072 rollouts; the optimum
+  is a fit, and the one step scored near it (below) is not precise enough to confirm it.
 - A single step near the best length (1,024 members, lambda 31.8, length 44.7) changes the
   held-out reward by +0.057 +- 0.053; the paired design measures gain and cost more
   precisely than one step can.
