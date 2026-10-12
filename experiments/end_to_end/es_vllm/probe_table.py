@@ -64,6 +64,22 @@ def rows(root: Path) -> list:
     return out
 
 
+def spearman(xs, ys) -> float:
+    """Rank correlation of two equally long lists (no ties expected)."""
+    import numpy as np  # noqa: PLC0415
+
+    rx, ry = np.argsort(np.argsort(xs)), np.argsort(np.argsort(ys))
+    return float(np.corrcoef(rx, ry)[0, 1])
+
+
+def level0_vs_level1(rs: list) -> dict:
+    """Does the gradient sharedness order the settings as the members' cross-prompt
+    correlation does (docs/end_to_end/10, the level-0 test)?"""
+    ok = [r for r in rs if r["share"] is not None and r["corr"] is not None]
+    return {"settings": len(ok), "spearman_sharedness_vs_cross_prompt_correlation":
+            spearman([r["share"] for r in ok], [r["corr"] for r in ok]) if len(ok) > 2 else None}
+
+
 def table(rs: list) -> str:
     head = "| " + " | ".join(name for _, name in COLUMNS) + " |"
     sep = "|" + "|".join("---" for _ in COLUMNS) + "|"
@@ -78,7 +94,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     root = args.root if args.root.is_absolute() else E2E / args.root
     rs = rows(root)
-    print(json.dumps(rs, indent=1) if args.json else table(rs))
+    print(json.dumps({"rows": rs, **level0_vs_level1(rs)}, indent=1) if args.json else table(rs))
     return 0
 
 

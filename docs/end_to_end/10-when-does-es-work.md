@@ -246,3 +246,30 @@ the records, from the published outcomes in `11`:
 4. Level 0 predicts level 1: the gradient sharedness orders the six settings as the
    cross-prompt correlation of member effects does (Spearman at least 0.8).
 5. Where an off-task reasoning block is scored, it is the task damaged first.
+
+## Results of the first batch (2026-10-12, `runs/probe/README.md`)
+
+Six predictions, written before any training run (the training runs of stage 3 will
+score the reserved test blocks):
+
+| setting | live share | sharedness | reliability | G | C | ES/RL rollouts (90%) | call | off-task at target |
+|---|---|---|---|---|---|---|---|---|
+| qwen0.5b/gsm8k | 0.81 | 0.0037 | 0 | 0.0014 | -2.6e-4 | 50 (6.6 to 823) | fails: rollouts | +0.09 |
+| qwen1.5b/gsm8k | 0.77 | 0.0026 | 0.12 | 0.0013 | -1.3e-5 | 2.5 (0.3 to 92) | works | +0.04 |
+| qwen3b/gsm8k | 0.45 | 0.0016 | 0.02 | 0.0 | -2.6e-5 | (1.5 to 981) | fails: no odd response | - |
+| qwen7b/gsm8k | 0.25 | 0.0071 | 0 | 0.0017 | -4.4e-5 | 13 (2.2 to 55) | marginal | +0.04 |
+| qwen3b-base/countdown | 1.0 | 0.0196 | 0.38 | 0.0015 | -1.0e-4 | 17 (4.0 to 46) | marginal | -1.1, flagged |
+| qwen3b/countdown | 1.0 | 0.0086 | 0.27 | 0.0023 | -3.0e-5 | 2.8 (0.25 to 12) | works | -0.01 |
+
+Against the expectations: 2 held (the instruct Countdown model works with the largest
+`G^2/|C|`), 3 held in its three parts except that 3B on GSM8K has no odd response, 5
+held on four of six, 1 was wrong as written (the base model's collapse is not an absent
+signal but a found direction that destroys GSM8K, which the off-task number now
+carries), and 4 failed (Spearman 0.54: the Countdown settings lead both orders, the
+four GSM8K settings are near zero in both measures). Two findings outside the
+expectations: the curvature along random rank-1 directions falls three orders of
+magnitude from 0.5B to 7B while `G` does not move, which is the published size trend in
+the rule's terms; and a ranking of reliability 0 (7B) still gives an update whose odd
+response is 3.6 standard errors from zero, as on Tulu. The cost term is unresolved on
+four of six records at 300 prompts and 2.5 member lengths; the next batch extends the
+scan until the even response is resolved.

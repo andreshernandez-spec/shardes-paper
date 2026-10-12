@@ -33,6 +33,15 @@ def test_rows_and_table(tmp_path):
     assert "| - | - | - | fails: no odd response | - |" in t[3]
 
 
+def test_spearman_and_the_level0_test():
+    assert pt.spearman([1, 2, 3, 4], [10, 20, 30, 40]) == 1.0
+    assert pt.spearman([1, 2, 3, 4], [40, 30, 20, 10]) == -1.0
+    rs = [{"share": s, "corr": c} for s, c in ((0.02, 0.003), (0.009, 0.002), (0.007, -0.0007), (0.004, -0.0003))]
+    out = pt.level0_vs_level1(rs)
+    assert out["settings"] == 4 and abs(out["spearman_sharedness_vs_cross_prompt_correlation"] - 0.8) < 1e-9
+    assert pt.level0_vs_level1(rs[:2])["spearman_sharedness_vs_cross_prompt_correlation"] is None
+
+
 def test_fmt():
     assert pt.fmt(None) == "-" and pt.fmt(0) == "0" and pt.fmt("works") == "works"
     assert pt.fmt(0.0047) == "4.70e-03" and pt.fmt(0.42) == "0.42" and pt.fmt(31.456) == "31.5"
