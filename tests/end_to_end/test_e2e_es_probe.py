@@ -124,6 +124,10 @@ def test_prediction_recovers_constructed_responses(tmp_path):
     assert r["call"] in ("works", "marginal", "fails: rollouts")
     assert r["call"] == ("works" if r["ratio_es_over_rl_rollouts"] <= 5 else
                          "marginal" if r["ratio_es_over_rl_rollouts"] <= 25 else "fails: rollouts")
+    # the bootstrap over prompts brackets the point estimate and mostly agrees with the call
+    b = r["bootstrap_over_prompts"]
+    assert b["ratio_90"][0] < r["ratio_es_over_rl_rollouts"] < b["ratio_90"][1]
+    assert b["call_shares"][r["call"]] > 0.5 and abs(sum(b["call_shares"].values()) - 1) < 1e-9
     # every member scoring alike leaves no update to scan: the record says so and the
     # rule fails the setting on the odd response (or on signal, if the live share is low)
     (tmp_path / "steps.jsonl").unlink()

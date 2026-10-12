@@ -696,6 +696,30 @@ def rule(G: float, C: float, rl_gain_per_step: float, P: int, N: int, live_share
                           "live_min": LIVE_MIN, "rl_lr": RL_LR, "rl_rollouts_per_step": RL_ROLLOUTS_PER_STEP}}
 
 
+def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, live_share: float, draws=1000) -> dict:
+    """The rule's ratio and call under resampling of the scanned prompts: `update` holds
+    the plus, minus and start reward arrays at the length read and the update's `lam`;
+    `sign` the same for the sign direction with its effective length (or None)."""
+    rng = np.random.default_rng(0)
+    n = update["plus"].size
+    ratios, calls = [], {}
+    for _ in range(draws):
+        i = rng.integers(0, n, n)
+        odd = (update["plus"][i] - update["minus"][i]) / 2
+        even = (update["plus"][i] + update["minus"][i]) / 2 - update["start"][i]
+        G, C = float(odd.mean() / update["lam"]), float(even.mean() / update["lam"] ** 2)
+        gain = 0.0
+        if sign is not None:
+            j = rng.integers(0, sign["plus"].size, sign["plus"].size)
+            gain = rl_step * float(-((sign["plus"][j] - sign["minus"][j]) / 2).mean() / sign["effective_length"])
+        r = rule(G, C, gain, P, N, live_share)
+        calls[r["call"]] = calls.get(r["call"], 0) + 1
+        if r["ratio_es_over_rl_rollouts"] is not None:
+            ratios.append(r["ratio_es_over_rl_rollouts"])
+    return {"draws": draws, "ratio_90": [float(np.percentile(ratios, 5)), float(np.percentile(ratios, 95))] if ratios else None,
+            "ratio_resolved_share": len(ratios) / draws, "call_shares": {k: v / draws for k, v in sorted(calls.items())}}
+
+
 def level1(mem: dict, start_train: np.ndarray, max_reward: float) -> dict:
     """The ranking's reliability and the cross-prompt correlation of member effects, as
     grad_check.py and countdown_grad_check.py define them, from greedy decodes."""
@@ -780,6 +804,19 @@ def predict(out: Path, max_reward: float) -> dict:
     else:                                    # every member scored alike: no update to scan
         update, G, C = None, 0.0, 0.0
     verdict = rule(G, C, rl_gain, sample["prompts"], mem["n"], sample["live_share"])
+    if update is not None:
+        L = float(update["length_used"])
+        arrays = lambda pts, key, val: {s: np.asarray(next(p for p in pts if p[key] == val and p["sign"] == s)["rewards"])  # noqa: E731
+                                        for s in (1, -1)}
+        u = arrays(steps, "length", L)
+        upd = {"plus": u[1], "minus": u[-1], "start": start_steps, "lam": L / smeta["unit_norm"]}
+        sgn_arrays = None
+        if sgn_near is not None:
+            Ls = float(min(sgn_used, key=float))
+            s_ = arrays(sign, "nominal", Ls)
+            sgn_arrays = {"plus": s_[1], "minus": s_[-1], "effective_length": sgn_near["effective_length"]}
+        verdict["bootstrap_over_prompts"] = bootstrap_rule(upd, sgn_arrays, rl_step, sample["prompts"], mem["n"],
+                                                           sample["live_share"])
     return {"setting": None, "level0": level0, "level1": lvl1, "update": update, "rule": verdict}
 
 
