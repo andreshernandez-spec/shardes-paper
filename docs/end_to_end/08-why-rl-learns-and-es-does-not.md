@@ -39,7 +39,11 @@ the corrections marked below.
 Terms used throughout: a *member* is one perturbed copy of the model; its *fitness* is
 its mean greedy reward over the iteration's prompts; the *update* is the z-score-weighted
 sum of the members' perturbations; *held-out* is the 3,840 prompts of RL steps 121 to 160
-and 481 to 520, scored greedily with the run's verifiers on the 0-10 scale.
+and 481 to 520, scored greedily with the run's verifiers on the 0-10 scale. The first of
+those blocks is inside the step-480 checkpoint's training exposure (the long run of
+section 1 is scored on the second alone), and both set the step and the per-type steps
+of the runs in sections 5 to 7, so for those runs they are validation prompts, not an
+untouched test.
 
 ## 1. What was matched, and what the arms did
 

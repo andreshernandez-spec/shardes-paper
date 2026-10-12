@@ -63,7 +63,7 @@ iteration 7 the model had become uncertain on 36 prompts it had been sure of at 
 0, mostly ones it used to get right). On the iteration-0 population of
 `../lowrank-check/` the screened update's pair coefficients have cosine 0.997 with the
 unscreened ones at 128 screening members and 0.992 at 64
-(`python -m es_vllm.lowrank_run --screen-check runs/lowrank-check/members.json`); what the
+(`python -m es_vllm.lowrank_run --screen-check runs/lowrank-check/members.json --screen-members 1024`); what the
 screen does to later updates, whose live sets differ, was not measured against an
 unscreened run.
 

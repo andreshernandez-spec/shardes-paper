@@ -291,9 +291,10 @@ def main(argv=None) -> int:
     ap.add_argument("--chunk", type=int, default=64, help="adapters per generate call")
     ap.add_argument("--seqs", type=int, default=512, help="sequences in flight")
     ap.add_argument("--screen-check", type=Path, help="lowrank_check.py's members record")
+    ap.add_argument("--screen-members", type=int, default=N, help="with --screen-check: the population")
     args = ap.parse_args(argv)
     if args.screen_check:
-        print(json.dumps(screen_check(json.loads((E2E / args.screen_check).read_text())), indent=2))
+        print(json.dumps(screen_check(json.loads((E2E / args.screen_check).read_text()), args.screen_members), indent=2))
         return 0
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))
