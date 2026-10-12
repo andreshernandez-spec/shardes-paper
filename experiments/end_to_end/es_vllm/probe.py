@@ -834,14 +834,15 @@ def predict(out: Path) -> dict:
     if update is not None and update["offtask_change_at_target"] is not None:
         verdict["offtask_loss_at_target"] = bool(update["offtask_change_at_target"] < -DAMAGE)
     if update is not None:
-        L = float(update["length_used"])
-        arrays = lambda pts, key, val: {s: next(p for p in pts if p[key] == val and p["sign"] == s) for s in (1, -1)}  # noqa: E731
-        u = arrays(steps, "length", L)
+        # the responses are keyed by the length's 6-digit form, so match points the same way
+        arrays = lambda pts, key, val: {s: next(p for p in pts if f"{p[key]:.6g}" == val and p["sign"] == s)  # noqa: E731
+                                        for s in (1, -1)}
+        u = arrays(steps, "length", update["length_used"])
         upd = {"plus": np.asarray(u[1]["rewards"]), "minus": np.asarray(u[-1]["rewards"]), "start": start_steps,
-               "block": u[1]["block"], "lam": L / smeta["unit_norm"]}
+               "block": u[1]["block"], "lam": u[1]["length"] / smeta["unit_norm"]}
         sgn_arrays = None
         if sgn_near is not None:
-            s_ = arrays(sign, "nominal", float(min(sgn_used, key=float)))
+            s_ = arrays(sign, "nominal", min(sgn_used, key=float))
             sgn_arrays = {"plus": np.asarray(s_[1]["rewards"]), "minus": np.asarray(s_[-1]["rewards"]),
                           "block": s_[1]["block"], "effective_length": sgn_near["effective_length"]}
         verdict["bootstrap_over_prompts"] = bootstrap_rule(upd, sgn_arrays, rl_step, sample["prompts"], mem["n"],
