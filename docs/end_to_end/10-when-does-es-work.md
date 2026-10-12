@@ -66,13 +66,26 @@ The first test is whether level 0 predicts level 1: gradient diversity against t
 cross-prompt correlation of member effects (0.004 on Tulu, 0.30 on Countdown for the same
 model), and curvature by task against the task-specific even response.
 
+## Prior predictors to compare with
+
+The published record (`11`) has three a-priori quantities with the same purpose, which
+the probes compute alongside ours so the rule can be judged against them: Hoy et al.'s
+gradient-aligned fraction `chi = (1 + (N+1) s) / (d + (N+1) s)` and their effective
+dimension from the growth of the update's norm; Cho and Han's zero-advantage probability
+`q`, which a probe of 200 perturbation pairs predicted to within 0.02; and Liang et al.'s
+expected best-of-N improvement `Delta*_N` as an accessibility proxy. None of them, as far
+as the record shows, has been tied to the sharedness of per-prompt gradients, which is
+the quantity our rule puts first; that is the gap this stage fills or fails to.
+
 ## Settings
 
 Each row gets a record directory, its level-0 and level-1 numbers, and the rule's
 prediction (works / marginal / fails at a stated `N`, and the task damaged first) written
 before any training on it. Training runs (30 to 100 updates at the predicted `N`, scored
 on a fresh test block that no probe or run used) are made on a subset, chosen to cover
-all three predicted outcomes.
+all three predicted outcomes. The published outcomes in `11` are external anchors: for
+those settings the probe's prediction is checked against the paper's result without a run
+of ours, and most of them are 0.5B to 4B models, where a probe costs a few dollars.
 
 | setting | what it varies | status |
 |---|---|---|
@@ -82,7 +95,11 @@ all three predicted outcomes.
 | Tulu 8B on one IFEval constraint type | same model and scoring, sharedness raised | to probe |
 | Tulu 8B on GSM8K alone | same model and scoring, one task family | to probe |
 | Qwen2.5-0.5B-Instruct on Countdown after it writes the format | same task, the shared failure removed | to probe |
-| Qwen2.5-3B-Instruct on Countdown | Qiu et al.'s reported success | to probe |
+| Qwen2.5-3B-Instruct on Countdown | Qiu et al.'s matched-sample success | to probe; published outcome |
+| Qwen2.5-3B base on Countdown | Palleti and Singh's collapse, same task as the row above | to probe; published outcome |
+| Qwen2.5-1.5B-Instruct and Llama-3.2-1B-Instruct on Countdown, GSM8K, MATH | Abdi et al.: GRPO ahead on 7 of 8 at matched rollouts, ES far behind only on Llama Countdown | to probe; published outcomes |
+| Qwen2.5-0.5B on GSM8K | Cho and Han: no progress at 0.5B, progress at 1.5B and 7B | to probe; published outcome |
+| Qwen3-4B on Chemistry and on BoolQ | Hoy et al.: their slowest and fastest tasks | to probe; published outcomes |
 | Qwen3-4B on DeepScaleR | EGGROLL's reported success at 2,048 members | to probe, level 0 and 1 |
 | dense against rank-1 perturbations on one setting | the perturbation's shape, for `c` | to probe |
 
@@ -110,7 +127,7 @@ or one with high diversity where it works at small `N`.
 
 ## Cost
 
-Level 0 and level 1 on the six unprobed settings, about $100 to 150. Three training runs
-at the predicted `N`, about $150 to 250. Stages can stop after any setting. The
-literature's reported successes and failures (a search is under way) are the external
-check on the rule and cost nothing to use.
+Level 0 and level 1 on the 8B settings, about $10 to 20 each; on the 0.5B to 4B anchors,
+about $2 to 5 each; the whole table about $100 to 150. Three training runs of our own at
+the predicted `N`, about $150 to 250. Stages can stop after any setting. The published
+outcomes in `11` are the external check on the rule and cost nothing beyond the probe.
