@@ -302,6 +302,8 @@ def analyze(rec: dict, mem: dict | None = None) -> dict:
 
     pts = rec["points"]
     start = np.asarray(pts[0]["rewards"])
+    ds = np.asarray(rec["datasets"])
+    rng = np.random.default_rng(0)
     out = {"start_heldout": float(start.mean()), "by_n": {}}
     for n in rec["ns"]:
         p = rec["predictions"]["by_n"][str(n)]
@@ -318,6 +320,8 @@ def analyze(rec: dict, mem: dict | None = None) -> dict:
                 "gain_per_unit_se": float(odd.std(ddof=1) / np.sqrt(odd.size) / lam),
                 "cost_per_unit2": float(even.mean() / lam ** 2),
                 "cost_per_unit2_se": float(even.std(ddof=1) / np.sqrt(even.size) / lam ** 2),
+                "odd_by_task": {t: float(odd[ds == t].mean()) for t in sorted(set(ds))},
+                "even_by_task": {t: float(even[ds == t].mean()) for t in sorted(set(ds))},
                 "plus": float(plus.mean()), "minus": float(minus.mean()),
                 # one step's net change, no model: theta_0 + lambda u against theta_0
                 "net_change": float((plus - start).mean()),
@@ -329,6 +333,19 @@ def analyze(rec: dict, mem: dict | None = None) -> dict:
             res["best_net_per_update_se"] = g ** 2 / (4 * c) * float(np.hypot(
                 2 * far["gain_per_unit_se"] / g, far["cost_per_unit2_se"] / c))
             res["best_length"] = g / (2 * c) * p["unit_norm"]
+            # the fitted optimum under a paired bootstrap over prompts, which keeps the
+            # covariance of the gain and the cost (they come from the same three decodes)
+            lam = p["lambdas"][-1]
+            plus = np.asarray(next(q for q in pts if q.get("n") == n and q["lam"] == lam)["rewards"])
+            minus = np.asarray(next(q for q in pts if q.get("n") == n and q["lam"] == -lam)["rewards"])
+            odd, even = (plus - minus) / 2, (plus + minus) / 2 - start
+            draws = []
+            for _ in range(2000):
+                i = rng.integers(0, odd.size, odd.size)
+                gb, cb = odd[i].mean() / lam, -even[i].mean() / lam ** 2
+                draws.append(gb ** 2 / (4 * cb) if cb > 0 and gb > 0 else 0.0)
+            lo, hi = np.percentile(draws, [5, 95])
+            res["best_net_per_update_bootstrap_90"] = [float(lo), float(hi)]
         out["by_n"][str(n)] = res
     ca, cm = rec["check_adapters"], rec["check_merged"]
     out["check"] = {}

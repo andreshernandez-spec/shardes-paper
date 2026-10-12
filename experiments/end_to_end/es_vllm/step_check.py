@@ -184,6 +184,7 @@ def analyze(rec: dict) -> dict:
     sets = {"probe768": slice(0, n_probe), "heldout": slice(n_probe, None)}
     out = {"start": {k: float(start[s].mean()) for k, s in sets.items()},
            "mean_len_start": pts[0]["mean_len"], "rankings": {}}
+    ds = np.asarray(rec["datasets"])
     for name in rec["rankings"]:
         res = {}
         for lam in sorted({abs(p["lam"]) for p in pts if p.get("ranking") == name}):
@@ -199,7 +200,10 @@ def analyze(rec: dict) -> dict:
                           "odd_per_unit_se": float(odd.std(ddof=1) / np.sqrt(odd.size) / lam),
                           "even_per_unit2": float(even.mean() / lam ** 2),
                           "even_per_unit2_se": float(even.std(ddof=1) / np.sqrt(even.size) / lam ** 2),
-                          "plus": float(plus[s].mean()), "minus": float(minus[s].mean())}
+                          "plus": float(plus[s].mean()), "minus": float(minus[s].mean()),
+                          # the responses at this step by task, as the low-rank records report them
+                          "odd_by_task": {t: float(odd[ds[s] == t].mean()) for t in sorted(set(ds[s]))},
+                          "even_by_task": {t: float(even[ds[s] == t].mean()) for t in sorted(set(ds[s]))}}
             res[str(lam)] = row
         out["rankings"][name] = res
     return out
