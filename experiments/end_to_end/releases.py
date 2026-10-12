@@ -104,7 +104,18 @@ QWEN25_05B = Repo(
 # VsonicV/es-at-scale: v1.0.0 plus #50, which makes its evaluation schedule fire.
 ES_AT_SCALE = "574a9d134da1ffce2a8bb812019899e5c96b588a"
 
+# ---------------------------------------------------------------- the predictive stage (docs/end_to_end/10)
+
+# main of each, resolved 2026-10-12; the Qwen2.5 Instruct repos have not changed since
+# 2024-09-25 except 7B (2025-01-12), the base model since 2024-09-20.
+QWEN25_15B = Repo("Qwen/Qwen2.5-1.5B-Instruct", "model", "989aa7980e4cf806f80c7fef2b1adb7bc71aa306")
+QWEN25_3B = Repo("Qwen/Qwen2.5-3B-Instruct", "model", "aa8e72537993ba99e69dfaafa59ed015b17504d1")
+QWEN25_7B = Repo("Qwen/Qwen2.5-7B-Instruct", "model", "a09a35458c702b33eeacc393d103063234e8bc28")
+QWEN25_3B_BASE = Repo("Qwen/Qwen2.5-3B", "model", "3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
+                      "the base model of QWEN25_3B, for Palleti and Singh's collapse")
+
 ALL_REPOS = (
     OLMO3_BASE, OLMO3_IF_RL, OLMO3_IF_SOURCE, OLMO3_IF_DOLCI, OLMO3_INSTRUCT,
     TULU31_START, TULU31_RL, TULU31_DATA, QWEN25_05B,
+    QWEN25_15B, QWEN25_3B, QWEN25_7B, QWEN25_3B_BASE,
 )

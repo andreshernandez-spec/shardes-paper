@@ -101,9 +101,10 @@ def generation_of(g: int):
 
 
 def install_adapters(template: Path, seed: int, shapes: list, r: int, sigma: float,
-                     n=None) -> None:
+                     n=None, resolve=None) -> None:
     """Make vLLM build member `lora_int_id - 1` from its seed when a request names
-    `template`; with `n`, adapter id `g n + m + 1` is member `m` of generation `g`. The
+    `template`; with `n`, adapter id `g n + m + 1` is member `m` of generation `g`; with
+    `resolve`, `resolve(lora_int_id)` gives `(member, generation, sigma)` instead. The
     engine must run in this process (VLLM_ENABLE_V1_MULTIPROCESSING=0)."""
     import os  # noqa: PLC0415
 
@@ -118,10 +119,14 @@ def install_adapters(template: Path, seed: int, shapes: list, r: int, sigma: flo
                               moe_ep_spec=None):
         if os.path.realpath(lora_dir) != tpl or lora_model_id is None:
             raise SystemExit(f"unexpected adapter {lora_dir} ({lora_model_id})")
-        m, g = (lora_model_id - 1, 0) if n is None else ((lora_model_id - 1) % n, (lora_model_id - 1) // n)
+        if resolve is not None:
+            m, g, s = resolve(lora_model_id)
+        else:
+            m, g = (lora_model_id - 1, 0) if n is None else ((lora_model_id - 1) % n, (lora_model_id - 1) // n)
+            s = sigma
         return cls.from_lora_tensors(
             lora_model_id=lora_model_id,
-            tensors=adapter_tensors(seed, m, shapes, r, sigma, generation_of(g)),
+            tensors=adapter_tensors(seed, m, shapes, r, s, generation_of(g)),
             peft_helper=peft_helper, device=device, dtype=dtype,
             model_vocab_size=model_vocab_size, weights_mapper=weights_mapper,
             skip_prefixes=skip_prefixes)

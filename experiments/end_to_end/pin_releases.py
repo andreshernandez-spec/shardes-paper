@@ -115,8 +115,7 @@ def main(argv=None) -> int:
         raise SystemExit(f"{out} exists; a pin is never overwritten, pick a new name")
     wandb_out = out.with_name(f"wandb-{R.OLMO3_IF_WANDB[2]}-config.json")
     # The logged config names commits of its own (none today); keep the audit off them.
-    if wandb_out.exists():
-        raise SystemExit(f"{wandb_out} exists")
+    # A later pin checks the fetched config against the file instead of rewriting it.
 
     from huggingface_hub import HfApi  # noqa: PLC0415
     api = HfApi()
@@ -160,9 +159,12 @@ def main(argv=None) -> int:
     if mismatches:
         raise SystemExit(f"releases.OLMO3_IF_LOGGED disagrees with W&B: {mismatches}")
 
-    harness.write_atomic(wandb_out, wb)
+    if wandb_out.exists():
+        record["checks"]["wandb_config_unchanged"] = json.loads(wandb_out.read_text())["config"] == wb["config"]
+    else:
+        harness.write_atomic(wandb_out, wb)
     harness.write_atomic(out, record)
-    print(f"wrote {out.relative_to(HERE)} and {wandb_out.relative_to(HERE)}")
+    print(f"wrote {out.relative_to(HERE)}; W&B config {'checked' if 'wandb_config_unchanged' in record['checks'] else 'written'}")
     return 0
 
 
