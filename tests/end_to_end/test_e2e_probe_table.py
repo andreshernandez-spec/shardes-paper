@@ -29,8 +29,8 @@ def test_rows_and_table(tmp_path):
     assert rows[0]["net"] == 0.069 and rows[0]["damaged"] == "MATH / MATH"
     assert rows[1]["G"] is None and rows[1]["net"] is None and rows[1]["damaged"] == "MATH / -"
     t = pt.table(rows).splitlines()
-    assert len(t) == 4 and t[0].startswith("| setting |") and "| 31.5 | fails: rollouts |" in t[2]
-    assert "| - | - | fails: no odd response |" in t[3]
+    assert len(t) == 4 and t[0].startswith("| setting |") and "| 31.5 | - | fails: rollouts | - |" in t[2]
+    assert "| - | - | - | fails: no odd response | - |" in t[3]
 
 
 def test_fmt():

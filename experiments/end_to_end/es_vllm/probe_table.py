@@ -22,7 +22,8 @@ sys.path.insert(0, str(E2E))
 COLUMNS = (("setting", "setting"), ("live", "live share"), ("share", "gradient sharedness"),
            ("c", "curvature per length^2"), ("rl", "RL first-step gain"), ("rel", "reliability"),
            ("corr", "cross-prompt corr"), ("G", "G"), ("C", "C"), ("net", "G^2/4|C|"),
-           ("ratio", "ES/RL rollouts"), ("call", "call"), ("damaged", "damaged first (scan / update)"))
+           ("ratio", "ES/RL rollouts"), ("ratio90", "ratio 90%"), ("call", "call"),
+           ("offtask", "off-task at target"), ("damaged", "damaged first (scan / update)"))
 
 
 def fmt(x, digits=3):
@@ -42,11 +43,15 @@ def fmt(x, digits=3):
 def row(pred: dict) -> dict:
     l0, l1, u, r = pred["level0"], pred["level1"], pred["update"] or {}, pred["rule"]
     s = l1.get("sigma", {})
+    b = r.get("bootstrap_over_prompts") or {}
+    ratio90 = b.get("ratio_90")
     return {"setting": pred["setting"], "live": l0["live_share"], "share": l0["gradient_sharedness"],
             "c": l0["curvature_per_length2"], "rl": l0["rl_first_step_gain"],
             "rel": s.get("reliability_at_prompts"), "corr": s.get("cross_prompt_correlation"),
             "G": u.get("G"), "C": u.get("C"), "net": r["es"]["fitted_net_per_update"] if r["es"] else None,
-            "ratio": r["ratio_es_over_rl_rollouts"], "call": r["call"],
+            "ratio": r["ratio_es_over_rl_rollouts"],
+            "ratio90": f"{fmt(ratio90[0])} to {fmt(ratio90[1])}" if ratio90 else None, "call": r["call"],
+            "offtask": u.get("offtask_change_at_target"),
             "damaged": f"{l0['first_task_damaged_random']} / {u.get('first_task_damaged', '-')}"}
 
 

@@ -55,7 +55,7 @@ def test_prediction_recovers_constructed_responses(tmp_path):
     (tmp_path / "sample.json").write_text(json.dumps({
         "prompts": prompts, "k": 16, "live_share": 0.6, "zero_advantage_share": 0.4, "answers_per_second": 50.0,
         "mean_sample_len": 300.0, "start_reward": {"train": float(np.mean(start_train)), "validation": 5.0, "offtask": 5.0},
-        "start": {"train": {"rewards": start_train}}}))
+        "start": {"train": {"rewards": start_train, "kinds": ["gsm8k"] * prompts}}}))
     (tmp_path / "gradient.json").write_text(json.dumps({"live_prompts": 115, "sharedness": 0.03, "diversity_yin": 0.3,
                                                         "batch_norm": 1.0}))
     # random directions: even response c L^2 with c = -0.002 per length^2 (normalized), twice
@@ -85,8 +85,8 @@ def test_prediction_recovers_constructed_responses(tmp_path):
     effect = rng.normal(0, 0.06, n)
     members = [bernoulli(rng, 0.5 + effect[m], prompts, scale) for m in range(n)]
     members2 = [bernoulli(rng, 0.5 + 2 * effect[m], prompts, scale) for m in range(n2)]
-    (tmp_path / "members.json").write_text(json.dumps({"n": n, "n2": n2, "sigma": 5e-4, "sigma2": 1e-3,
-                                                       "rewards": members, "rewards2": members2}))
+    (tmp_path / "members.json").write_text(json.dumps({"n": n, "n2": n2, "sigma": 5e-4, "sigma2": 1e-3, "rewards": members,
+                                                       "rewards2": members2, "kinds": ["gsm8k"] * prompts}))
     unit, G, C = 5.0, 0.01, -0.0005
     steps = [{"length": 0.0, "sign": 0, "lam": 0.0, "kinds": kinds, "block": block, "rewards": start}]
     for mult in probe.LENGTHS:
@@ -99,7 +99,7 @@ def test_prediction_recovers_constructed_responses(tmp_path):
     (tmp_path / "steps-meta.json").write_text(json.dumps({"unit_norm": unit, "member_length": member_len,
                                                           "perturbed_params": d_m, "n": n}))
 
-    pred = probe.predict(tmp_path, scale)
+    pred = probe.predict(tmp_path)
     l0, u, r = pred["level0"], pred["update"], pred["rule"]
     # curvature by task from the random scan, and the task damaged first
     assert abs(l0["curvature_per_length2"] - np.mean([c_task[t] for t in kinds])) < 0.0005
@@ -133,9 +133,54 @@ def test_prediction_recovers_constructed_responses(tmp_path):
     (tmp_path / "steps.jsonl").unlink()
     (tmp_path / "steps-meta.json").write_text(json.dumps({"unit_norm": 0.0, "member_length": member_len,
                                                           "perturbed_params": d_m, "n": n, "no_ranking_signal": True}))
-    pred = probe.predict(tmp_path, scale)
+    pred = probe.predict(tmp_path)
     assert pred["update"] is None and pred["rule"]["call"] == "fails: no odd response"
     assert pred["level0"]["curvature_per_length2"] == l0["curvature_per_length2"]
+
+
+def test_rows_are_normalized_by_their_own_kind():
+    """A Countdown setting's off-task block is on the 10 scale: a full score on either
+    kind is 1 after normalization, and a mixed block's mean is the mean of the two."""
+    kinds = ["countdown"] * 2 + ["gsm8k"] * 2
+    assert probe.normalized([1.1, 0.1, 10.0, 0.0], kinds).tolist() == [1.0, 0.1 / 1.1, 1.0, 0.0]
+    assert probe.scale_of(["MATH", "ifeval"]).tolist() == [10.0, 10.0]
+
+
+def test_gain_is_the_validation_blocks_and_cost_pools_both(tmp_path):
+    """An update that helps the task and hurts the off-task block: G is the task's, the
+    off-task change at the target is reported and flagged, C pools both blocks."""
+    rng = np.random.default_rng(2)
+    P, scale, n, prompts = 4000, 10.0, 64, 192
+    kinds = ["gsm8k"] * (P // 2) + ["MATH"] * (P // 2)
+    block = ["validation"] * (P // 2) + ["offtask"] * (P // 2)
+    start = bernoulli(rng, 0.5, P, scale)
+    start_train = bernoulli(rng, 0.5, prompts, scale)
+    (tmp_path / "sample.json").write_text(json.dumps({
+        "prompts": prompts, "k": 16, "live_share": 0.6, "zero_advantage_share": 0.4, "answers_per_second": 50.0,
+        "mean_sample_len": 300.0, "start": {"train": {"rewards": start_train, "kinds": ["gsm8k"] * prompts}}}))
+    members = [bernoulli(rng, 0.5 + e, prompts, scale) for e in rng.normal(0, 0.06, n)]
+    (tmp_path / "members.json").write_text(json.dumps({"n": n, "n2": 0, "sigma": 5e-4, "sigma2": 1e-3, "rewards": members,
+                                                       "rewards2": [], "kinds": ["gsm8k"] * prompts}))
+    unit, G_val, G_off, C = 5.0, 0.02, -0.03, -0.02
+    steps = [{"length": 0.0, "sign": 0, "lam": 0.0, "kinds": kinds, "block": block, "rewards": start}]
+    for L in (5.0, 10.0):
+        lam = L / unit
+        for s in (1, -1):
+            p = [0.5 + s * (G_val if b == "validation" else G_off) * lam + C * lam ** 2 for b in block]
+            steps.append({"length": L, "sign": s, "lam": s * lam, "kinds": kinds, "block": block,
+                          "rewards": bernoulli(rng, np.asarray(p), P, scale)})
+    (tmp_path / "steps.jsonl").write_text("\n".join(json.dumps(r) for r in steps) + "\n")
+    (tmp_path / "steps-meta.json").write_text(json.dumps({"unit_norm": unit, "member_length": 5.0, "perturbed_params": 4e8, "n": n}))
+    pred = probe.predict(tmp_path)
+    u, r = pred["update"], pred["rule"]
+    assert abs(u["G"] - G_val) < 3 * u["G_se"] + 1e-9
+    assert abs(u["G_offtask"] - G_off) < 0.01
+    assert abs(u["G_pooled"] - (G_val + G_off) / 2) < 0.01
+    assert abs(u["C"] - C) < 3 * u["C_se"] + 1e-9
+    # at the target gain of 0.1 the off-task block moves 0.1 * G_off / G = -0.15: flagged
+    assert abs(u["offtask_change_at_target"] + 0.15) < 0.05 and r["offtask_loss_at_target"]
+    assert r["call"] == "undetermined: RL's gain unresolved"       # no sign scan in this record
+    assert r["bootstrap_over_prompts"]["call_shares"]["undetermined: RL's gain unresolved"] > 0.9
 
 
 def test_unusable_lengths_fall_back_to_the_shortest():

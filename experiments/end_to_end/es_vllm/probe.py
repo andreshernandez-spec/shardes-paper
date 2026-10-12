@@ -84,6 +84,17 @@ G_TARGET, DAMAGE = 0.1, 0.02               # of the reward range
 WORKS, MARGINAL, LIVE_MIN = 5.0, 25.0, 0.1  # runs/throughput-bench: 0.255 / 0.048 per answer
 USABLE = 0.2                               # a scan point is usable if neither sign moved more
 CAPS = {"countdown": 512, "tulu": 2048}    # es_vllm/countdown-s1.yaml; the Tulu run
+SCALE = {"countdown": 1.1}                 # a row kind's maximum reward; the Tulu verifiers give 10
+
+
+def scale_of(kinds) -> np.ndarray:
+    return np.asarray([SCALE.get(k, 10.0) for k in kinds])
+
+
+def normalized(rewards, kinds) -> np.ndarray:
+    """Rewards in [0, 1], each row by its own kind's maximum: a Countdown setting's
+    off-task block is scored by the Tulu verifiers on the 10 scale."""
+    return np.asarray(rewards, dtype=float) / scale_of(kinds)
 
 MODELS = {
     "tulu8b": (R.TULU31_START, "tulu"),
@@ -142,7 +153,6 @@ class Task:
             self.clone = pin(es_at_scale)
             train, ev = rows(self.clone, "train"), rows(self.clone, "eval")
             gsm = [r for r in heldout_rows(0, 40) if r["dataset"] == "gsm8k"]
-            self.max_reward = 1.1
             self.blocks = {"train": train[:n_train], "validation": ev[:n_block],
                            "test": ev[n_block:2 * n_block], "offtask": gsm[:n_block]}
         elif name == "gsm8k":
@@ -150,12 +160,10 @@ class Task:
             gsm = [r for r in pool if r["dataset"] == "gsm8k"]
             math = [r for r in pool if r["dataset"] == "MATH"]
             ifeval = [r for r in pool if r["dataset"] == "ifeval"]
-            self.max_reward = 10.0
             self.blocks = {"train": gsm[:n_train], "validation": gsm[n_train:n_train + n_block],
                            "test": gsm[n_train + n_block:n_train + 2 * n_block],
                            "offtask": math[:n_block // 2] + ifeval[:n_block // 2]}
         elif name == "tulu":
-            self.max_reward = 10.0
             self.blocks = {"train": load_prompts(E2E / "data" / "tulu31", 1, P_TRAIN)[0][:n_train],
                            "validation": heldout_rows(120, 160)[:n_block],
                            "test": heldout_rows(480, 520)[:n_block], "offtask": []}
@@ -534,7 +542,7 @@ def phase_steps(args, cfg, task) -> None:
         # every member scored alike: there is no update to scan, and the rule says so
         harness.write_atomic(out / "steps-meta.json", {"unit_norm": 0.0, "member_length": member_len,
                                                        "perturbed_params": d_m, "n": n, "no_ranking_signal": True})
-        pred = predict(out, task.max_reward)
+        pred = predict(out)
         pred["setting"] = cfg["name"]
         harness.write_atomic(out / "prediction.json", pred)
         print(json.dumps(pred["rule"], indent=1), flush=True)
@@ -575,7 +583,7 @@ def phase_steps(args, cfg, task) -> None:
     harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
                                                    "perturbed_params": d_m, "n": n,
                                                    "synthetic_ranking": bool(np.asarray(mem["rewards"]).mean(1).std() == 0)})
-    pred = predict(out, task.max_reward)
+    pred = predict(out)
     pred["setting"] = cfg["name"]
     harness.write_atomic(out / "prediction.json", pred)
     print(json.dumps(pred["rule"], indent=1), flush=True)
@@ -605,7 +613,9 @@ def responses(points: list, start: np.ndarray, norm: float) -> dict:
             "by_task": {str(t): {"G": float(odd[kinds == t].mean() / lam), "C": float(even[kinds == t].mean() / lam ** 2),
                                  "odd": float(odd[kinds == t].mean()), "even": float(even[kinds == t].mean())}
                         for t in sorted(set(kinds))},
-            "by_block": {str(b): {"G": float(odd[blocks == b].mean() / lam), "C": float(even[blocks == b].mean() / lam ** 2)}
+            "by_block": {str(b): {"G": float(odd[blocks == b].mean() / lam), "C": float(even[blocks == b].mean() / lam ** 2),
+                                  "G_se": float(odd[blocks == b].std(ddof=1) / np.sqrt((blocks == b).sum()) / lam),
+                                  "odd": float(odd[blocks == b].mean()), "even": float(even[blocks == b].mean())}
                          for b in sorted(set(blocks))}}
     return out
 
@@ -649,7 +659,10 @@ def sign_responses(points: list, start: np.ndarray) -> dict:
         p, m = np.asarray(plus["rewards"]), np.asarray(minus["rewards"])
         eff = (plus["effective_length"] + minus["effective_length"]) / 2
         odd, even = (p - m) / 2, (p + m) / 2 - start
-        kinds = np.asarray(plus["kinds"])
+        kinds, blocks = np.asarray(plus["kinds"]), np.asarray(plus["block"])
+        slope = lambda sel: {"slope_along_rl_direction": float(-odd[sel].mean() / eff),  # noqa: E731
+                             "slope_se": float(odd[sel].std(ddof=1) / np.sqrt(sel.sum()) / eff),
+                             "even_per_effective_length2": float(even[sel].mean() / eff ** 2)}
         out[f"{L:.6g}"] = {
             "effective_length": eff, "odd": float(odd.mean()), "odd_se": float(odd.std(ddof=1) / np.sqrt(odd.size)),
             "even": float(even.mean()), "even_se": float(even.std(ddof=1) / np.sqrt(even.size)),
@@ -657,7 +670,8 @@ def sign_responses(points: list, start: np.ndarray) -> dict:
             "slope_se": float(odd.std(ddof=1) / np.sqrt(odd.size) / eff),
             "even_per_effective_length2": float(even.mean() / eff ** 2),
             "usable": bool(abs(p.mean() - start.mean()) < USABLE and abs(m.mean() - start.mean()) < USABLE),
-            "by_task": {str(t): {"slope_along_rl_direction": float(-odd[kinds == t].mean() / eff)} for t in sorted(set(kinds))}}
+            "by_task": {str(t): slope(kinds == t) for t in sorted(set(kinds))},
+            "by_block": {str(b): slope(blocks == b) for b in sorted(set(blocks))}}
     return out
 
 
@@ -697,20 +711,26 @@ def rule(G: float, C: float, rl_gain_per_step: float, P: int, N: int, live_share
 
 
 def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, live_share: float, draws=1000) -> dict:
-    """The rule's ratio and call under resampling of the scanned prompts: `update` holds
-    the plus, minus and start reward arrays at the length read and the update's `lam`;
-    `sign` the same for the sign direction with its effective length (or None)."""
+    """The rule's ratio and call under resampling of the scanned prompts within each block:
+    `update` holds the plus, minus and start reward arrays and the block labels at the
+    length read and the update's `lam`; `sign` the same for the sign direction with its
+    effective length (or None). `G` and RL's slope come from the validation block, `C`
+    from both blocks, as in `predict`."""
     rng = np.random.default_rng(0)
-    n = update["plus"].size
+    blocks = np.asarray(update["block"])
+    val = blocks == "validation"
+    idx = {b: np.flatnonzero(blocks == b) for b in sorted(set(blocks))}
     ratios, calls = [], {}
     for _ in range(draws):
-        i = rng.integers(0, n, n)
+        i = np.concatenate([rng.choice(ix, ix.size) for ix in idx.values()])
         odd = (update["plus"][i] - update["minus"][i]) / 2
         even = (update["plus"][i] + update["minus"][i]) / 2 - update["start"][i]
-        G, C = float(odd.mean() / update["lam"]), float(even.mean() / update["lam"] ** 2)
+        G, C = float(odd[val[i]].mean() / update["lam"]), float(even.mean() / update["lam"] ** 2)
         gain = 0.0
         if sign is not None:
-            j = rng.integers(0, sign["plus"].size, sign["plus"].size)
+            sb = np.asarray(sign["block"])
+            jv = np.flatnonzero(sb == "validation")
+            j = rng.choice(jv, jv.size)
             gain = rl_step * float(-((sign["plus"][j] - sign["minus"][j]) / 2).mean() / sign["effective_length"])
         r = rule(G, C, gain, P, N, live_share)
         calls[r["call"]] = calls.get(r["call"], 0) + 1
@@ -720,7 +740,7 @@ def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, liv
             "ratio_resolved_share": len(ratios) / draws, "call_shares": {k: v / draws for k, v in sorted(calls.items())}}
 
 
-def level1(mem: dict, start_train: np.ndarray, max_reward: float) -> dict:
+def level1(mem: dict, start_train: np.ndarray) -> dict:
     """The ranking's reliability and the cross-prompt correlation of member effects, as
     grad_check.py and countdown_grad_check.py define them, from greedy decodes."""
     from es_vllm.grad_check import split_reliability, variance_parts  # noqa: PLC0415
@@ -729,7 +749,7 @@ def level1(mem: dict, start_train: np.ndarray, max_reward: float) -> dict:
     for key, rewards, sigma in (("sigma", mem["rewards"], mem["sigma"]), ("sigma2", mem["rewards2"], mem["sigma2"])):
         if not rewards:
             continue
-        delta = np.asarray(rewards) / max_reward - start_train[None]
+        delta = np.asarray(rewards) / scale_of(mem["kinds"])[None] - start_train[None]
         parts = variance_parts(delta)
         rng = np.random.default_rng(0)
         cov = []
@@ -752,17 +772,20 @@ def level1(mem: dict, start_train: np.ndarray, max_reward: float) -> dict:
     return out
 
 
-def predict(out: Path, max_reward: float) -> dict:
+def predict(out: Path) -> dict:
+    """The rule's inputs and call from a setting's records. `G` and RL's slope are the
+    validation block's (the task's gain); `C` pools the validation and off-task blocks
+    (damage anywhere); the update's directional effect on the off-task block is reported
+    beside them, scaled to the target gain."""
     sample = json.loads((out / "sample.json").read_text())
     grad = json.loads((out / "gradient.json").read_text()) if (out / "gradient.json").exists() else {}
     mem = json.loads((out / "members.json").read_text())
     smeta = json.loads((out / "steps-meta.json").read_text())
-    norm = lambda rows: np.asarray(rows, dtype=float) / max_reward  # noqa: E731
 
-    def normalized(points):
-        return [{**p, "rewards": norm(p["rewards"]).tolist()} for p in points]
+    def points(name):
+        return [{**p, "rewards": normalized(p["rewards"], p["kinds"]).tolist()} for p in lines(out / name)]
 
-    scan, sign, steps = (normalized(lines(out / f)) for f in ("scan.jsonl", "sign.jsonl", "steps.jsonl"))
+    scan, sign, steps = (points(f) for f in ("scan.jsonl", "sign.jsonl", "steps.jsonl"))
     d_m = smeta["perturbed_params"]
     rl_step = RL_LR * float(np.sqrt(d_m))
 
@@ -773,9 +796,10 @@ def predict(out: Path, max_reward: float) -> dict:
     sgn = sign_responses(sign, np.asarray(next(p for p in sign if p["sign"] == 0)["rewards"])) if sign else {}
     sgn_used = [L for L, v in sgn.items() if v["usable"]] or list(sgn)
     sgn_near = sgn[min(sgn_used, key=float)] if sgn else None
-    rl_gain = rl_step * sgn_near["slope_along_rl_direction"] if sgn_near else 0.0
+    rl_slope = sgn_near["by_block"]["validation"]["slope_along_rl_direction"] if sgn_near else None
+    rl_gain = rl_step * rl_slope if sgn_near else 0.0
     level0 = {"live_share": sample["live_share"], "zero_advantage_share": sample["zero_advantage_share"],
-              "start_reward_normalized": {b: v / max_reward for b, v in sample["start_reward"].items()},
+              "start_reward_normalized": {b: float(normalized(v["rewards"], v["kinds"]).mean()) for b, v in sample["start"].items()},
               "answers_per_second": sample["answers_per_second"], "mean_sample_len": sample["mean_sample_len"],
               "live_prompts_in_gradient": grad.get("live_prompts"), "gradient_sharedness": grad.get("sharedness"),
               "gradient_diversity_yin": grad.get("diversity_yin"), "gradient_norm": grad.get("batch_norm"),
@@ -784,37 +808,42 @@ def predict(out: Path, max_reward: float) -> dict:
               "first_task_damaged_random": min(rnd_far["by_task"], key=lambda t: rnd_far["by_task"][t]["even_per_length2"])
               if rnd_far else None,
               "sign_direction_responses": sgn, "rl_step_length": rl_step,
-              "rl_slope_along_direction": sgn_near["slope_along_rl_direction"] if sgn_near else None,
+              "rl_slope_along_direction": rl_slope,
+              "rl_slope_offtask": sgn_near["by_block"].get("offtask", {}).get("slope_along_rl_direction") if sgn_near else None,
               "rl_first_step_gain": rl_gain}
 
     # level 1
-    start_train = norm(sample["start"]["train"]["rewards"])
-    lvl1 = level1(mem, start_train, max_reward)
+    start_train = normalized(sample["start"]["train"]["rewards"], sample["start"]["train"]["kinds"])
+    lvl1 = level1(mem, start_train)
     if steps and smeta["unit_norm"] > 0:
         start_steps = np.asarray(next(p for p in steps if p["sign"] == 0)["rewards"])
         resp = responses([p for p in steps if p["sign"] != 0], start_steps, smeta["unit_norm"])
         used = [L for L, v in resp.items() if v["usable"]] or list(resp)
         far = resp[max(used, key=float)]
+        G, C = far["by_block"]["validation"]["G"], far["C"]
+        G_off = far["by_block"].get("offtask", {}).get("G")
         update = {"unit_norm": smeta["unit_norm"], "n": mem["n"], "responses": resp, "length_used": max(used, key=float),
-                  "usable": far["usable"], "G": far["G"], "G_se": far["odd_se"] / far["lam"], "C": far["C"],
-                  "C_se": far["even_se"] / far["lam"] ** 2,
+                  "usable": far["usable"], "G": G, "G_se": far["by_block"]["validation"]["G_se"], "C": C,
+                  "C_se": far["even_se"] / far["lam"] ** 2, "G_pooled": far["G"], "G_offtask": G_off,
+                  "offtask_change_at_target": G_TARGET * G_off / G if G_off is not None and G > 0 else None,
                   "first_task_damaged": min(far["by_task"], key=lambda t: far["by_task"][t]["C"]),
-                  "random_cost_at_this_N_per_length2": far["C"] / smeta["unit_norm"] ** 2}
-        G, C = far["G"], far["C"]
+                  "random_cost_at_this_N_per_length2": C / smeta["unit_norm"] ** 2}
     else:                                    # every member scored alike: no update to scan
         update, G, C = None, 0.0, 0.0
     verdict = rule(G, C, rl_gain, sample["prompts"], mem["n"], sample["live_share"])
+    if update is not None and update["offtask_change_at_target"] is not None:
+        verdict["offtask_loss_at_target"] = bool(update["offtask_change_at_target"] < -DAMAGE)
     if update is not None:
         L = float(update["length_used"])
-        arrays = lambda pts, key, val: {s: np.asarray(next(p for p in pts if p[key] == val and p["sign"] == s)["rewards"])  # noqa: E731
-                                        for s in (1, -1)}
+        arrays = lambda pts, key, val: {s: next(p for p in pts if p[key] == val and p["sign"] == s) for s in (1, -1)}  # noqa: E731
         u = arrays(steps, "length", L)
-        upd = {"plus": u[1], "minus": u[-1], "start": start_steps, "lam": L / smeta["unit_norm"]}
+        upd = {"plus": np.asarray(u[1]["rewards"]), "minus": np.asarray(u[-1]["rewards"]), "start": start_steps,
+               "block": u[1]["block"], "lam": L / smeta["unit_norm"]}
         sgn_arrays = None
         if sgn_near is not None:
-            Ls = float(min(sgn_used, key=float))
-            s_ = arrays(sign, "nominal", Ls)
-            sgn_arrays = {"plus": s_[1], "minus": s_[-1], "effective_length": sgn_near["effective_length"]}
+            s_ = arrays(sign, "nominal", float(min(sgn_used, key=float)))
+            sgn_arrays = {"plus": np.asarray(s_[1]["rewards"]), "minus": np.asarray(s_[-1]["rewards"]),
+                          "block": s_[1]["block"], "effective_length": sgn_near["effective_length"]}
         verdict["bootstrap_over_prompts"] = bootstrap_rule(upd, sgn_arrays, rl_step, sample["prompts"], mem["n"],
                                                            sample["live_share"])
     return {"setting": None, "level0": level0, "level1": lvl1, "update": update, "rule": verdict}
@@ -830,7 +859,9 @@ def analyze(out: Path) -> dict:
             "reliability": {k: v["reliability_at_prompts"] for k, v in pred["level1"].items()},
             "cross_prompt_correlation": {k: v["cross_prompt_correlation"] for k, v in pred["level1"].items()},
             "G": u.get("G"), "C": u.get("C"), "fitted_net_per_update": r["es"] and r["es"]["fitted_net_per_update"],
-            "first_task_damaged": u.get("first_task_damaged"), "es": r["es"], "rl": r["rl"]}
+            "G_offtask": u.get("G_offtask"), "offtask_change_at_target": u.get("offtask_change_at_target"),
+            "first_task_damaged": u.get("first_task_damaged"), "es": r["es"], "rl": r["rl"],
+            "bootstrap_over_prompts": r.get("bootstrap_over_prompts")}
 
 
 def main(argv=None) -> int:
