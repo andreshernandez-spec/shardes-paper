@@ -282,6 +282,9 @@ def phase_sample(args, cfg, task) -> None:
     rew = np.asarray(rewards).reshape(len(rows), k)
     sd = rew.std(axis=1, ddof=1)                                     # torch.std's correction
     adv = (rew - rew.mean(axis=1, keepdims=True)) / (sd[:, None] + 1e-8)
+    synthetic = cfg["smoke"] and not (sd > 0).any()   # wiring only: a small model at a short cap scores nothing
+    if synthetic:
+        adv = np.random.default_rng(0).standard_normal(adv.shape)
     samples = [{"prompt": j, "tokens": list(o.token_ids), "reward": float(rew[j, s]), "advantage": float(adv[j, s])}
                for j, out_ in enumerate(outs) for s, o in enumerate(out_.outputs)]
     start = {}
@@ -295,6 +298,7 @@ def phase_sample(args, cfg, task) -> None:
                     "kinds": [row_kind(r) for r in task.blocks[b]]}
     scorer.close()
     rec = {"phase": "sample", "k": k, "prompts": len(rows), "prompt_tokens": ids["train"], "samples": samples,
+           "synthetic_advantages": bool(synthetic),
            "live_share": float((sd > 0).mean()), "zero_advantage_share": float((sd == 0).mean()),
            "mean_sample_reward": float(rew.mean()),
            "mean_sample_len": float(np.mean([len(s["tokens"]) for s in samples])),
