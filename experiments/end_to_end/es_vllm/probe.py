@@ -342,16 +342,21 @@ def phase_gradient(args, cfg, task) -> None:
             idx = range(b0, min(len(seqs), b0 + micro))
             L = max(len(seqs[i]) for i in idx)
             x = torch.zeros((len(idx), L), dtype=torch.long)
-            mask = torch.zeros((len(idx), L), dtype=torch.long)
             weight = torch.zeros((len(idx), L))                       # A_i on response positions
             for r, i in enumerate(idx):
-                x[r, :len(seqs[i])], mask[r, :len(seqs[i])] = torch.tensor(seqs[i]), 1
+                x[r, :len(seqs[i])] = torch.tensor(seqs[i])
                 weight[r, len(prompt):len(seqs[i])] = group[i]["advantage"]
-            x, mask, weight = x.cuda(), mask.cuda(), weight.cuda()
+            x, weight = x.cuda(), weight.cuda()
+            # Right padding under causal attention and no padding mask: a real token never
+            # sees a pad, and the pads' terms have weight 0. A padding mask leaves sdpa's
+            # bf16 backward with fully masked rows, which gave NaN on 5 of 156 prompts.
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                logits = model(input_ids=x, attention_mask=mask).logits
+                logits = model(input_ids=x).logits
             logp = torch.log_softmax(logits[:, :-1].float(), -1).gather(-1, x[:, 1:, None]).squeeze(-1)
-            (-(weight[:, 1:] * logp).sum() / n_resp).backward()      # the group's token mean
+            loss = -(weight[:, 1:] * logp).sum() / n_resp                # the group's token mean
+            if not torch.isfinite(loss):
+                raise SystemExit(f"prompt {j}: the loss is not finite")
+            loss.backward()
             del logits, logp
         n2 = 0.0
         for n, p in params.items():
@@ -359,6 +364,8 @@ def phase_gradient(args, cfg, task) -> None:
             n2 += s2
             kinds[lowrank.kind(n)] = kinds.get(lowrank.kind(n), 0.0) + s2
             total[n] += p.grad
+        if not np.isfinite(n2):
+            raise SystemExit(f"prompt {j}: the gradient is not finite")
         norm2s[str(j)] = n2
         model.zero_grad(set_to_none=False)
         if len(norm2s) % 32 == 0:
@@ -368,6 +375,8 @@ def phase_gradient(args, cfg, task) -> None:
         raise SystemExit("no live prompt: the gradient is zero")
     sum_norm2 = float(sum(norm2s.values()))
     batch_norm2 = float(sum((t.double() ** 2).sum() for t in total.values()))
+    if not np.isfinite(batch_norm2):
+        raise SystemExit("the summed gradient is not finite")
     # the mean of g_i . g_j over i != j, as a fraction of the mean |g_j|^2
     shared = (batch_norm2 - sum_norm2) / (M * (M - 1)) / (sum_norm2 / M) if M > 1 else None
     save_file({n: t.contiguous().cpu() for n, t in total.items()}, str(args.workdir / "grad.safetensors"))
