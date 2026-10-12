@@ -516,10 +516,23 @@ def phase_steps(args, cfg, task) -> None:
         setattr(ESWorker, k_, fn)
     mem = json.loads((out / "members.json").read_text())
     n = mem["n"]
-    k = [float(x) for x in lowrank.coefficients(np.asarray(mem["rewards"]).mean(1), n, ALPHA, RANK)]
     mdir = model_dir(cfg)
     shapes = lowrank.leaf_shapes(mdir)
     d_m = sum(o * i for _, (o, i) in shapes)
+    member_len = SIGMA * np.sqrt(d_m)
+    fitness = np.asarray(mem["rewards"]).mean(1)
+    if fitness.std() == 0 and not cfg["smoke"]:
+        # every member scored alike: there is no update to scan, and the rule says so
+        harness.write_atomic(out / "steps-meta.json", {"unit_norm": 0.0, "member_length": member_len,
+                                                       "perturbed_params": d_m, "n": n, "no_ranking_signal": True})
+        pred = predict(out, task.max_reward)
+        pred["setting"] = cfg["name"]
+        harness.write_atomic(out / "prediction.json", pred)
+        print(json.dumps(pred["rule"], indent=1), flush=True)
+        return
+    if fitness.std() == 0:
+        fitness = np.random.default_rng(0).standard_normal(n)        # wiring only
+    k = [float(x) for x in lowrank.coefficients(fitness, n, ALPHA, RANK)]
     tok = tokenizer(cfg)
     rows, kinds, which = scan_rows(task)
     ids = [task.render(tok, r) for r in rows]
@@ -529,7 +542,6 @@ def phase_steps(args, cfg, task) -> None:
     unit = rpc("lr_norm", k)
     log = out / "steps.jsonl"
     done = {(r["length"], r["sign"]) for r in lines(log)}
-    member_len = SIGMA * np.sqrt(d_m)
     t0 = time.perf_counter()
 
     def point(length, sign):
@@ -552,7 +564,8 @@ def phase_steps(args, cfg, task) -> None:
     rpc("lr_load", [0.0] * (n // 2))
     scorer.close()
     harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
-                                                   "perturbed_params": d_m, "n": n})
+                                                   "perturbed_params": d_m, "n": n,
+                                                   "synthetic_ranking": bool(np.asarray(mem["rewards"]).mean(1).std() == 0)})
     pred = predict(out, task.max_reward)
     pred["setting"] = cfg["name"]
     harness.write_atomic(out / "prediction.json", pred)
@@ -744,30 +757,34 @@ def predict(out: Path, max_reward: float) -> dict:
     # level 1
     start_train = norm(sample["start"]["train"]["rewards"])
     lvl1 = level1(mem, start_train, max_reward)
-    start_steps = np.asarray(next(p for p in steps if p["sign"] == 0)["rewards"])
-    resp = responses([p for p in steps if p["sign"] != 0], start_steps, smeta["unit_norm"])
-    used = [L for L, v in resp.items() if v["usable"]] or list(resp)
-    far = resp[max(used, key=float)]
-    update = {"unit_norm": smeta["unit_norm"], "n": mem["n"], "responses": resp, "length_used": max(used, key=float),
-              "usable": far["usable"], "G": far["G"], "G_se": far["odd_se"] / far["lam"], "C": far["C"],
-              "C_se": far["even_se"] / far["lam"] ** 2,
-              "first_task_damaged": min(far["by_task"], key=lambda t: far["by_task"][t]["C"]),
-              "random_cost_at_this_N_per_length2": far["C"] / smeta["unit_norm"] ** 2}
-    verdict = rule(far["G"], far["C"], rl_gain, sample["prompts"], mem["n"], sample["live_share"])
+    if steps and smeta["unit_norm"] > 0:
+        start_steps = np.asarray(next(p for p in steps if p["sign"] == 0)["rewards"])
+        resp = responses([p for p in steps if p["sign"] != 0], start_steps, smeta["unit_norm"])
+        used = [L for L, v in resp.items() if v["usable"]] or list(resp)
+        far = resp[max(used, key=float)]
+        update = {"unit_norm": smeta["unit_norm"], "n": mem["n"], "responses": resp, "length_used": max(used, key=float),
+                  "usable": far["usable"], "G": far["G"], "G_se": far["odd_se"] / far["lam"], "C": far["C"],
+                  "C_se": far["even_se"] / far["lam"] ** 2,
+                  "first_task_damaged": min(far["by_task"], key=lambda t: far["by_task"][t]["C"]),
+                  "random_cost_at_this_N_per_length2": far["C"] / smeta["unit_norm"] ** 2}
+        G, C = far["G"], far["C"]
+    else:                                    # every member scored alike: no update to scan
+        update, G, C = None, 0.0, 0.0
+    verdict = rule(G, C, rl_gain, sample["prompts"], mem["n"], sample["live_share"])
     return {"setting": None, "level0": level0, "level1": lvl1, "update": update, "rule": verdict}
 
 
 def analyze(out: Path) -> dict:
     pred = json.loads((out / "prediction.json").read_text())
-    l0, u, r = pred["level0"], pred["update"], pred["rule"]
+    l0, u, r = pred["level0"], pred["update"] or {}, pred["rule"]
     return {"setting": pred["setting"], "call": r["call"], "ratio_es_over_rl_rollouts": r["ratio_es_over_rl_rollouts"],
             "live_share": l0["live_share"], "gradient_sharedness": l0["gradient_sharedness"],
             "curvature_per_length2": l0["curvature_per_length2"], "rl_first_step_gain": l0["rl_first_step_gain"],
             "first_task_damaged_random": l0["first_task_damaged_random"],
             "reliability": {k: v["reliability_at_prompts"] for k, v in pred["level1"].items()},
             "cross_prompt_correlation": {k: v["cross_prompt_correlation"] for k, v in pred["level1"].items()},
-            "G": u["G"], "C": u["C"], "fitted_net_per_update": r["es"] and r["es"]["fitted_net_per_update"],
-            "first_task_damaged": u["first_task_damaged"], "es": r["es"], "rl": r["rl"]}
+            "G": u.get("G"), "C": u.get("C"), "fitted_net_per_update": r["es"] and r["es"]["fitted_net_per_update"],
+            "first_task_damaged": u.get("first_task_damaged"), "es": r["es"], "rl": r["rl"]}
 
 
 def main(argv=None) -> int:

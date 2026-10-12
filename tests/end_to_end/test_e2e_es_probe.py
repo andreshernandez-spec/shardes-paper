@@ -124,6 +124,14 @@ def test_prediction_recovers_constructed_responses(tmp_path):
     assert r["call"] in ("works", "marginal", "fails: rollouts")
     assert r["call"] == ("works" if r["ratio_es_over_rl_rollouts"] <= 5 else
                          "marginal" if r["ratio_es_over_rl_rollouts"] <= 25 else "fails: rollouts")
+    # every member scoring alike leaves no update to scan: the record says so and the
+    # rule fails the setting on the odd response (or on signal, if the live share is low)
+    (tmp_path / "steps.jsonl").unlink()
+    (tmp_path / "steps-meta.json").write_text(json.dumps({"unit_norm": 0.0, "member_length": member_len,
+                                                          "perturbed_params": d_m, "n": n, "no_ranking_signal": True}))
+    pred = probe.predict(tmp_path, scale)
+    assert pred["update"] is None and pred["rule"]["call"] == "fails: no odd response"
+    assert pred["level0"]["curvature_per_length2"] == l0["curvature_per_length2"]
 
 
 def test_unusable_lengths_fall_back_to_the_shortest():
