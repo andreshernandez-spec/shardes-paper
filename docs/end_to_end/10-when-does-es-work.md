@@ -171,3 +171,62 @@ runs of our own at the predicted `N`: the Countdown calibration run at 8B about 
 the small-model runs with seeds about $10 to 30 each, about $150 to 250 in all. Stages can
 stop after any setting. The published outcomes in `11` are the external check on the
 rule and cost nothing beyond the probe.
+
+## The probe (`es_vllm/probe.py`, 2026-10-12, before any record)
+
+One tool runs both levels on a setting `model/task` in six phases, each its own process,
+and writes `prediction.json` before any training on that setting:
+
+- `sample`: 16 answers per train prompt at temperature 1.0 from the start, scored; the
+  live share, Cho and Han's zero-advantage share, the start's greedy reward on the train,
+  validation and off-task blocks, answers per second.
+- `gradient`: per live train prompt, GRPO's token-mean gradient over the attention and
+  MLP matrices (the run's advantages); the sharedness `mean over pairs of g_i . g_j`
+  divided by `mean |g_j|^2`, the analogue of the cross-prompt correlation of member
+  effects; Yin et al.'s diversity; the summed gradient kept for `sign`.
+- `scan`: four random mirrored rank-1 directions of ES's shape at 0.4, 1 and 2.5 member
+  lengths (`sigma sqrt(d)`), both signs, on the validation and off-task blocks: the even
+  response per length squared is `c`, by task, and names the task a random step damages
+  first.
+- `sign`: the unit sign vector of the summed gradient (Adam's first direction) at the
+  Tulu scan's per-coordinate displacement, both signs: the odd response per unit
+  effective length, negated, is the slope along RL's direction; RL's first step
+  `lr sqrt(d)` times it is RL's expected first-step gain.
+- `members`: 64 mirrored rank-1 members at sigma 5e-4, and 32 at 1e-3 from the same
+  seeds, decode the train block greedily: reliability of the ranking, cross-prompt
+  correlation of member effects, Liang et al.'s best-of-N improvement.
+- `steps`: the 64-member update at the same three lengths, both signs, on the validation
+  and off-task blocks: `G` and `C` per unit update, by task.
+
+Blocks: train 192, validation 300, test 300 (reserved, never decoded by the probe; its
+digest is in `env.json`), off-task 300 (Countdown settings: GSM8K prompts from the Tulu
+stream; GSM8K settings: 150 MATH and 150 IFEval). Rewards are normalized by the task's
+maximum (1.1 on Countdown, 10 for the Tulu verifiers). The longest length at which
+neither sign moved the pooled reward by more than 0.2 is the one read.
+
+The rule's constants, fixed here: the target gain is a tenth of the reward range at 2%
+damage, so ES needs `T = G_target^2 |C| / (Delta G^2)` updates at step
+`lambda = Delta G / (G_target |C|)` and `P N T` rollouts, which does not depend on `N`
+because `|C|` falls as `1 / N`. RL's reference is the Tulu run: learning rate 5e-7 (its
+step of 0.045 over 8.03e9 parameters) and 768 rollouts per step, its gain per step the
+first-step gain above. The call is "works" when ES's rollouts are within 5 times RL's
+(compute parity at the measured 0.255 and 0.048 GPU-seconds per answer), "marginal"
+within 25, "fails: rollouts" beyond; "fails: no signal" when the live share is below 0.1,
+before anything else is read. The task damaged first is reported twice, from the random
+scan (level 0) and from the update (level 1).
+
+First batch, approved 2026-10-12 (about $40 on one H200): `qwen0.5b/gsm8k`,
+`qwen3b-base/countdown`, `qwen3b/countdown`, `qwen1.5b/gsm8k`, `qwen3b/gsm8k`,
+`qwen7b/gsm8k`, records in `runs/probe/<model>-<task>/`. Expectations written before
+the records, from the published outcomes in `11`:
+
+1. `qwen3b-base/countdown`: a live share below 0.1 or the smallest `G` of the batch, and
+   a "fails" call (Palleti and Singh's collapse).
+2. `qwen3b/countdown`: a "works" call with the largest `G^2 / |C|` of the batch (Qiu et
+   al.'s success at 30 members).
+3. The GSM8K size axis: the live share falls from 0.5B to 7B as the start's pass rate
+   rises; Cho and Han's failure at 0.5B appears as the smallest `G^2 / |C|` on the axis
+   and a "fails" call, with 1.5B and 7B at least "marginal".
+4. Level 0 predicts level 1: the gradient sharedness orders the six settings as the
+   cross-prompt correlation of member effects does (Spearman at least 0.8).
+5. Where an off-task reasoning block is scored, it is the task damaged first.
