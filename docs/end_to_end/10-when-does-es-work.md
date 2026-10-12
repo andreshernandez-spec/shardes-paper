@@ -32,11 +32,17 @@ over cost of about 600 (it learned in 100 updates); Tulu 8B on Countdown, a marg
 to 29 (untested as a training run). Retrodictions are not predictions; the settings
 below are.
 
-ES is expected to be useful where (R) is within a small factor of the rollouts RL needs
-for the same gain, and RL to dominate where it is not. RL's need is estimated the same
-way from the same probe: its first step moves `lr sqrt(d)` along the sign of the
-gradient, so its gain per step is that length times the slope `D_sign` along the sign
-direction (0.76 per unit length on Tulu), and its rollouts per step are known.
+ES is expected to be useful where the GPU-seconds (R) implies are within a factor of two
+of RL's for the same gain, and RL to dominate where they are not. The two are compared in
+both currencies, because the published claims hinge on which is used (`11`: Qiu matches
+sample evaluations, EGGROLL wall clock at 11 times the generations, Hoy FLOPs at 15 times
+the rollouts): rollouts, and GPU-seconds at the measured cost per answer, 0.048 GPU-s for
+an ES answer and 0.255 for an RL answer carrying its share of the gradient and reference
+passes (`runs/throughput-bench/`), so ES is compute-competitive up to about five times
+RL's rollouts on this hardware. RL's need is estimated from the same probe: its first
+step moves `lr sqrt(d)` along the sign of the gradient, so its gain per step is that
+length times the slope `D_sign` along the sign direction (0.76 per unit length on Tulu),
+and its rollouts per step are known.
 
 ## Two levels of "a priori"
 
@@ -101,6 +107,8 @@ of ours, and most of them are 0.5B to 4B models, where a probe costs a few dolla
 | Qwen2.5-0.5B on GSM8K | Cho and Han: no progress at 0.5B, progress at 1.5B and 7B | to probe; published outcome |
 | Qwen3-4B on Chemistry and on BoolQ | Hoy et al.: their slowest and fastest tasks | to probe; published outcomes |
 | Qwen3-4B on DeepScaleR | EGGROLL's reported success at 2,048 members | to probe, level 0 and 1 |
+| Qwen2.5-Instruct 0.5B, 1.5B, 3B, 7B on GSM8K | model size at a fixed task | to probe |
+| Qwen2.5-1.5B-Instruct on GSM8K, 200 prompts repeated against a stream | prompt repetition | to probe and run, two seeds |
 | dense against rank-1 perturbations on one setting | the perturbation's shape, for `c` | to probe |
 
 ## What counts as the rule being useful
@@ -116,6 +124,36 @@ of ours, and most of them are 0.5B to 4B models, where a probe costs a few dolla
 Falsified by a setting with low gradient diversity where ES fails at the predicted `N`,
 or one with high diversity where it works at small `N`.
 
+## Adjustments after the published record (`11`, 2026-10-12)
+
+- **A first gate on signal.** The live share and Cho and Han's zero-advantage probability
+  are reported first; a setting below a threshold fixed per task family is predicted to
+  fail before `rho`, `D` or `c` are read. This is the collapse on base models (Palleti and
+  Singh: 15% against GRPO's 58% on Countdown) in the rule's terms: no odd response, the
+  random part's cost intact.
+- **Prompt repetition as an axis.** Every published ES success and our own Countdown run
+  train on a fixed set of about 200 prompts passed over hundreds of times; the Tulu runs
+  see a stream that never repeats a prompt. The sharedness contrast was measured on
+  first-pass prompts in both cases and stands, but the learning dynamics may differ. One
+  model and task (Qwen2.5-1.5B-Instruct on GSM8K) is run both ways, a 200-prompt set
+  repeated against a stream of fresh prompts, at two seeds.
+- **A model-size axis.** Ba et al. and Cho and Han report the population needed falling
+  with model size, and Qiu's gains growing with it; the rule has `d` in its cost and
+  must reproduce the trend from the measured terms. Qwen2.5-Instruct at 0.5B, 1.5B, 3B
+  and 7B on one task (GSM8K) are probed at level 0 and 1.
+- **Off-task damage.** The record's failure mode is loss on prior tasks (Schweighofer,
+  Abdi, Hoy). The curvature scan and every training run score an off-task block of 500
+  prompts from a benchmark outside the stream, and "the task damaged first" includes it.
+- **Seeds.** Training runs on models below 7B use two or three seeds; the 8B runs one,
+  stated as such.
+- **The Countdown calibration run.** Tulu 8B on Countdown, which the probe called
+  marginal, runs at Qiu et al.'s settings (30 members, sigma 1e-3, alpha 5e-4, 200 prompts,
+  500 iterations, greedy), since they report the near-identical Llama-3.1-8B-Instruct at
+  61.2 against GRPO's 50.2 at matched sample evaluations: a published outcome that fixes
+  where "marginal" sits.
+- **Sigma at two values in level 1**, since `rho` depends on it (0.12 at 5e-4 and 0.26
+  at 2e-3 on Tulu, with members losing 1.45 points at the latter).
+
 ## Rules carried over
 
 - A validation block sets steps and configurations; a separate test block, never used by
@@ -128,6 +166,8 @@ or one with high diversity where it works at small `N`.
 ## Cost
 
 Level 0 and level 1 on the 8B settings, about $10 to 20 each; on the 0.5B to 4B anchors,
-about $2 to 5 each; the whole table about $100 to 150. Three training runs of our own at
-the predicted `N`, about $150 to 250. Stages can stop after any setting. The published
-outcomes in `11` are the external check on the rule and cost nothing beyond the probe.
+about $2 to 5 each; the whole table about $120 to 180 with the off-task block. Training
+runs of our own at the predicted `N`: the Countdown calibration run at 8B about $60 to 80,
+the small-model runs with seeds about $10 to 30 each, about $150 to 250 in all. Stages can
+stop after any setting. The published outcomes in `11` are the external check on the
+rule and cost nothing beyond the probe.
