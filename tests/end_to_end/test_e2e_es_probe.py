@@ -183,6 +183,15 @@ def test_gain_is_the_validation_blocks_and_cost_pools_both(tmp_path):
     assert r["bootstrap_over_prompts"]["call_shares"]["undetermined: RL's gain unresolved"] > 0.9
 
 
+def test_scan_stops_when_the_cost_is_resolved_or_the_band_is_left():
+    assert not probe.resolved({})
+    noise = {"1": {"usable": True, "even": -0.001, "even_se": 0.01}}
+    assert not probe.resolved(noise)
+    assert probe.resolved({**noise, "2": {"usable": True, "even": -0.04, "even_se": 0.01}})
+    assert probe.resolved({**noise, "2": {"usable": False, "even": -0.3, "even_se": 0.02}})
+    assert not probe.resolved({**noise, "0.5": {"usable": True, "even": -0.05, "even_se": 0.01}})   # the longest decides
+
+
 def test_unusable_lengths_fall_back_to_the_shortest():
     """When every length moved the reward past the usable band, the shortest is used and
     flagged."""

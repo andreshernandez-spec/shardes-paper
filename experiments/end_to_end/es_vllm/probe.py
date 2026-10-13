@@ -77,6 +77,8 @@ SEED, SIGMA, SIGMA2, ALPHA, RANK = 0, 5e-4, 1e-3, 5e-4, 1
 P_TRAIN, K, N_MEMBERS, N_MEMBERS2, BLOCK = 192, 16, 64, 32, 300
 SAMPLE_SEED = 30_000                       # as gradient_check.py
 LENGTHS = (0.4, 1.0, 2.5)                  # multiples of a member's length
+MAX_LENGTH, RESOLVED = 40.0, 3.0           # the scans double the length past 2.5 until the even
+                                           # response is this many standard errors from zero
 SIGN_LENGTHS = (0.5, 1.0)                  # Tulu units; scaled by sqrt(d / d_tulu)
 TULU_D_M = 6_979_321_856                   # runs/lowrank-check/members.json perturbed_params
 RL_LR, RL_ROLLOUTS_PER_STEP = 5e-7, R.TULU31_ROLLOUTS_PER_STEP   # the Tulu run: 0.045 / sqrt(8.03e9)
@@ -435,12 +437,28 @@ def phase_scan(args, cfg, task) -> None:
         print(f"{kind} {index} length {length:.3g} sign {sign:+}: {time.perf_counter() - t0:.0f}s", flush=True)
 
     point("start", 0, 0.0, 0, [0.0] * pairs)
-    for j in range(pairs):                              # random directions of ES's shape
-        one = [1.0 if i == j else 0.0 for i in range(pairs)]
-        norm = rpc("lr_norm", one)
-        for mult in LENGTHS:
+    norms = {j: rpc("lr_norm", [1.0 if i == j else 0.0 for i in range(pairs)]) for j in range(pairs)}
+
+    def length(mult):                                   # random directions of ES's shape
+        for j in range(pairs):
+            one = [1.0 if i == j else 0.0 for i in range(pairs)]
             for sign in (1, -1):
-                point("random", j, member_len * mult, sign, [sign * member_len * mult / norm * x for x in one])
+                point("random", j, member_len * mult, sign, [sign * member_len * mult / norms[j] * x for x in one])
+
+    for mult in LENGTHS:
+        length(mult)
+    # past the fixed lengths, double until the even response is resolved (first batch: the
+    # cost was within noise at 2.5 member lengths on four of six settings)
+    mult = LENGTHS[-1] * 2
+    while mult <= MAX_LENGTH:
+        pts = lines(log)
+        start = np.asarray(next(p for p in pts if p["kind"] == "start")["rewards"])
+        scale = scale_of(pts[0]["kinds"])
+        rnd = random_responses([{**p, "rewards": (np.asarray(p["rewards"]) / scale).tolist()} for p in pts], start / scale)
+        if resolved(rnd):
+            break
+        length(mult)
+        mult *= 2
     rpc("lr_load", [0.0] * pairs)
     scorer.close()
     harness.write_atomic(out / "scan-meta.json", {"perturbed_params": d_m, "member_length": member_len,
@@ -578,6 +596,18 @@ def phase_steps(args, cfg, task) -> None:
     for mult in LENGTHS:
         for sign in (1, -1):
             point(member_len * mult, sign)
+    mult = LENGTHS[-1] * 2                              # as the random scan: until the cost is resolved
+    while mult <= MAX_LENGTH:
+        pts = lines(log)
+        scale = scale_of(pts[0]["kinds"])
+        norm_pts = [{**p, "rewards": (np.asarray(p["rewards"]) / scale).tolist()} for p in pts]
+        resp = responses([p for p in norm_pts if p["sign"] != 0],
+                         np.asarray(next(p for p in norm_pts if p["sign"] == 0)["rewards"]), unit)
+        if resolved(resp):
+            break
+        for sign in (1, -1):
+            point(member_len * mult, sign)
+        mult *= 2
     rpc("lr_load", [0.0] * (n // 2))
     scorer.close()
     harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
@@ -673,6 +703,17 @@ def sign_responses(points: list, start: np.ndarray) -> dict:
             "by_task": {str(t): slope(kinds == t) for t in sorted(set(kinds))},
             "by_block": {str(b): slope(blocks == b) for b in sorted(set(blocks))}}
     return out
+
+
+def resolved(resp: dict) -> bool:
+    """Whether a scan can stop: at the longest usable length the even response is RESOLVED
+    standard errors from zero, or the longest length is already past the usable band."""
+    if not resp:
+        return False
+    longest = resp[max(resp, key=float)]
+    if not longest["usable"]:
+        return True
+    return abs(longest["even"]) >= RESOLVED * longest["even_se"]
 
 
 def rule(G: float, C: float, rl_gain_per_step: float, P: int, N: int, live_share: float) -> dict:
