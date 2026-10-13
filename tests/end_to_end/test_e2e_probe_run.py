@@ -110,3 +110,9 @@ def test_analysis_puts_observed_beside_predicted(tmp_path):
     assert abs(last["predicted"]["offtask_change"] + 0.045) < 1e-9
     assert a["at_end"]["updates_to_target_predicted"] == 2.9
     assert a["eval"][0]["by_block"]["validation"]["change"] == 0.0 and a["eval"][0]["by_block"]["validation"]["change_se"] == 0.0
+    # the summary table: one row per run directory, the class from the frozen definitions
+    rows = pr.summary(tmp_path)
+    assert len(rows) == 1 and rows[0]["run"] == "run" and rows[0]["call"] == "works" and rows[0]["updates"] == 10
+    assert rows[0]["class"] == "fails" and rows[0]["class_ignoring_retained"] == "works" and rows[0]["collapsed"]
+    t = pr.table(rows).splitlines()
+    assert len(t) == 3 and t[0].startswith("| run |") and "| fails | works | yes |" in t[2]

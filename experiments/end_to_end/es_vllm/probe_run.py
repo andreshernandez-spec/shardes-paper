@@ -309,8 +309,48 @@ def analyze(out: Path) -> dict:
     return res
 
 
+def summary(root: Path) -> list:
+    """One row per run under `root`: the prescription it ran at, what the blocks did, the
+    frozen class."""
+    rows = []
+    for d in sorted(root.iterdir()):
+        if not (d / "eval.jsonl").exists():
+            continue
+        a = analyze(d)
+        last, o = a["eval"][-1], a["observed"]
+        fmt = lambda b: f"{last['by_block'][b]['change']:+.3f}" if b in last["by_block"] else "-"  # noqa: E731
+        rows.append({"run": d.name, "setting": a["setting"], "seed": a["seed"], "step": a["step"],
+                     "call": (a["prediction"] or {}).get("call"), "updates_to_target_predicted": (a["prediction"] or {}).get("updates_to_target"),
+                     "updates": a["iterations_done"], "rollouts": a["rollouts_total"],
+                     "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
+                     "peak_test": o["best_test_change"], "peak_at": o["at_iteration_ignoring_retained"],
+                     "class": o["class"], "class_ignoring_retained": o["class_ignoring_retained"], "collapsed": o["collapsed"]})
+    return rows
+
+
+def table(rows: list) -> str:
+    cols = (("run", "run"), ("call", "preregistered call"), ("step", "step"), ("updates_to_target_predicted", "updates to target, predicted"),
+            ("updates", "updates"), ("final_validation", "validation at end"), ("final_test", "test at end"),
+            ("final_offtask", "off-task at end"), ("peak_test", "peak test gain"), ("peak_at", "at"),
+            ("class", "class"), ("class_ignoring_retained", "class, task alone"), ("collapsed", "collapsed"))
+
+    def fmt(x):
+        if x is None:
+            return "-"
+        if isinstance(x, bool):
+            return "yes" if x else "no"
+        if isinstance(x, float):
+            return f"{x:.3g}"
+        return str(x)
+
+    head = "| " + " | ".join(n for _, n in cols) + " |"
+    sep = "|" + "|".join("---" for _ in cols) + "|"
+    return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--table", type=Path, help="the runs directory: one row per run")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
     ap.add_argument("--prediction", type=Path, help="the setting's probe record (step and the numbers to hold the run against)")
     ap.add_argument("--out", type=Path)
@@ -325,6 +365,9 @@ def main(argv=None) -> int:
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/probe-run"))
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
+    if args.table:
+        print(table(summary(args.table if args.table.is_absolute() else E2E / args.table)))
+        return 0
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))
         return 0
