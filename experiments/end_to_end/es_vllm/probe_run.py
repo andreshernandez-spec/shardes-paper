@@ -115,15 +115,16 @@ def run(args) -> int:
     chunk = min(CHUNK, n)                                   # adapters per generate call
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
+    # what the weights depend on; the iteration count can grow on a resume
     conf = {"setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "seed": args.seed,
             "sigma": SIGMA, "alpha": ALPHA, "rank": RANK, "step": step, "n": n, "prompts": args.prompts,
-            "iterations": args.iterations, "eval_every": 1 if args.smoke else args.eval_every, "smoke": args.smoke}
+            "eval_every": 1 if args.smoke else args.eval_every, "smoke": args.smoke}
     if (out / "run.json").exists():
         if json.loads((out / "run.json").read_text())["config"] != conf:
             raise SystemExit(f"{out} holds a run with another configuration")
     else:
         harness.write_atomic(out / "run.json", {
-            "config": conf, "engine": {"chunk": chunk}, "prediction": pred,
+            "config": conf, "iterations": args.iterations, "engine": {"chunk": chunk}, "prediction": pred,
             "blocks": {b: len(v) for b, v in task.blocks.items()}, "block_digests": task.digests(),
             "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "env": env_block(E2E, ["runs"], ("vllm", "torch"))})
