@@ -310,10 +310,11 @@ the corrected analysis sits beside it as `rule_net`, dated.
    frozen here as the hypothesis for fresh settings, on which alone it counts. Published
    outcomes used to formulate the rule remain development evidence.
 6. **Outcome classes for S3e, frozen now.** A training run's observed class: "works" if
-   the reserved test block's net gain reaches 0.10 within the run with every retained
-   block within −0.02 at that point; "marginal" if it reaches 0.05; "fails" otherwise;
-   "collapsed" is recorded beside any class when a block later falls below its start by
-   more than 0.02. A run shorter than the prescribed update count cannot measure the
+   the reserved test block's net gain reaches 0.10 at an evaluation where the retained
+   (off-task) block is within −0.02; "marginal" if it reaches 0.05 at such an evaluation;
+   "fails" otherwise. The class the test block alone would earn is reported beside it,
+   and "collapsed" is recorded when any block falls more than 0.02 below its start at any
+   evaluation (`probe_run.observed_class`). A run shorter than the prescribed update count cannot measure the
    time to target; it reports the gain per update over the run against the prescription
    (the 0.5B GSM8K prescription is 90 updates against a 30-update run).
 7. **The scans.** Extending a scan until the curvature is resolved can leave the region

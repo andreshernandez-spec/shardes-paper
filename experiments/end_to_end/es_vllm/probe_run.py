@@ -239,6 +239,36 @@ def run(args) -> int:
     return 0
 
 
+CLASS_WORKS, CLASS_MARGINAL, RETAINED_LOSS, COLLAPSE = 0.10, 0.05, -0.02, -0.02
+
+
+def observed_class(evals: list) -> dict:
+    """The outcome classes frozen in docs/end_to_end/10 (corrections, item 6), from the
+    evaluations' changes by block: "works" if the test block's change reaches 0.10 at an
+    evaluation where the retained (off-task) block is within -0.02, "marginal" if it
+    reaches 0.05 at such an evaluation, "fails" otherwise. The class the test block alone
+    would earn is reported beside it, and "collapsed" is set when any block falls more
+    than 0.02 below its start at any evaluation."""
+    def cls(best):
+        return "works" if best >= CLASS_WORKS else "marginal" if best >= CLASS_MARGINAL else "fails"
+
+    best_ok, at_ok, best_any, at_any, collapsed = 0.0, None, 0.0, None, False
+    for r in evals:
+        test = r["by_block"].get("test", {}).get("change", 0.0)
+        retained_ok = r["by_block"].get("offtask", {"change": 0.0})["change"] >= RETAINED_LOSS
+        if test > best_any:
+            best_any, at_any = test, r["iteration"]
+        if retained_ok and test > best_ok:
+            best_ok, at_ok = test, r["iteration"]
+        if any(v["change"] < COLLAPSE for v in r["by_block"].values()):
+            collapsed = True
+    return {"class": cls(best_ok), "best_test_change_with_retained_within_bound": best_ok, "at_iteration": at_ok,
+            "class_ignoring_retained": cls(best_any), "best_test_change": best_any, "at_iteration_ignoring_retained": at_any,
+            "collapsed": collapsed,
+            "thresholds": {"works": CLASS_WORKS, "marginal": CLASS_MARGINAL, "retained_loss": RETAINED_LOSS,
+                           "collapse": COLLAPSE}}
+
+
 def analyze(out: Path) -> dict:
     """Observed changes per block and task beside the rule's prediction."""
     run_ = json.loads((out / "run.json").read_text())
@@ -267,7 +297,7 @@ def analyze(out: Path) -> dict:
            "seconds_total": sum(r["seconds"] for r in log),
            "fitness": [{"iteration": r["iteration"], "mean": r["mean_fitness"], "sd": r["sd_fitness"],
                         "update_norm": r["update_norm"]} for r in log],
-           "eval": rows, "prediction": pred}
+           "eval": rows, "prediction": pred, "observed": observed_class(rows) if rows else None}
     if pred and rows:
         last = rows[-1]
         val = last["by_block"].get("validation", {})

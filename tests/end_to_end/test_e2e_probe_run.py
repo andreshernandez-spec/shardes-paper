@@ -45,6 +45,28 @@ def test_stream_selection_excludes_protected_rows_and_repeats():
         raise AssertionError("eight distinct unprotected rows cannot serve nine")
 
 
+def ev(it, test, val, off):
+    return {"iteration": it, "by_block": {"validation": {"change": val}, "test": {"change": test}, "offtask": {"change": off}}}
+
+
+def test_observed_classes_follow_the_frozen_definitions():
+    # the first run: the target reached at 15 with GSM8K already 0.28 down, then a collapse
+    first = [ev(0, 0, 0, 0), ev(5, 0.033, 0.091, -0.067), ev(10, 0.070, 0.057, -0.123), ev(15, 0.135, 0.115, -0.277),
+             ev(20, 0.060, 0.112, -0.600), ev(25, -0.005, -0.012, -0.843), ev(30, -0.118, -0.114, -0.837)]
+    o = pr.observed_class(first)
+    assert o["class"] == "fails" and o["class_ignoring_retained"] == "works" and o["collapsed"]
+    assert o["best_test_change"] == 0.135 and o["at_iteration_ignoring_retained"] == 15
+    # the second: marginal at 15 with GSM8K up, the target at 30 with GSM8K 0.34 down, collapsed
+    second = [ev(0, 0, 0, 0), ev(15, 0.059, 0.055, 0.143), ev(30, 0.104, 0.090, -0.340)]
+    o = pr.observed_class(second)
+    assert o["class"] == "marginal" and o["at_iteration"] == 15 and o["class_ignoring_retained"] == "works" and o["collapsed"]
+    # a clean success and a plain failure
+    assert pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.11, 0.1, -0.01)])["class"] == "works"
+    assert pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.06, 0.05, 0.0)])["class"] == "marginal"
+    o = pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.02, 0.01, 0.0), ev(20, -0.03, 0.0, 0.0)])
+    assert o["class"] == "fails" and o["collapsed"]
+
+
 def test_prediction_block_carries_the_prescription(tmp_path):
     write_prediction(tmp_path / "probe")
     p = pr.prediction_block(tmp_path / "probe")
