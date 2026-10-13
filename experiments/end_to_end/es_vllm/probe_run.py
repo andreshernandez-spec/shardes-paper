@@ -112,6 +112,7 @@ def run(args) -> int:
     if step is None:
         raise SystemExit("--step or --prediction")
     n = 8 if args.smoke else args.members
+    chunk = min(CHUNK, n)                                   # adapters per generate call
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
     conf = {"setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "seed": args.seed,
@@ -122,7 +123,7 @@ def run(args) -> int:
             raise SystemExit(f"{out} holds a run with another configuration")
     else:
         harness.write_atomic(out / "run.json", {
-            "config": conf, "engine": {"chunk": CHUNK}, "prediction": pred,
+            "config": conf, "engine": {"chunk": chunk}, "prediction": pred,
             "blocks": {b: len(v) for b, v in task.blocks.items()}, "block_digests": task.digests(),
             "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "env": env_block(E2E, ["runs"], ("vllm", "torch"))})
@@ -137,7 +138,7 @@ def run(args) -> int:
     lowrank.install_adapters(template, args.seed, shapes, RANK, SIGMA, n=n)
     for k_, fn in lowrank.worker_methods().items():
         setattr(ESWorker, k_, fn)
-    llm = probe.engine(cfg, 0.6, enable_lora=True, max_lora_rank=RANK, max_loras=CHUNK, max_cpu_loras=n,
+    llm = probe.engine(cfg, 0.6, enable_lora=True, max_lora_rank=RANK, max_loras=chunk, max_cpu_loras=n,
                        worker_extension_cls="es_vllm.worker.ESWorker")
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
     rpc("lr_setup", mdir, args.seed, RANK, 0, shapes)
@@ -184,8 +185,8 @@ def run(args) -> int:
         rows = batches[g]
         ids = [task.render(tok, r) for r in rows]
         rewards, lengths = [], []
-        for c0 in range(0, n, CHUNK):
-            part = list(range(c0, min(n, c0 + CHUNK)))
+        for c0 in range(0, n, chunk):
+            part = list(range(c0, min(n, c0 + chunk)))
             o = probe.decode(llm, [i for _ in part for i in ids], task.params(rows * len(part)),
                              [LoRARequest(f"g{g}m{m}", g * n + m + 1, str(template)) for m in part for _ in ids])
             r = probe.score_outs(scorer, o, rows * len(part))
