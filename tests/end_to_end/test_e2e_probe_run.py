@@ -90,7 +90,7 @@ def test_analysis_puts_observed_beside_predicted(tmp_path):
     block = ["validation"] * (P // 2) + ["test"] * (P // 2) + ["offtask"] * (P // 2)
     evs, logs = [], []
     for g in (0, 5, 10):
-        on = (rng.random(P) < 0.14 + 0.01 * g) * 1.1          # Countdown on the 1.1 scale
+        on = (rng.random(P) < 0.14 + 0.012 * g) * 1.1         # Countdown on the 1.1 scale
         off = (rng.random(P // 2) < 0.8 - 0.02 * g) * 10.0    # GSM8K on the 10 scale
         evs.append({"iteration": g, "rewards": on.tolist() + off.tolist(), "kinds": kinds, "block": block, "mean_len": 300.0})
     for g in range(10):
@@ -101,9 +101,9 @@ def test_analysis_puts_observed_beside_predicted(tmp_path):
     a = pr.analyze(out)
     assert a["iterations_done"] == 10 and a["rollouts_total"] == 10 * 64 * 192
     last = a["eval"][-1]
-    assert abs(last["by_block"]["validation"]["change"] - 0.1) < 3 * last["by_block"]["validation"]["change_se"] + 0.01
+    assert abs(last["by_block"]["validation"]["change"] - 0.12) < 3 * last["by_block"]["validation"]["change_se"] + 0.01
     assert abs(last["by_block"]["offtask"]["change"] + 0.2) < 3 * last["by_block"]["offtask"]["change_se"] + 0.01
-    assert abs(last["by_task"]["countdown"]["change"] - 0.1) < 0.03
+    assert abs(last["by_task"]["countdown"]["change"] - 0.12) < 0.03
     # the prediction after 10 updates at step 15: 10 * 15 * 0.002 gain, 10 * 225 * 3e-5 cost
     assert abs(last["predicted"]["gain_first_order"] - 0.3) < 1e-9
     assert abs(last["predicted"]["random_cost"] - 0.0675) < 1e-9
