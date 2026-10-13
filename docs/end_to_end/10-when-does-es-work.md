@@ -334,6 +334,32 @@ the corrected analysis sits beside it as `rule_net`, dated.
    Countdown calibration run (S3d) is deferred: Tulu DPO and Qiu's Llama Instruct are
    different starts, so it would be a transfer experiment, not a calibration anchor.
 
+## Results of the training runs (2026-10-13, `runs/probe-run/README.md`)
+
+Six runs at the preregistered prescription, two seeds of three settings, 30 updates of
+64 members each, scored on the reserved test blocks:
+
+| run | call | step | peak test gain (update) | end: test, off-task | class / task alone | collapsed |
+|---|---|---|---|---|---|---|
+| 3B instruct Countdown, seeds 0 and 1 | works | 15.3 | +0.135 (15), +0.164 (15) | −0.118, −0.837; −0.055, −0.843 | fails / works; works / works | both |
+| 3B base Countdown, seeds 0 and 1 | marginal | 3.0 | +0.104 (30), +0.169 (30) | +0.104, −0.340; +0.169, −0.100 | marginal / works; works / works | both |
+| 0.5B GSM8K, seeds 0 and 1 | fails | 1.1 | +0.033 (15), +0.007 (10) | +0.030, +0.013; −0.027, +0.003 | fails; fails | within noise |
+
+On the task alone the calls held in kind on all six runs. The prescription's size was
+off by two to four (the instruct model reached the target at 5 to 15 updates against 2.9
+gross or 3.8 net; the base model at 15 to 30 against 22 or 19), with the first-order
+model tracking the base model's validation curve through 30 updates and failing in shape
+at the larger step (gain, plateau, unwinding). Every Countdown run lost its off-task
+block late, once the task gain reached about +0.08 to +0.10, at either step and on every
+seed (GSM8K to 0.00 on the instruct model, to 0.06 and 0.30 on the base model), with the
+answers lengthening to the caps; nothing in the one-update probe sees this, so a "works"
+call is a statement about the task until a retained-task bound is measured over several
+updates of the run itself. The seed decides the frozen class where the early trajectory
+is close to a threshold (works and fails on the instruct seeds, works and marginal on
+the base seeds). The RL side of every ratio remains the proxy. Stage S3b is complete;
+the rule's quantitative side is now calibrated against six curves, its off-task side is
+not predictable from a probe, and the next experiment is the measured GRPO baseline.
+
 Against the expectations: 2 held (the instruct Countdown model works with the largest
 `G^2/|C|`), 3 held in its three parts except that 3B on GSM8K has no odd response, 5
 held on four of six, 1 was wrong as written (the base model's collapse is not an absent

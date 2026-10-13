@@ -1,0 +1,71 @@
+{
+  "block_digests": {
+    "offtask": "b48b5f238c29315ae5df5b24fc95d877d0fda61de895036a2c17a8c35a8cd024",
+    "test": "0d0bf8b59b15e50e332ea0f4b3b8aeb913c1369c0cab70443697c944737d6f41",
+    "train": "9d65c5da3be4808f68499c30bba05a7d268f78fc45d390e4d92261538c9ddf87",
+    "validation": "1d97ed6972ebb363675093bd9f9a664f6aa630ca4986f630ee991d17adaac495"
+  },
+  "blocks": {
+    "offtask": 300,
+    "test": 300,
+    "train": 192,
+    "validation": 300
+  },
+  "config": {
+    "alpha": 0.0005,
+    "eval_every": 5,
+    "n": 64,
+    "prompts": "repeated",
+    "rank": 1,
+    "repo": "Qwen/Qwen2.5-3B",
+    "revision": "3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
+    "seed": 1,
+    "setting": "qwen3b-base/countdown",
+    "sigma": 0.0005,
+    "smoke": false,
+    "step": 3.0050808764138806
+  },
+  "engine": {
+    "chunk": 32
+  },
+  "env": {
+    "commit": "001c03eea74093d6fe24182cd642957fc7da9bbd",
+    "dirty_worktree": false,
+    "hostname": "90c520de603e",
+    "packages": {
+      "torch": "2.13.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-146-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "iterations": 30,
+  "prediction": {
+    "C": -0.00010180624618500255,
+    "C_se": 5.2611385357461105e-05,
+    "G": 0.0015296800175501738,
+    "G_offtask": -0.016914474569424638,
+    "G_se": 0.00030434812456919065,
+    "block_digests": {
+      "offtask": "b48b5f238c29315ae5df5b24fc95d877d0fda61de895036a2c17a8c35a8cd024",
+      "test": "0d0bf8b59b15e50e332ea0f4b3b8aeb913c1369c0cab70443697c944737d6f41",
+      "train": "9d65c5da3be4808f68499c30bba05a7d268f78fc45d390e4d92261538c9ddf87",
+      "validation": "1d97ed6972ebb363675093bd9f9a664f6aa630ca4986f630ee991d17adaac495"
+    },
+    "call": "marginal",
+    "fitted_net_per_update": 0.005746015209715596,
+    "ratio_es_over_rl_rollouts": 17.094336886649057,
+    "setting": "qwen3b-base/countdown",
+    "source": "/root/shardes-paper/experiments/end_to_end/runs/probe/qwen3b-base-countdown",
+    "step_multiple": 3.0050808764138806,
+    "unit_norm": 3.8625004964690444,
+    "updates_to_target": 21.754206252124938
+  },
+  "started": "2026-10-13T18:06:59+00:00"
+}
