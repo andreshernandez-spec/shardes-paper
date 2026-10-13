@@ -183,6 +183,31 @@ def test_gain_is_the_validation_blocks_and_cost_pools_both(tmp_path):
     assert r["bootstrap_over_prompts"]["call_shares"]["undetermined: RL's gain unresolved"] > 0.9
 
 
+def test_rule_net_targets_the_net_gain_and_bounds_each_retained_block():
+    """The 3B instruct Countdown record's numbers: the net target needs more updates than
+    the gross one, and a retained block's random loss can bind the step."""
+    blocks = {"validation": {"G": 0.00227, "G_se": 0.0005, "C": -4.7e-5, "C_se": 1e-5},
+              "offtask": {"G": -0.00025, "G_se": 0.0004, "C": -1.2e-5, "C_se": 1e-5}}
+    r = probe.rule_net(blocks, rl_gain_per_step=0.0061, P=192, N=64, live_share=1.0, lam_max=20.0)
+    es = r["es"]
+    net = es["step_multiple"] * 0.00227 + es["step_multiple"] ** 2 * -4.7e-5
+    assert abs(es["updates"] * net - 0.1) < 1e-6                     # the target is net
+    assert es["feasible"] and es["retained_block_random_loss"]["offtask"] >= -0.02
+    assert es["updates"] > 2.9                                         # more than the gross prescription
+    assert r["call"] in ("works", "marginal")
+    # a retained block whose random loss exceeds the bound at every step: infeasible, named
+    bad = {**blocks, "offtask": {"G": 0.0, "G_se": 0.0004, "C": -0.05, "C_se": 0.001}}
+    r2 = probe.rule_net(bad, 0.0061, 192, 64, 1.0, 20.0)
+    assert not r2["es"]["feasible"] and r2["call"] == "fails: retained-task loss"
+    # unresolved responses leave the call undetermined instead of deciding it
+    weak = {**blocks, "validation": {"G": 0.0005, "G_se": 0.0005, "C": -4.7e-5, "C_se": 1e-5}}
+    assert probe.rule_net(weak, 0.0061, 192, 64, 1.0, 20.0)["call"] == "undetermined: odd response unresolved"
+    flat = {**blocks, "validation": {"G": 0.00227, "G_se": 0.0005, "C": -1e-5, "C_se": 1e-5}}
+    assert probe.rule_net(flat, 0.0061, 192, 64, 1.0, 20.0)["call"] == "undetermined: cost unresolved"
+    neg = {**blocks, "validation": {"G": -0.002, "G_se": 0.0005, "C": -4.7e-5, "C_se": 1e-5}}
+    assert probe.rule_net(neg, 0.0061, 192, 64, 1.0, 20.0)["call"] == "fails: no odd response"
+
+
 def test_scan_stops_when_the_cost_is_resolved_or_the_band_is_left():
     assert not probe.resolved({})
     noise = {"1": {"usable": True, "even": -0.001, "even_se": 0.01}}

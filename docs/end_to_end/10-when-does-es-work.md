@@ -261,6 +261,78 @@ score the reserved test blocks):
 | qwen3b-base/countdown | 1.0 | 0.0196 | 0.38 | 0.0015 | -1.0e-4 | 17 (4.0 to 46) | marginal | -1.1, flagged |
 | qwen3b/countdown | 1.0 | 0.0086 | 0.27 | 0.0023 | -3.0e-5 | 2.8 (0.25 to 12) | works | -0.01 |
 
+## Corrections of 2026-10-13 (after the first training run and a review of the project map)
+
+The review (`drafts/`, local) found the rule's arithmetic and its calls looser than the
+record allowed. What changed, all without GPU time; the preregistered `rule` block in
+each `prediction.json` is untouched and is what the running stage was prescribed from;
+the corrected analysis sits beside it as `rule_net`, dated.
+
+1. **The target is net, per block.** The rule solved for a gross gain of 0.10 against a
+   damage of 0.02, so the net it promised was 0.08, and it took the gain from the
+   validation block but the cost from the pooled blocks. `rule_net` asks for a net gain
+   of 0.10 on the validation block from that block's own odd and even responses, bounds
+   each retained block's loss from the random part at 0.02 from that block's even
+   response, searches the step over the scanned range instead of solving the quadratic,
+   and counts updates for the net gain. On the six records the corrected prescriptions
+   are: 3B instruct Countdown step 20 units, 3.8 updates (was 15, 2.9); 3B base 4.0, 19
+   (was 3.0, 22); 1.5B GSM8K 18, 5.7 (was 19, 4.1); 7B GSM8K 3.3, 18 (was 7.7, 7.8); 0.5B
+   GSM8K 1.0, 90 (was 1.1, 63). The first run's "+0.1 at 10 to 15 updates against a
+   predicted 3" compared the observed net on the test block with a gross prescription;
+   against the net prescription the observed time to target is 3 to 4 times the
+   predicted, not 4 to 5.
+2. **A retained block's odd response is a single draw.** The update's directional effect
+   on a block it was not ranked on is a directional derivative along the update's random
+   part as much as along its useful part; across draws it averages to zero, within one
+   draw it is large. The base model's probe put GSM8K at −0.25 after five updates; the
+   run shows +0.09. The retained-block bound therefore uses the even response only, and
+   the odd off-task response is reported as a single draw and not used. The level-1
+   predictor of systematic off-task change would be the covariance across members between
+   task fitness and off-task fitness, which needs the members to decode the off-task
+   block; proposed for the next batch.
+3. **Calls carry their resolution.** An odd or even response within two standard errors
+   of zero makes the call "undetermined", not "works" or "fails"; the bootstrap resamples
+   the same prompts for the update and the RL proxy, keeping their covariance, and a
+   call whose modal share is under a half is reported as split. Under this rule every one
+   of the six settings is undetermined at 300 prompts (four on the cost, two on the odd
+   response), which is the honest reading of the first batch: it can forecast ES's
+   learning in kind, not call it. Resampling prompts does not stand for independent
+   member populations; a second seed of members is the next batch's cost.
+4. **The RL side is a proxy.** Every setting inherits the Tulu run's learning rate and
+   rollout batch, RL's gain is extrapolated from a finite scan along the sign of a
+   reconstructed gradient, and the compute comparison transfers Tulu 8B's cost per answer.
+   The ratios are provisional forecasts until a GRPO run of our own, with its learning
+   curve and measured cost, exists on at least one cheap setting (S3c, a decision for
+   Andres, since the program's rule so far was that the RL side is only released
+   checkpoints).
+5. **The level-0 gate stays failed** (Spearman 0.54). Replacing the target with the
+   update's odd response gives 0.83 on the same six records; that is exploratory and
+   frozen here as the hypothesis for fresh settings, on which alone it counts. Published
+   outcomes used to formulate the rule remain development evidence.
+6. **Outcome classes for S3e, frozen now.** A training run's observed class: "works" if
+   the reserved test block's net gain reaches 0.10 within the run with every retained
+   block within −0.02 at that point; "marginal" if it reaches 0.05; "fails" otherwise;
+   "collapsed" is recorded beside any class when a block later falls below its start by
+   more than 0.02. A run shorter than the prescribed update count cannot measure the
+   time to target; it reports the gain per update over the run against the prescription
+   (the 0.5B GSM8K prescription is 90 updates against a 30-update run).
+7. **The scans.** Extending a scan until the curvature is resolved can leave the region
+   where the quadratic model holds: the extension now checks usability on every block
+   separately, reports the curvature at the two longest usable lengths and whether they
+   agree within two standard errors, and the update scan evaluates the prescribed step
+   directly as its own point. The fixed-step runs are completed and reported as
+   preregistered; a step schedule or a re-measurement during a run is a separate method,
+   to be specified, tuned on validation data and tested on fresh prompts.
+8. **The stream guard.** The repeated-against-stream control (S3c) draws fresh prompts
+   from a stream that passes over its rows several times; the selector now excludes the
+   probe's blocks by row hash and asserts distinctness. The current repeated-prompt runs
+   are unaffected.
+9. **The literature premise** "ES successes are instruct models with 200 repeated
+   prompts" was wrong (EGGROLL's Qwen3-4B-Base on 40,000 DeepScaleR questions; Abdi's
+   GRPO wins inside the instruct, single-task category); `11` is corrected. The Tulu 8B
+   Countdown calibration run (S3d) is deferred: Tulu DPO and Qiu's Llama Instruct are
+   different starts, so it would be a transfer experiment, not a calibration anchor.
+
 Against the expectations: 2 held (the instruct Countdown model works with the largest
 `G^2/|C|`), 3 held in its three parts except that 3B on GSM8K has no odd response, 5
 held on four of six, 1 was wrong as written (the base model's collapse is not an absent

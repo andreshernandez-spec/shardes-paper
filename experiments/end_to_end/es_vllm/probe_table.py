@@ -23,7 +23,8 @@ COLUMNS = (("setting", "setting"), ("live", "live share"), ("share", "gradient s
            ("c", "curvature per length^2"), ("rl", "RL first-step gain"), ("rel", "reliability"),
            ("corr", "cross-prompt corr"), ("G", "G"), ("C", "C"), ("net", "G^2/4|C|"),
            ("ratio", "ES/RL rollouts"), ("ratio90", "ratio 90%"), ("call", "call"),
-           ("offtask", "off-task at target"), ("damaged", "damaged first (scan / update)"))
+           ("offtask", "off-task at target"), ("damaged", "damaged first (scan / update)"),
+           ("net_step", "net: step"), ("net_updates", "net: updates"), ("net_ratio", "net: ES/RL"), ("net_call", "net: call"))
 
 
 def fmt(x, digits=3):
@@ -45,6 +46,8 @@ def row(pred: dict) -> dict:
     s = l1.get("sigma", {})
     b = r.get("bootstrap_over_prompts") or {}
     ratio90 = b.get("ratio_90")
+    n = pred.get("rule_net") or {}
+    n_es = n.get("es") or {}
     return {"setting": pred["setting"], "live": l0["live_share"], "share": l0["gradient_sharedness"],
             "c": l0["curvature_per_length2"], "rl": l0["rl_first_step_gain"],
             "rel": s.get("reliability_at_prompts"), "corr": s.get("cross_prompt_correlation"),
@@ -52,7 +55,9 @@ def row(pred: dict) -> dict:
             "ratio": r["ratio_es_over_rl_rollouts"],
             "ratio90": f"{fmt(ratio90[0])} to {fmt(ratio90[1])}" if ratio90 else None, "call": r["call"],
             "offtask": u.get("offtask_change_at_target"),
-            "damaged": f"{l0['first_task_damaged_random']} / {u.get('first_task_damaged', '-')}"}
+            "damaged": f"{l0['first_task_damaged_random']} / {u.get('first_task_damaged', '-')}",
+            "net_step": n_es.get("step_multiple"), "net_updates": n_es.get("updates"),
+            "net_ratio": n.get("ratio_es_over_rl_rollouts"), "net_call": n.get("call")}
 
 
 def rows(root: Path) -> list:

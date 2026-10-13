@@ -40,7 +40,8 @@
         "even_per_length2_sd_over_directions": 3.5369033688787314e-05,
         "even_se": 0.0041220746162689325,
         "odd_per_length": 1.9775792220045457e-05,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "26.3369": {
         "by_block": {
@@ -71,7 +72,8 @@
         "even_per_length2_sd_over_directions": 8.031229227440962e-06,
         "even_se": 0.004475049793036684,
         "odd_per_length": 8.701348576819997e-05,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "65.8423": {
         "by_block": {
@@ -102,7 +104,8 @@
         "even_per_length2_sd_over_directions": 1.6556721475583626e-06,
         "even_se": 0.005309711738421472,
         "odd_per_length": -1.582063377603636e-05,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       }
     },
     "rl_first_step_gain": 0.001399997619527443,
@@ -242,19 +245,23 @@
   "rule": {
     "bootstrap_over_prompts": {
       "call_shares": {
-        "fails: no odd response": 0.541,
-        "fails: rollouts": 0.146,
-        "marginal": 0.088,
-        "undetermined: RL's gain unresolved": 0.069,
-        "undetermined: no resolved cost": 0.1,
-        "works": 0.056
+        "fails: no odd response": 0.521,
+        "fails: rollouts": 0.153,
+        "marginal": 0.08,
+        "undetermined: RL's gain unresolved": 0.086,
+        "undetermined: no resolved cost": 0.113,
+        "works": 0.047
       },
       "draws": 1000,
+      "joint_prompts": true,
+      "modal_call": "fails: no odd response",
+      "modal_share": 0.521,
       "ratio_90": [
-        1.4503975338304311,
-        981.1183317648336
+        1.222810420806001,
+        926.9384238891206
       ],
-      "ratio_resolved_share": 0.29
+      "ratio_resolved_share": 0.28,
+      "split": false
     },
     "call": "fails: no odd response",
     "constants": {
@@ -271,6 +278,46 @@
     "rl": {
       "rollouts": 54857.23613296084,
       "steps": 71.42869288145943
+    }
+  },
+  "rule_net": {
+    "call": "undetermined: odd response unresolved",
+    "constants": {
+      "G_target_net": 0.1,
+      "damage_per_retained_block": 0.02,
+      "live_min": 0.1,
+      "marginal_below": 25.0,
+      "resolved_call_se": 2.0,
+      "rl_lr": 5e-07,
+      "rl_rollouts_per_step": 768,
+      "works_below": 5.0
+    },
+    "curvature_stability": {
+      "C": [
+        -6.404611719946638e-05,
+        -3.074213625574386e-05
+      ],
+      "agree_within_2se": true,
+      "lengths": [
+        "26.3369",
+        "65.8423"
+      ]
+    },
+    "es": null,
+    "lam_max": 18.035698989169322,
+    "length_used": "65.8423",
+    "ratio_es_over_rl_rollouts": null,
+    "rl": {
+      "rollouts": 54857.23613296084,
+      "steps": 71.42869288145943
+    },
+    "validation": {
+      "C": -3.074213625574386e-05,
+      "C_se": 4.228426079618705e-05,
+      "G": 0.0,
+      "G_se": 0.0005553823256546826,
+      "even": -0.01,
+      "odd": 0.0
     }
   },
   "setting": "qwen3b/gsm8k",
@@ -293,6 +340,7 @@
         "by_block": {
           "offtask": {
             "C": 0.0032023058599733186,
+            "C_se": 0.0018499146258117638,
             "G": -0.0011551164912346357,
             "G_se": 0.003167998138584648,
             "even": 0.02666666666666667,
@@ -300,6 +348,7 @@
           },
           "validation": {
             "C": -0.0006004323487449972,
+            "C_se": 0.001283219180898006,
             "G": -0.002887791228086589,
             "G_se": 0.0026458612107573254,
             "even": -0.005,
@@ -333,7 +382,8 @@
         "odd": -0.005833333333333334,
         "odd_se": 0.00595138516195574,
         "plus": 0.6866666666666666,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "26.3369": {
         "C": 0.0002882075273975987,
@@ -341,6 +391,7 @@
         "by_block": {
           "offtask": {
             "C": 0.0006404611719946638,
+            "C_se": 0.00030878032066128483,
             "G": -0.0023102329824692715,
             "G_se": 0.0012604197190232724,
             "even": 0.03333333333333333,
@@ -348,6 +399,7 @@
           },
           "validation": {
             "C": -6.404611719946638e-05,
+            "C_se": 0.00022678531629264723,
             "G": -0.00046204659649385434,
             "G_se": 0.0011796579555550615,
             "even": -0.0033333333333333335,
@@ -381,7 +433,8 @@
         "odd": -0.01,
         "odd_se": 0.006227910323740739,
         "plus": 0.6866666666666666,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "65.8423": {
         "C": -2.561844687978655e-05,
@@ -389,6 +442,7 @@
         "by_block": {
           "offtask": {
             "C": -2.0494757503829242e-05,
+            "C_se": 5.478461809007219e-05,
             "G": 0.0001848186385975417,
             "G_se": 0.0005997862466679901,
             "even": -0.006666666666666667,
@@ -396,6 +450,7 @@
           },
           "validation": {
             "C": -3.074213625574386e-05,
+            "C_se": 4.228426079618705e-05,
             "G": 0.0,
             "G_se": 0.0005553823256546826,
             "even": -0.01,
@@ -429,9 +484,11 @@
         "odd": 0.0016666666666666668,
         "odd_se": 0.007365626775776594,
         "plus": 0.675,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       }
     },
+    "rule_net_date": "2026-10-13",
     "unit_norm": 3.6506644031679056,
     "usable": true
   }

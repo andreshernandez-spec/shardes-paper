@@ -608,6 +608,15 @@ def phase_steps(args, cfg, task) -> None:
         for sign in (1, -1):
             point(member_len * mult, sign)
         mult *= 2
+    # the prescribed step, evaluated directly (rule_net's, from the points so far)
+    harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
+                                                   "perturbed_params": d_m, "n": n})
+    pre = (predict(out).get("rule_net") or {}).get("es")
+    if pre:
+        L = pre["step_multiple"] * unit
+        if all(abs(p["length"] - L) > 0.1 * L for p in lines(log) if p["sign"] != 0):
+            for sign in (1, -1):
+                point(L, sign)
     rpc("lr_load", [0.0] * (n // 2))
     scorer.close()
     harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
@@ -634,17 +643,22 @@ def responses(points: list, start: np.ndarray, norm: float) -> dict:
         odd, even = (p - m) / 2, (p + m) / 2 - start
         lam = L / norm
         kinds, blocks = np.asarray(plus["kinds"]), np.asarray(plus["block"])
+        within = lambda sel: bool(abs(p[sel].mean() - start[sel].mean()) < USABLE  # noqa: E731
+                                  and abs(m[sel].mean() - start[sel].mean()) < USABLE)
         out[f"{L:.6g}"] = {
             "lam": lam, "odd": float(odd.mean()), "odd_se": float(odd.std(ddof=1) / np.sqrt(odd.size)),
             "even": float(even.mean()), "even_se": float(even.std(ddof=1) / np.sqrt(even.size)),
             "G": float(odd.mean() / lam), "C": float(even.mean() / lam ** 2),
             "plus": float(p.mean()), "minus": float(m.mean()),
             "usable": bool(abs(p.mean() - start.mean()) < USABLE and abs(m.mean() - start.mean()) < USABLE),
+            # every block within the band on its own: pooled responses can hide opposite moves
+            "usable_by_block": all(within(blocks == b) for b in sorted(set(blocks))),
             "by_task": {str(t): {"G": float(odd[kinds == t].mean() / lam), "C": float(even[kinds == t].mean() / lam ** 2),
                                  "odd": float(odd[kinds == t].mean()), "even": float(even[kinds == t].mean())}
                         for t in sorted(set(kinds))},
             "by_block": {str(b): {"G": float(odd[blocks == b].mean() / lam), "C": float(even[blocks == b].mean() / lam ** 2),
                                   "G_se": float(odd[blocks == b].std(ddof=1) / np.sqrt((blocks == b).sum()) / lam),
+                                  "C_se": float(even[blocks == b].std(ddof=1) / np.sqrt((blocks == b).sum()) / lam ** 2),
                                   "odd": float(odd[blocks == b].mean()), "even": float(even[blocks == b].mean())}
                          for b in sorted(set(blocks))}}
     return out
@@ -669,6 +683,7 @@ def random_responses(scan: list, start: np.ndarray) -> dict:
             "even_per_length2_sd_over_directions": float(np.std([v["C"] for v in per_dir])),
             "even": mean("even"), "even_se": float(np.sqrt(np.mean([v["even_se"] ** 2 for v in per_dir]) / len(per_dir))),
             "usable": all(v["usable"] for v in per_dir),
+            "usable_by_block": all(v["usable_by_block"] for v in per_dir),
             "by_task": {t: {"even_per_length2": float(np.mean([v["by_task"][t]["C"] for v in per_dir])),
                             "odd_per_length": float(np.mean([v["by_task"][t]["G"] for v in per_dir]))}
                         for t in per_dir[0]["by_task"]},
@@ -711,7 +726,7 @@ def resolved(resp: dict) -> bool:
     if not resp:
         return False
     longest = resp[max(resp, key=float)]
-    if not longest["usable"]:
+    if not longest.get("usable_by_block", longest["usable"]):
         return True
     return abs(longest["even"]) >= RESOLVED * longest["even_se"]
 
@@ -751,6 +766,60 @@ def rule(G: float, C: float, rl_gain_per_step: float, P: int, N: int, live_share
                           "live_min": LIVE_MIN, "rl_lr": RL_LR, "rl_rollouts_per_step": RL_ROLLOUTS_PER_STEP}}
 
 
+RESOLVED_CALL = 2.0     # a response within this many standard errors of zero leaves a call undetermined
+
+
+def rule_net(blocks: dict, rl_gain_per_step: float, P: int, N: int, live_share: float, lam_max: float) -> dict:
+    """The corrected target (2026-10-13, after the first training run and the review of
+    the project map): a net gain of G_TARGET on the validation block, each retained block
+    losing at most DAMAGE from the random part, each block from its own odd and even
+    responses per unit update (`blocks[b]` holds `G`, `G_se`, `C`, `C_se`). The step is
+    searched up to `lam_max`, the longest usable multiple of the unit update scanned,
+    rather than solved from the quadratic, and the update count is for the net gain.
+    A retained block's odd response is a single draw of the update's random part and is
+    reported, not used (see docs/end_to_end/10)."""
+    v = blocks["validation"]
+    G, C = v["G"], v["C"]
+    others = {b: x for b, x in blocks.items() if b != "validation"}
+    best = None
+    for lam in np.linspace(lam_max / 400, lam_max, 400):
+        net = lam * G + lam ** 2 * C
+        if net <= 0:
+            continue
+        T = G_TARGET / net
+        losses = {b: T * lam ** 2 * x["C"] for b, x in others.items()}
+        cand = {"step_multiple": float(lam), "updates": float(T), "rollouts": float(P * N * T),
+                "net_per_update": float(net), "retained_block_random_loss": losses,
+                "retained_block_single_draw_odd_change": {b: T * lam * x["G"] for b, x in others.items()},
+                "feasible": all(loss >= -DAMAGE for loss in losses.values())}
+        if best is None or (cand["feasible"] and not best["feasible"]) or (cand["feasible"] == best["feasible"] and T < best["updates"]):
+            best = cand
+    rl = {"steps": G_TARGET / rl_gain_per_step, "rollouts": G_TARGET / rl_gain_per_step * RL_ROLLOUTS_PER_STEP} if rl_gain_per_step > 0 else None
+    ratio = best["rollouts"] / rl["rollouts"] if best and rl else None
+    if live_share < LIVE_MIN:
+        call = "fails: no signal"
+    elif G < RESOLVED_CALL * v["G_se"]:
+        call = "fails: no odd response" if G <= -RESOLVED_CALL * v["G_se"] else "undetermined: odd response unresolved"
+    elif -C < RESOLVED_CALL * v["C_se"]:
+        call = "undetermined: cost unresolved"
+    elif best is None:
+        call = "fails: no net gain in the scanned range"
+    elif not best["feasible"]:
+        call = "fails: retained-task loss"
+    elif rl is None:
+        call = "undetermined: RL's gain unresolved"
+    elif ratio <= WORKS:
+        call = "works"
+    elif ratio <= MARGINAL:
+        call = "marginal"
+    else:
+        call = "fails: rollouts"
+    return {"es": best, "rl": rl, "ratio_es_over_rl_rollouts": ratio, "call": call, "lam_max": lam_max,
+            "constants": {"G_target_net": G_TARGET, "damage_per_retained_block": DAMAGE, "works_below": WORKS,
+                          "marginal_below": MARGINAL, "live_min": LIVE_MIN, "resolved_call_se": RESOLVED_CALL,
+                          "rl_lr": RL_LR, "rl_rollouts_per_step": RL_ROLLOUTS_PER_STEP}}
+
+
 def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, live_share: float, draws=1000) -> dict:
     """The rule's ratio and call under resampling of the scanned prompts within each block:
     `update` holds the plus, minus and start reward arrays and the block labels at the
@@ -761,6 +830,7 @@ def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, liv
     blocks = np.asarray(update["block"])
     val = blocks == "validation"
     idx = {b: np.flatnonzero(blocks == b) for b in sorted(set(blocks))}
+    joint = sign is not None and len(sign["block"]) == blocks.size and list(sign["block"]) == list(update["block"])
     ratios, calls = [], {}
     for _ in range(draws):
         i = np.concatenate([rng.choice(ix, ix.size) for ix in idx.values()])
@@ -769,16 +839,18 @@ def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, liv
         G, C = float(odd[val[i]].mean() / update["lam"]), float(even.mean() / update["lam"] ** 2)
         gain = 0.0
         if sign is not None:
-            sb = np.asarray(sign["block"])
-            jv = np.flatnonzero(sb == "validation")
-            j = rng.choice(jv, jv.size)
+            # the same prompts for ES and the RL proxy, so their covariance is kept
+            j = i[val[i]] if joint else rng.choice(np.flatnonzero(np.asarray(sign["block"]) == "validation"), int(val.sum()))
             gain = rl_step * float(-((sign["plus"][j] - sign["minus"][j]) / 2).mean() / sign["effective_length"])
         r = rule(G, C, gain, P, N, live_share)
         calls[r["call"]] = calls.get(r["call"], 0) + 1
         if r["ratio_es_over_rl_rollouts"] is not None:
             ratios.append(r["ratio_es_over_rl_rollouts"])
-    return {"draws": draws, "ratio_90": [float(np.percentile(ratios, 5)), float(np.percentile(ratios, 95))] if ratios else None,
-            "ratio_resolved_share": len(ratios) / draws, "call_shares": {k: v / draws for k, v in sorted(calls.items())}}
+    modal = max(calls, key=calls.get)
+    return {"draws": draws, "joint_prompts": bool(joint),
+            "ratio_90": [float(np.percentile(ratios, 5)), float(np.percentile(ratios, 95))] if ratios else None,
+            "ratio_resolved_share": len(ratios) / draws, "call_shares": {k: v / draws for k, v in sorted(calls.items())},
+            "modal_call": modal, "modal_share": calls[modal] / draws, "split": bool(calls[modal] / draws < 0.5)}
 
 
 def level1(mem: dict, start_train: np.ndarray) -> dict:
@@ -874,6 +946,28 @@ def predict(out: Path) -> dict:
     verdict = rule(G, C, rl_gain, sample["prompts"], mem["n"], sample["live_share"])
     if update is not None and update["offtask_change_at_target"] is not None:
         verdict["offtask_loss_at_target"] = bool(update["offtask_change_at_target"] < -DAMAGE)
+    # the corrected target (2026-10-13): the longest length usable on every block, each
+    # block's own responses, the step searched up to that length's multiple
+    net = None
+    if update is not None:
+        ok = [L for L, v in resp.items() if v["usable_by_block"]]
+        if ok:
+            far_b = resp[max(ok, key=float)]
+            net = rule_net(far_b["by_block"], rl_gain, sample["prompts"], mem["n"], sample["live_share"], far_b["lam"])
+            net["length_used"] = max(ok, key=float)
+            net["validation"] = far_b["by_block"]["validation"]
+            if net["es"]:                 # the prescribed step scanned as its own point, if it was
+                near = [L for L, v in resp.items() if abs(v["lam"] - net["es"]["step_multiple"]) <= 0.1 * net["es"]["step_multiple"]]
+                net["prescribed_step_response"] = resp[near[0]] if near else None
+            lengths = sorted(ok, key=float)
+            if len(lengths) >= 2:         # the curvature at the two longest usable lengths
+                a, b = resp[lengths[-1]]["by_block"]["validation"], resp[lengths[-2]]["by_block"]["validation"]
+                net["curvature_stability"] = {"lengths": lengths[-2:], "C": [b["C"], a["C"]],
+                                              "agree_within_2se": bool(abs(a["C"] - b["C"]) <= 2 * np.hypot(a["C_se"], b["C_se"]))}
+        else:
+            net = {"call": "undetermined: no length usable on every block", "es": None, "rl": None,
+                   "ratio_es_over_rl_rollouts": None}
+        update["rule_net_date"] = "2026-10-13"
     if update is not None:
         # the responses are keyed by the length's 6-digit form, so match points the same way
         arrays = lambda pts, key, val: {s: next(p for p in pts if f"{p[key]:.6g}" == val and p["sign"] == s)  # noqa: E731
@@ -888,7 +982,7 @@ def predict(out: Path) -> dict:
                           "block": s_[1]["block"], "effective_length": sgn_near["effective_length"]}
         verdict["bootstrap_over_prompts"] = bootstrap_rule(upd, sgn_arrays, rl_step, sample["prompts"], mem["n"],
                                                            sample["live_share"])
-    return {"setting": None, "level0": level0, "level1": lvl1, "update": update, "rule": verdict}
+    return {"setting": None, "level0": level0, "level1": lvl1, "update": update, "rule": verdict, "rule_net": net}
 
 
 def analyze(out: Path) -> dict:

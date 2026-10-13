@@ -65,8 +65,9 @@ for `08` and the draft.
   63.2, OlympiadBench 15.2 / 18.2; Llama Countdown 15.2 / 37.6, GSM8K 55.2 / 53.8, MATH
   32.2 / 35.6, Olympiad 5.6 / 5.9. GRPO wins 7 of 8 cells.
 - [Ba et al. 2026](https://arxiv.org/abs/2608.27351) [HTML]. FLOP-matched ES N = 32
-  against GRPO G = 8 (4x the generations for ES, mine). GRPO wins Pass@1 (Qwen-1.5B GSM8K
-  42.9 against 41.5; DeepSeek-R1-Distill-1.5B math 52.9 against 49.9), ES wins Pass@32
+  against GRPO G = 8 (4x the generations for ES, mine). GRPO wins Pass@1 (Qwen-1.5B, the
+  average over its benchmarks, 42.9 against 41.5, not a GSM8K score as an earlier version
+  of this line said; DeepSeek-R1-Distill-1.5B math 52.9 against 49.9), ES wins Pass@32
   (80.9 against 79.9). ES L2 drift 40.7 to 44.1x GRPO's. Population needed falls with
   scale: N = 16 suffices at 1.5B and 3B, N = 32 at 0.5B.
 - [Palleti and Singh](https://alphaxiv.org/blog/es-for-fine-tuning-llms) (blog) [HTML];
@@ -75,9 +76,13 @@ for `08` and the draft.
   Qwen ES 15 against GRPO 58.4, Llama ES 2%: "ES collapses on both base models". N = 30
   against 8 adds 6 to 10 points on Countdown.
 - [EGGROLL 2025](https://arxiv.org/abs/2511.16652) [HTML]. RWKV-7 1.5B Countdown 35%
-  against GRPO 23% "given the same hardware and wall-clock time", with 1,024 x 618 against
-  64 x 915 generations (about 10.8x, mine); 7B GSM8K 8,192 x 260 against 256 x 340 (about
-  24x, mine). Integer-RNN pretraining matched a backprop transformer at "around 180 times
+  against GRPO 23% "given the same hardware and wall-clock time", an ES win in the
+  wall-clock currency; the generation ratio (1,024 x 618 against 64 x 915, about 10.8x) is
+  inferred from the stated population sizes and update counts, not reported by the paper;
+  7B GSM8K 8,192 x 260 against 256 x 340 (about 24x, the same inference). Appendix L (per
+  the review of 2026-10-13, not yet read at the source here) trains Qwen3-4B-Base on
+  40,000 DeepScaleR questions: a base model on fresh prompts, which the summary below
+  has to respect. Integer-RNN pretraining matched a backprop transformer at "around 180 times
   more GPU-hours"; a MeZO-style population of 2 "significantly underperforms".
 - [ESSA](https://arxiv.org/abs/2507.04453) [HTML]: about 2,000 parameters (LoRA singular
   values); no sample counts. [Hyper-ES](https://arxiv.org/abs/2608.05541) [HTML]: plain
@@ -189,8 +194,11 @@ Hoy (ES matches GRPO only at about 15 to 45x the generations), EGGROLL (11 to 24
 generations behind a wall-clock win), MeZO and ZO-Bench (32 to 100x steps), and with
 every drift measurement (Hoy's alpha^2 T (d - r) / N, Abdi, Schweighofer, Ba's 40x L2).
 It disagrees with Qiu's matched-sample Countdown wins and with Cho and Han's N = 2
-success on GSM8K, and both disagreements sit on single, high-sharedness tasks with
-capable instruct models, which is where our own Countdown run also learns. The classic
+success on GSM8K; those sit on single tasks with instruct models and about 200 repeated
+prompts, where our own Countdown run also learns, but EGGROLL's Qwen3-4B-Base result on
+40,000 DeepScaleR questions is a base-model, fresh-prompt success and Abdi's GRPO wins
+fall inside the instruct, single-task category, so instruction tuning and prompt
+repetition are hypotheses to test, not conditions the record establishes. The classic
 control gap (0.3 to 8x against TRPO) is smaller than ours, consistent with Li's intrinsic
 dimensions of 4 to 6,000 there. The most informative settings for a one-iteration
 diagnostic: Abdi's four tasks on the same two models (ES loses mildly on Qwen, heavily on

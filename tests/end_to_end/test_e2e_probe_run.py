@@ -22,6 +22,29 @@ def write_prediction(path, G=0.002, C=-3e-5, G_off=-0.0003, step=15.0):
     (path / "env.json").write_text(json.dumps({"block_digests": {"train": "a", "validation": "b", "test": "c", "offtask": "d"}}))
 
 
+def test_stream_selection_excludes_protected_rows_and_repeats():
+    """The stream passes over its rows more than once and the probe's blocks come from
+    it: a batch holds distinct GSM8K rows, none of them protected, in stream order."""
+    sys.path.insert(0, str(E2E))
+    from tulu31_data import row_hash  # noqa: PLC0415
+
+    def row(i, dataset="gsm8k"):
+        return {"messages": [{"role": "user", "content": f"q{i}"}], "ground_truth": str(i), "dataset": dataset}
+
+    stream = [row(i) for i in range(10)] + [row(3, "MATH")] + [row(i) for i in range(10)]   # a second pass
+    protected = {row_hash(row(2)), row_hash(row(5))}
+    batches = pr.select_stream(stream, protected, need=6, per=3)
+    got = [r["ground_truth"] for b in batches for r in b]
+    assert got == ["0", "1", "3", "4", "6", "7"]
+    assert len(batches) == 2 and len(batches[0]) == 3
+    try:
+        pr.select_stream(stream, protected, need=9, per=3)
+    except SystemExit as e:
+        assert "needed" in str(e)
+    else:
+        raise AssertionError("eight distinct unprotected rows cannot serve nine")
+
+
 def test_prediction_block_carries_the_prescription(tmp_path):
     write_prediction(tmp_path / "probe")
     p = pr.prediction_block(tmp_path / "probe")

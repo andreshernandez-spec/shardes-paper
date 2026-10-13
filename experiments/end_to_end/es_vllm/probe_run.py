@@ -68,17 +68,41 @@ def digest(rows) -> str:
     return hashlib.sha256("".join(json.dumps(r, sort_keys=True, default=str) + "\n" for r in rows).encode()).hexdigest()
 
 
+def select_stream(rows: list, protected: set, need: int, per: int) -> list:
+    """`need` distinct GSM8K prompts from the stream's rows in order, none of them in
+    `protected` (the probe's blocks) and none repeated: the stream passes over its rows
+    several times, so a range of steps alone promises neither."""
+    from tulu31_data import row_hash  # noqa: PLC0415
+
+    out, seen = [], set()
+    for r in rows:
+        if r["dataset"] != "gsm8k":
+            continue
+        h = row_hash(r)
+        if h in protected or h in seen:
+            continue
+        seen.add(h)
+        out.append(r)
+        if len(out) == need:
+            break
+    if len(out) < need:
+        raise SystemExit(f"{len(out)} distinct unprotected GSM8K prompts in the stream rows given, {need} needed")
+    assert not {row_hash(r) for r in out} & protected and len({row_hash(r) for r in out}) == need
+    return [out[g * per:(g + 1) * per] for g in range(need // per)]
+
+
 def stream_batches(task, iterations: int, per: int) -> list:
-    """Fresh prompts per iteration from the task's stream, after the probe's blocks."""
+    """Fresh prompts per iteration from the task's stream: distinct, and none of the
+    probe's train, validation, test or off-task prompts."""
     from es_vllm.run_tulu import heldout_rows  # noqa: PLC0415
+    from tulu31_data import row_hash  # noqa: PLC0415
 
     if task.name != "gsm8k":
         raise SystemExit(f"{task.name} has no prompt stream; use --prompts repeated")
     need = iterations * per
-    rows = [r for r in heldout_rows(STREAM_FIRST_STEP, STREAM_FIRST_STEP + (need * 5) // 48 + 40) if r["dataset"] == "gsm8k"]
-    if len(rows) < need:
-        raise SystemExit(f"the stream holds {len(rows)} GSM8K prompts after step {STREAM_FIRST_STEP}, {need} needed")
-    return [rows[g * per:(g + 1) * per] for g in range(iterations)]
+    protected = {row_hash(r) for rows_ in task.blocks.values() for r in rows_}
+    rows = heldout_rows(STREAM_FIRST_STEP, STREAM_FIRST_STEP + (need * 5) // 48 + 40)
+    return select_stream(rows, protected, need, per)
 
 
 def prediction_block(path: Path) -> dict:

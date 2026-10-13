@@ -36,7 +36,8 @@
         "even_per_length2_sd_over_directions": 1.491624821217308e-05,
         "even_se": 0.004712345205296713,
         "odd_per_length": 0.0001794203694145941,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "26.3369": {
         "by_block": {
@@ -63,7 +64,8 @@
         "even_per_length2_sd_over_directions": 6.7258440169322526e-06,
         "even_se": 0.004953397912622442,
         "odd_per_length": 0.00013433156315289052,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "65.8423": {
         "by_block": {
@@ -90,7 +92,8 @@
         "even_per_length2_sd_over_directions": 6.443180607426686e-07,
         "even_se": 0.005321924541042995,
         "odd_per_length": 0.00011247032375327664,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       }
     },
     "rl_first_step_gain": 0.006086807528324319,
@@ -220,18 +223,22 @@
   "rule": {
     "bootstrap_over_prompts": {
       "call_shares": {
-        "fails: rollouts": 0.006,
-        "marginal": 0.234,
-        "undetermined: RL's gain unresolved": 0.003,
-        "undetermined: no resolved cost": 0.119,
-        "works": 0.638
+        "fails: rollouts": 0.005,
+        "marginal": 0.235,
+        "undetermined: RL's gain unresolved": 0.002,
+        "undetermined: no resolved cost": 0.124,
+        "works": 0.634
       },
       "draws": 1000,
+      "joint_prompts": true,
+      "modal_call": "works",
+      "modal_share": 0.634,
       "ratio_90": [
-        0.24559920981389907,
-        12.27897770528495
+        0.28354857419353324,
+        12.366654923871664
       ],
-      "ratio_resolved_share": 0.878
+      "ratio_resolved_share": 0.874,
+      "split": false
     },
     "call": "works",
     "constants": {
@@ -257,6 +264,103 @@
       "steps": 16.428973568600703
     }
   },
+  "rule_net": {
+    "call": "undetermined: cost unresolved",
+    "constants": {
+      "G_target_net": 0.1,
+      "damage_per_retained_block": 0.02,
+      "live_min": 0.1,
+      "marginal_below": 25.0,
+      "resolved_call_se": 2.0,
+      "rl_lr": 5e-07,
+      "rl_rollouts_per_step": 768,
+      "works_below": 5.0
+    },
+    "curvature_stability": {
+      "C": [
+        -0.00025969958281078597,
+        -4.696684581801581e-05
+      ],
+      "agree_within_2se": true,
+      "lengths": [
+        "26.3369",
+        "65.8423"
+      ]
+    },
+    "es": {
+      "feasible": true,
+      "net_per_update": 0.026545454545454535,
+      "retained_block_random_loss": {
+        "offtask": -0.018835616438356174
+      },
+      "retained_block_single_draw_odd_change": {
+        "offtask": -0.018835616438356177
+      },
+      "rollouts": 46290.41095890413,
+      "step_multiple": 20.073058668229233,
+      "updates": 3.7671232876712346
+    },
+    "lam_max": 20.073058668229233,
+    "length_used": "65.8423",
+    "prescribed_step_response": {
+      "C": -2.9688010226840256e-05,
+      "G": 0.0010080600480122804,
+      "by_block": {
+        "offtask": {
+          "C": -1.2409174635664702e-05,
+          "C_se": 2.958039654794575e-05,
+          "G": -0.0002490900904859997,
+          "G_se": 0.0004319174019393479,
+          "even": -0.005,
+          "odd": -0.005
+        },
+        "validation": {
+          "C": -4.696684581801581e-05,
+          "C_se": 4.303831249278889e-05,
+          "G": 0.0022652101865105606,
+          "G_se": 0.0004757159108594559,
+          "even": -0.01892424242424243,
+          "odd": 0.045469696969696966
+        }
+      },
+      "by_task": {
+        "countdown": {
+          "C": -4.696684581801581e-05,
+          "G": 0.0022652101865105606,
+          "even": -0.01892424242424243,
+          "odd": 0.045469696969696966
+        },
+        "gsm8k": {
+          "C": -1.2409174635664702e-05,
+          "G": -0.0002490900904859997,
+          "even": -0.005,
+          "odd": -0.005
+        }
+      },
+      "even": -0.011962121212121216,
+      "even_se": 0.010516213469182448,
+      "lam": 20.073058668229233,
+      "minus": 0.4513787878787879,
+      "odd": 0.020234848484848484,
+      "odd_se": 0.006525463871273559,
+      "plus": 0.49184848484848476,
+      "usable": true,
+      "usable_by_block": true
+    },
+    "ratio_es_over_rl_rollouts": 3.6687607020037003,
+    "rl": {
+      "rollouts": 12617.45170068534,
+      "steps": 16.428973568600703
+    },
+    "validation": {
+      "C": -4.696684581801581e-05,
+      "C_se": 4.303831249278889e-05,
+      "G": 0.0022652101865105606,
+      "G_se": 0.0004757159108594559,
+      "even": -0.01892424242424243,
+      "odd": 0.045469696969696966
+    }
+  },
   "setting": "qwen3b/countdown",
   "update": {
     "C": -2.9688010226840256e-05,
@@ -277,6 +381,7 @@
         "by_block": {
           "offtask": {
             "C": 0.0008078889736760871,
+            "C_se": 0.0009285699699630261,
             "G": 0.001556813065537498,
             "G_se": 0.00214131799841332,
             "even": 0.008333333333333333,
@@ -284,6 +389,7 @@
           },
           "validation": {
             "C": 0.00026586891679158465,
+            "C_se": 0.0015784036041612568,
             "G": 0.007562337406232149,
             "G_se": 0.003143864942851403,
             "even": 0.002742424242424238,
@@ -311,7 +417,8 @@
         "odd": 0.014643939393939395,
         "odd_se": 0.006115967606242286,
         "plus": 0.5037575757575757,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "26.3369": {
         "C": -0.00012984979140539298,
@@ -319,6 +426,7 @@
         "by_block": {
           "offtask": {
             "C": 0.0,
+            "C_se": 0.0001509962462178285,
             "G": 0.0004151501508099995,
             "G_se": 0.0009749445899464079,
             "even": 0.0,
@@ -326,6 +434,7 @@
           },
           "validation": {
             "C": -0.00025969958281078597,
+            "C_se": 0.0002510705406892222,
             "G": 0.003991102586196131,
             "G_se": 0.0012271952991979812,
             "even": -0.016742424242424246,
@@ -353,7 +462,8 @@
         "odd": 0.01768939393939394,
         "odd_se": 0.006314273665217025,
         "plus": 0.49289393939393944,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       },
       "65.8423": {
         "C": -2.9688010226840256e-05,
@@ -361,6 +471,7 @@
         "by_block": {
           "offtask": {
             "C": -1.2409174635664702e-05,
+            "C_se": 2.958039654794575e-05,
             "G": -0.0002490900904859997,
             "G_se": 0.0004319174019393479,
             "even": -0.005,
@@ -368,6 +479,7 @@
           },
           "validation": {
             "C": -4.696684581801581e-05,
+            "C_se": 4.303831249278889e-05,
             "G": 0.0022652101865105606,
             "G_se": 0.0004757159108594559,
             "even": -0.01892424242424243,
@@ -395,9 +507,11 @@
         "odd": 0.020234848484848484,
         "odd_se": 0.006525463871273559,
         "plus": 0.49184848484848476,
-        "usable": true
+        "usable": true,
+        "usable_by_block": true
       }
     },
+    "rule_net_date": "2026-10-13",
     "unit_norm": 3.28013211012152,
     "usable": true
   }

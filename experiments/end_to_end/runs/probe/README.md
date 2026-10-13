@@ -45,14 +45,24 @@ step); the 90% interval from 1,000 resamples of the scanned prompts within block
 off-task at target: the update's directional effect on the off-task block scaled to the
 target gain.
 
-| setting | live share | gradient sharedness | curvature per length^2 | RL first-step gain | reliability | cross-prompt corr | G | C | G^2/4|C| | ES/RL rollouts | ratio 90% | call | off-task at target | damaged first (scan / update) |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| qwen0.5b/gsm8k | 0.812 | 3.67e-03 | -1.51e-04 | 4.96e-03 | 0 | -6.98e-04 | 1.43e-03 | -2.60e-04 | 1.97e-03 | 50.3 | 6.56 to 823 | fails: rollouts | 0.0933 | MATH / MATH |
-| qwen1.5b/gsm8k | 0.766 | 2.64e-03 | -2.85e-06 | 3.74e-03 | 0.121 | 7.16e-04 | 1.26e-03 | -1.30e-05 | 0.0305 | 2.45 | 0.316 to 91.6 | works | 0.0437 | MATH / MATH |
-| qwen3b-base/countdown | 1 | 0.0196 | -1.23e-05 | 4.91e-03 | 0.38 | 3.17e-03 | 1.53e-03 | -1.02e-04 | 5.75e-03 | 17.1 | 3.95 to 46.4 | marginal | -1.11 | gsm8k / gsm8k |
-| qwen3b/countdown | 1 | 8.64e-03 | -1.90e-06 | 6.09e-03 | 0.274 | 1.99e-03 | 2.27e-03 | -2.97e-05 | 0.0432 | 2.82 | 0.246 to 12.3 | works | -0.011 | countdown / countdown |
-| qwen3b/gsm8k | 0.453 | 1.59e-03 | -3.36e-07 | 1.40e-03 | 0.0172 | 1.00e-04 | 0 | -2.56e-05 | - | - | 1.45 to 981 | fails: no odd response | - | gsm8k / ifeval |
-| qwen7b/gsm8k | 0.25 | 7.14e-03 | -2.86e-07 | 0.0102 | 0 | -2.51e-04 | 1.67e-03 | -4.37e-05 | 0.0161 | 12.7 | 2.22 to 54.9 | marginal | 0.0353 | MATH / MATH |
+| setting | live share | gradient sharedness | curvature per length^2 | RL first-step gain | reliability | cross-prompt corr | G | C | G^2/4|C| | ES/RL rollouts | ratio 90% | call | off-task at target | damaged first (scan / update) | net: step | net: updates | net: ES/RL | net: call |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen0.5b/gsm8k | 0.812 | 3.67e-03 | -1.51e-04 | 4.96e-03 | 0 | -6.98e-04 | 1.43e-03 | -2.60e-04 | 1.97e-03 | 50.3 | 7.11 to 848 | fails: rollouts | 0.0933 | MATH / MATH | 0.959 | 89.5 | 71 | undetermined: odd response unresolved |
+| qwen1.5b/gsm8k | 0.766 | 2.64e-03 | -2.85e-06 | 3.74e-03 | 0.121 | 7.16e-04 | 1.26e-03 | -1.30e-05 | 0.0305 | 2.45 | 0.372 to 76 | works | 0.0437 | MATH / MATH | 17.8 | 5.65 | 3.38 | undetermined: cost unresolved |
+| qwen3b-base/countdown | 1 | 0.0196 | -1.23e-05 | 4.91e-03 | 0.38 | 3.17e-03 | 1.53e-03 | -1.02e-04 | 5.75e-03 | 17.1 | 3.72 to 49.5 | marginal | -1.11 | gsm8k / gsm8k | 3.95 | 19.4 | 15.2 | undetermined: cost unresolved |
+| qwen3b/countdown | 1 | 8.64e-03 | -1.90e-06 | 6.09e-03 | 0.274 | 1.99e-03 | 2.27e-03 | -2.97e-05 | 0.0432 | 2.82 | 0.284 to 12.4 | works | -0.011 | countdown / countdown | 20.1 | 3.77 | 3.67 | undetermined: cost unresolved |
+| qwen3b/gsm8k | 0.453 | 1.59e-03 | -3.36e-07 | 1.40e-03 | 0.0172 | 1.00e-04 | 0 | -2.56e-05 | - | - | 1.22 to 927 | fails: no odd response | - | gsm8k / ifeval | - | - | - | undetermined: odd response unresolved |
+| qwen7b/gsm8k | 0.25 | 7.14e-03 | -2.86e-07 | 0.0102 | 0 | -2.51e-04 | 1.67e-03 | -4.37e-05 | 0.0161 | 12.7 | 1.98 to 52.2 | marginal | 0.0353 | MATH / MATH | 3.3 | 17.5 | 28.5 | undetermined: cost unresolved |
+
+
+The four `net:` columns are the corrected analysis of 2026-10-13 (`rule_net`, docs/end_to_end/10,
+"Corrections"): the step searched over the scanned range for a net gain of 0.10 on the
+validation block with each retained block's random loss within 0.02, and a call that is
+"undetermined" when the odd or even response is within two standard errors of zero. Under
+it every setting of this batch is undetermined at 300 prompts; the preregistered columns
+to its left are what the training runs were prescribed from and are unchanged (their
+bootstrap now resamples the same prompts for ES and the RL proxy). The RL side of every
+ratio is a proxy (the Tulu run's step and costs), so the ratios are provisional forecasts.
 
 Standard errors and the by-task and by-block responses are in each `prediction.json`.
 `G` is 1.6 (0.5B), 2.1 (1.5B), 5.1 (3B base), 4.7 (3B Countdown), 0.0 (3B GSM8K) and
