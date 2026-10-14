@@ -408,6 +408,42 @@ def analyze(out: Path) -> dict:
     return res
 
 
+def variant_of(a: dict):
+    """What a run changed against the prescription's population and ranking, or None."""
+    parts = [x for x, on in ((f"N {a['n']}", a["n"] != probe.N_MEMBERS), ("random ranking", a["ranking"] == "random"),
+                             (f"shrink {a['shrink']}", bool(a["shrink"]))) if on]
+    return ", ".join(parts) or None
+
+
+def curves_table(evals: list, predicted: bool) -> str:
+    """Per-evaluation changes by block, the answer length, and the first-order prediction
+    where the run carried one: the tables of the results READMEs."""
+    cols = ["after", "validation", "test", "off-task", "answer length"] + ["predicted validation"] * predicted
+    rows = []
+    for r in evals:
+        b = r["by_block"]
+        f = lambda k: f"{b[k]['change']:+.3f}" if k in b else "-"  # noqa: E731
+        row = [str(r["iteration"]), f("validation"), f("test"), f("offtask"), f"{r['mean_len']:.0f}"]
+        if predicted:
+            row.append(f"{r['predicted']['validation_change']:+.3f}")
+        rows.append("| " + " | ".join(row) + " |")
+    return "\n".join(["| " + " | ".join(cols) + " |", "|" + "|".join("---" for _ in cols) + "|", *rows])
+
+
+def curves(root: Path) -> str:
+    """Every run under `root`: a heading with what it ran, then its curves table."""
+    out = []
+    for d in sorted(root.iterdir()):
+        if not (d / "eval.jsonl").exists():
+            continue
+        a = analyze(d)
+        v = variant_of(a)
+        out.append(f"**{d.name}** (step {a['step']:.3g}{', ' + v if v else ''}, {a['iterations_done']} updates, "
+                   f"{a['rollouts_total']:,} rollouts, {a['seconds_total'] / 3600:.1f} h)\n\n"
+                   + curves_table(a["eval"], "predicted" in a["eval"][0]))
+    return "\n\n".join(out)
+
+
 def summary(root: Path) -> list:
     """One row per run under `root`: the prescription it ran at, what the blocks did, the
     frozen class."""
@@ -418,10 +454,8 @@ def summary(root: Path) -> list:
         a = analyze(d)
         last, o = a["eval"][-1], a["observed"]
         fmt = lambda b: f"{last['by_block'][b]['change']:+.3f}" if b in last["by_block"] else "-"  # noqa: E731
-        variant = [x for x, on in ((f"N {a['n']}", a["n"] != probe.N_MEMBERS), ("random ranking", a["ranking"] == "random"),
-                                   (f"shrink {a['shrink']}", bool(a["shrink"]))) if on]
         rows.append({"run": d.name, "setting": a["setting"], "seed": a["seed"], "step": a["step"],
-                     "variant": ", ".join(variant) or None,
+                     "variant": variant_of(a),
                      "call": (a["prediction"] or {}).get("call"), "updates_to_target_predicted": (a["prediction"] or {}).get("updates_to_target"),
                      "updates": a["iterations_done"], "rollouts": a["rollouts_total"],
                      "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
@@ -458,6 +492,7 @@ def table(rows: list) -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", type=Path, help="the runs directory: one row per run")
+    ap.add_argument("--curves", type=Path, help="the runs directory: each run's per-evaluation table")
     ap.add_argument("--compare", nargs=2, type=Path, metavar=("ES_RUNS", "GRPO_RUNS"),
                     help="each ES run against its setting's GRPO arm: loop seconds and rollouts to +0.10 on the test block")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
@@ -484,6 +519,9 @@ def main(argv=None) -> int:
         return 0
     if args.table:
         print(table(summary(args.table if args.table.is_absolute() else E2E / args.table)))
+        return 0
+    if args.curves:
+        print(curves(args.curves if args.curves.is_absolute() else E2E / args.curves))
         return 0
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))

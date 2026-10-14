@@ -136,6 +136,11 @@ def test_analysis_puts_observed_beside_predicted(tmp_path):
     assert rows[0]["class"] == "fails" and rows[0]["class_ignoring_retained"] == "works" and rows[0]["collapsed"]
     t = pr.table(rows).splitlines()
     assert len(t) == 3 and t[0].startswith("| run |") and "| fails | works | yes |" in t[2]
+    # the curves printer: a heading per run and one row per evaluation, the prediction beside
+    c = pr.curves(tmp_path).splitlines()
+    assert c[0] == "**run** (step 15, 10 updates, 122,880 rollouts, 0.8 h)"
+    assert c[2] == "| after | validation | test | off-task | answer length | predicted validation |"
+    assert c[-1].startswith("| 10 | ") and c[-1].endswith(f"| 300 | {0.3 - 0.0675:+.3f} |")
 
 
 def test_compare_pairs_each_run_with_the_reference_arm_by_config(tmp_path):

@@ -327,6 +327,19 @@ def summary(root: Path) -> list:
     return rows
 
 
+def curves(root: Path) -> str:
+    """Every arm under `root`: a heading with its recipe, then its curves table."""
+    out = []
+    for d in sorted(root.iterdir()):
+        if not (d / "eval.jsonl").exists():
+            continue
+        a = analyze(d)
+        hours = (a["cost"]["seconds_per_step"] or 0.0) * a["steps_done"] / 3600
+        out.append(f"**{d.name}** (lr {a['lr']:g}, beta {a['beta']:g}, seed {a['seed']}, {a['steps_done']} steps, "
+                   f"{a['rollouts_total']:,} rollouts, {hours:.1f} h in the loop)\n\n" + probe_run.curves_table(a["eval"], False))
+    return "\n\n".join(out)
+
+
 def table(rows: list) -> str:
     cols = (("run", "arm"), ("lr", "lr"), ("beta", "beta"), ("seed", "seed"), ("steps", "steps"), ("rollouts", "rollouts"),
             ("final_validation", "validation at end"),
@@ -352,6 +365,7 @@ def table(rows: list) -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", type=Path, help="the arms' directory: one row per arm")
+    ap.add_argument("--curves", type=Path, help="the arms' directory: each arm's per-evaluation table")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
     ap.add_argument("--prediction", type=Path, help="the setting's probe record, to check the blocks and carry its RL-side numbers")
     ap.add_argument("--out", type=Path)
@@ -368,6 +382,9 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.table:
         print(table(summary(args.table if args.table.is_absolute() else E2E / args.table)))
+        return 0
+    if args.curves:
+        print(curves(args.curves if args.curves.is_absolute() else E2E / args.curves))
         return 0
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))

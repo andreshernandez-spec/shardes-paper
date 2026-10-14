@@ -62,3 +62,6 @@ def test_analysis_reports_curves_cost_and_class(tmp_path):
     assert len(rows) == 1 and rows[0]["target_first_at"] == 10 and rows[0]["class"] == "works" and rows[0]["rollouts"] == 7680
     t = gr.table(rows).splitlines()
     assert len(t) == 3 and "| works | no |" in t[2] and "| 7,680 |" in t[2]
+    c = gr.curves(tmp_path).splitlines()
+    assert c[0] == "**arm** (lr 5e-07, beta 0.01, seed 0, 10 steps, 7,680 rollouts, 0.3 h in the loop)"
+    assert c[2] == "| after | validation | test | off-task | answer length |" and len(c) == 7
