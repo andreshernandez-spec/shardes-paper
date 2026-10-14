@@ -4,7 +4,7 @@ One page to review the whole program from. Each line says what was planned, whet
 is done, and where the details and the evidence are. Status words: **done**, **running**,
 **open** (planned, not started), **deferred** (parked by decision), **dropped**. Dates
 are when a stage was decided or finished; the decisions themselves are listed in
-`review/01-goal-and-problems.md`. Updated 2026-10-14, after S3c.
+`review/01-goal-and-problems.md`. Updated 2026-10-14, after S3c, with the next stages proposed.
 
 ## The question, as it has moved
 
@@ -12,7 +12,7 @@ are when a stage was decided or finished; the decisions themselves are listed in
 |---|---|---|---|
 | Q1 | Retrained with shardes' ES on exactly the data a released RL checkpoint was trained on, from the same start, does an open model learn what the RL run learned, at matched rollouts? | **done, answered no** on Tulu 3.1 8B: ES at RL's rollouts ends 0.25 below its start where RL gains 1.87 (a gap of 2.12) | `00-plan.md`, `01-tulu31-plan.md`, `07-tulu31-long.md`, `papers/end_to_end/draft.md` |
 | Q2 | Why? What separates RL's learning from ES's on this data? | **done, a supported but provisional explanation**: the members' ranking is mostly prompt-specific effects, one update gains what its random part costs, the gain per unit is constant in N while the cost falls as 1/N; the estimate is a working gradient estimate, the useful step is too short beside the random part. Not isolated: why the quadratic prediction fails over many updates | `08-why-rl-learns-and-es-does-not.md`, `09-best-achievable.md`, `review/` |
-| Q3 | Can it be told a priori, without trial and error, when ES will be effective and when RL will dominate? | **running**: a rule and two levels of predictors preregistered, six settings probed, the first training runs against the predictions on the pod now | `10-when-does-es-work.md`, `11-literature-es-vs-rl.md`, `runs/probe/README.md` |
+| Q3 | Can it be told a priori, without trial and error, when ES will be effective and when RL will dominate? | **running**: the rule's ES side calibrated on six runs and its RL side on three GRPO arms, both on two Countdown settings at 3B; on task the calls hold in kind and the prescription's size is off by two to four; ES collapses off task late where GRPO does not, which no probe predicts; measured, ES needs 5 to 18 times GRPO's rollouts and 1.4 to 4.8 times its compute where it works at all; the verdict (S3e) waits for fresh settings | `10-when-does-es-work.md`, `11-literature-es-vs-rl.md`, `runs/probe/README.md` |
 
 The medium-term aim behind Q3 (stated 2026-10-10 and 12): find where ES has value against
 RL, and if its data efficiency does not reach RL's, say where it is useful and where it
@@ -40,10 +40,12 @@ unless another path is given; every number in a document comes from one.
 | S3a the rule and the probe | progress per update ≈ αρD − cα²d/N; level-0 (nothing ranked) and level-1 (one iteration) predictors; six settings probed, predictions written before any run | **done** (2026-10-12) | 3B instruct Countdown "works" (ES/RL rollouts 2.8), 3B base "marginal" with GSM8K collapsing along the update's direction, 0.5B GSM8K "fails", 1.5B "works" on an unresolved cost, 3B GSM8K no odd response, 7B "marginal"; of five expectations two held, two mostly, one wrong as written, the level-0 test failed (Spearman 0.54) | `10-when-does-es-work.md` (rule, levels, settings, gates, results) | `probe/README.md`, `probe/<setting>/` | $16 |
 | S3b training runs against the predictions | 3B instruct Countdown, 3B base Countdown, 0.5B GSM8K at the rule's prescription, 30 updates at 64 members, scored on the reserved test blocks every 5, two seeds each | **done** (2026-10-13, 13.4 h on one H200) | the calls held in kind on all six runs on the task alone; the prescription's size was off by two to four; every Countdown run lost its off-task block late at either step and on every seed, which no one-update probe sees; the frozen class flips with the seed near a threshold | `10-when-does-es-work.md` ("Results of the training runs"), `es_vllm/probe_run.py` | `probe-run/README.md`, `probe-run/<setting>-s<seed>/` | $71 |
 | S3c the measured RL reference | GRPO trained by us with the Tulu 3.1 recipe on 3B instruct and base Countdown (5e-7) and instruct at 1e-6, 40 steps each, scored on the probe's blocks, every phase timed | **done** (2026-10-14, $17) | the RL side's first-step model holds (target at 15 and 25 to 30 steps against 16 and 20 predicted); GRPO keeps the off-task block ES lost; measured ES/GRPO rollouts 5 to 16 (instruct) and 9 to 18 (base), compute 1.4 to 4.8 times GRPO's at 0.11 GPU-s per GRPO answer against 0.031 per ES answer | `10-when-does-es-work.md` ("S3c"), `es_vllm/grpo_run.py` | `grpo-run/README.md`, `grpo-run/<arm>/` | $17 |
-| S3c' the controls and remaining probes | the repeated-against-stream control with the stream guard; the remaining probes of the settings table | **open** | | `10-when-does-es-work.md` | | $120 to 180 |
-| S3d calibration run | Tulu 8B on Countdown at Qiu et al.'s settings (30 members, σ 1e-3, 200 prompts, 500 iterations) | **deferred** (2026-10-13): Tulu DPO and Qiu's Llama Instruct are different starting checkpoints, so this is a transfer experiment, not a calibration anchor | | `10-when-does-es-work.md` | | $60 to 80 |
+| S4a the collapse and the resolution | on 3B instruct Countdown: a random-only control (shuffled rankings, same update norm), a 256-member run, an ES run with shrinkage toward the start, to say whether the off-task collapse is the random walk or the learned direction; a level-1 off-task predictor from the members' task-versus-off-task fitness covariance; a second member population and 600-prompt blocks on the six probed settings | **proposed** (2026-10-14, awaits the budget decision) | | `10-when-does-es-work.md` (to be preregistered when funded) | | ~$80 |
+| S4b fresh settings for the verdict | one IFEval constraint type and MATH alone on 3B instruct, Tulu 8B on Countdown with its own GRPO arm, and the repeated-against-stream control on 3B instruct Countdown; each probed, run at the prescription and given a GRPO arm; the prospective test of the frozen gates and of the revised level-0 hypothesis | **proposed**, after S4a (its answer changes the runs' design) | | `10-when-does-es-work.md` | | ~$150 |
+| S4c the published conflict | Qiu et al.'s matched-evaluation comparison replicated on our instrumented 3B instruct Countdown: ES at their settings for 500 iterations against GRPO at matched evaluations (or a fraction with the curve) | **proposed**, only if S4b sustains the rule | | `11-literature-es-vs-rl.md`, `10-when-does-es-work.md` | | $200 to 600 |
+| S3d calibration run | Tulu 8B on Countdown at Qiu et al.'s settings (30 members, σ 1e-3, 200 prompts, 500 iterations) | **deferred** (2026-10-13): Tulu DPO and Qiu's Llama Instruct are different starting checkpoints, so this is a transfer experiment, not a calibration anchor; its useful part (Tulu 8B on Countdown with our own GRPO arm) is in S4b | | `10-when-does-es-work.md` | | $60 to 80 |
 | S3e the rule's verdict | over at least six settings with a run or a published outcome: predicted order right (Spearman ≥ 0.8), the three-way call right in five of six, level 0 predicts level 1 | **open**: the outcome classes and the unfinished-target rule are frozen in `10` before any further setting; the six probed settings, concentrated in two task families, are a pilot; the revised level-0 hypothesis (the update's odd response as the target, Spearman 0.83 on the same six records, exploratory) is tested only on fresh settings | | `10-when-does-es-work.md` ("What counts as the rule being useful", "Corrections of 2026-10-13") | | |
-| P paper | the manuscript | **open**: the Tulu comparison (the draft) is the defensible main result; the predictive stage enters as exploratory until the checks in S3c and S3e succeed | | `papers/end_to_end/draft.md`, `papers/end_to_end/README.md` | | |
+| P paper | the manuscript | **open**: the Tulu comparison (the draft) is the defensible main result today; after S4b the predictive stage with the measured GRPO reference, the collapse and its mechanism is the stronger paper, with the Tulu comparison as its first section | | `papers/end_to_end/draft.md`, `papers/end_to_end/README.md` | | |
 | O Olmo 3 | the second setting of the original plan (7B RL-Zero IF) | **deferred** (2026-09-26): 2,900-token answers at temperature 1 and 16k-token loops under greedy decoding put a matched run at $2k to 6k | | `00-plan.md` | | |
 
 ## The evidence, by experiment
@@ -81,19 +83,20 @@ headline of each, with the two newer ones:
 
 Decisions for Andres:
 
-- What the next GPU dollars go to, with about $38 left on the balance: the
-  repeated-against-stream control (about $15), a second GRPO seed (about $9), or a
-  level-1 off-task predictor measured over a few updates (about $10 per setting).
+- The budget was raised on 2026-10-14 (figure pending): which of S4a (~$80), S4b (~$150)
+  and S4c ($200 to 600) to fund. Recommended: S4a now, S4b on S4a's outcome, S4c only if
+  S4b sustains the rule.
 - Whether the paper becomes the Tulu comparison alone (the draft) or the predictive
   account with the Tulu result as its anchor.
 - Two seeds per run only for the cheap settings; the 8B settings run one seed.
 
 Work in hand or queued (mine):
 
-- A level-1 off-task predictor measured over several updates (the members decoding the
-  off-task block, or a short run), since the one-update number cannot see the late
-  collapse; a step schedule or re-measurement as a separately specified method, tuned on
-  validation prompts and tested on fresh ones (`10`, corrections item 7).
+- Preregister S4a in `10` once funded (the three runs, the predictor, the gates), then
+  S4b's settings with their predictions before each is probed.
+- A step schedule or re-measurement as a separately specified method, tuned on validation
+  prompts and tested on fresh ones (`10`, corrections item 7), after S4a says what the
+  collapse is.
 - The probe's scan extension (commit c945036) applies to every later setting; the
   level-0 test has to be re-stated against the update's odd response rather than the
   ranking's reliability (the 7B record: reliability 0, update at 3.6 SE).
