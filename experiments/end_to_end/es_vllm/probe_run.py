@@ -386,9 +386,12 @@ def analyze(out: Path) -> dict:
                             for b in ("validation", "test", "offtask") if (blocks == b).any()},
                "by_task": {t: {"change": float(d[kinds == t].mean()), "change_se": se(d[kinds == t])} for t in sorted(set(kinds))}}
         if pred:
-            row["predicted"] = {"validation_change": g * step * pred["G"] - g * step ** 2 * -pred["C"],
-                                "gain_first_order": g * step * pred["G"], "random_cost": g * step ** 2 * -pred["C"],
-                                "offtask_change": g * step * pred["G_offtask"] if pred["G_offtask"] is not None else None}
+            # a random ranking has the random cost and no gain (docs/end_to_end/10, S4a arm 2)
+            real = run_["config"].get("ranking", "real") == "real"
+            gain = g * step * pred["G"] if real else 0.0
+            row["predicted"] = {"validation_change": gain - g * step ** 2 * -pred["C"],
+                                "gain_first_order": gain, "random_cost": g * step ** 2 * -pred["C"],
+                                "offtask_change": (g * step * pred["G_offtask"] if real else 0.0) if pred["G_offtask"] is not None else None}
         rows.append(row)
     res = {"setting": run_["config"]["setting"], "seed": run_["config"]["seed"], "step": step, "n": run_["config"]["n"],
            "ranking": run_["config"].get("ranking", "real"), "shrink": run_["config"].get("shrink"),
