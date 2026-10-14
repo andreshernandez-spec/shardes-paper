@@ -334,6 +334,36 @@ the corrected analysis sits beside it as `rule_net`, dated.
    Countdown calibration run (S3d) is deferred: Tulu DPO and Qiu's Llama Instruct are
    different starts, so it would be a transfer experiment, not a calibration anchor.
 
+## S3c, the measured RL reference: preregistration (2026-10-13, before any run)
+
+Approved by Andres on 2026-10-13 after the review. `es_vllm/grpo_run.py` trains GRPO on
+a probed setting with the Tulu 3.1 run's recipe (its model card: 48 prompts and 16
+samples per step at temperature 1.0, group-normalized advantages, two mini-batches per
+batch, micro-batches of 2, the token mean of the clipped policy term plus 0.01 times the
+kl3 estimator against the start, AdamW at a constant 5e-7, one epoch), on one GPU with
+the policy in f32, a bf16 copy of the start as the reference and vLLM generating from the
+policy's weights after every step; the prompts cycle through the probe's 192 train
+prompts; the validation, reserved test and off-task blocks are scored every 5 steps, as
+the ES runs were. Each phase is timed, so the record carries RL's cost per step and per
+answer on the same hardware, which the ratios so far took from the Tulu 8B bench.
+
+Arms, in order, one seed each, 40 steps (30,720 rollouts, about two and a half ES
+iterations' worth): 3B instruct on Countdown at 5e-7; 3B base on Countdown at 5e-7; 3B
+instruct at 1e-6 if the balance allows. About $8 to 10 each.
+
+Predictions from the probes' RL side (lr 5e-7, 768 rollouts per step, the sign-direction
+slope on the validation block): the instruct model reaches +0.10 on the reserved block
+after 16 steps, the base model after 20; their off-task change at that point −0.006 and
+−0.028. The ES runs reached +0.10 at 5 to 15 updates (61k to 184k rollouts, instruct)
+and 15 to 30 (184k to 369k, base), so the measured ratio of rollouts is those against
+768 times RL's measured steps; the probes forecast 2.8 and 17. The compute currency uses
+the measured seconds per answer of each method on this GPU.
+
+What counts: RL's measured steps to +0.10 within a factor of two of the prediction on
+each arm (the RL side's first-step model), and whether RL's off-task block holds where
+ES's collapsed. Falsified if RL needs more than twice the predicted steps, or fewer than
+half, on both arms.
+
 ## Results of the training runs (2026-10-13, `runs/probe-run/README.md`)
 
 Six runs at the preregistered prescription, two seeds of three settings, 30 updates of

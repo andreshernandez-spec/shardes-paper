@@ -39,6 +39,10 @@ import numpy as np
 import torch
 from shardes.shaping import group_relative
 
+# An in-process handoff: a trainer in the driver's process (grpo_run.py) puts tensors
+# here and a worker method reads them, so nothing crosses collective_rpc's arguments.
+SHARED: dict = {}
+
 from . import stream
 
 PACKED = {  # vLLM fused parameter -> the HF leaves it holds, in order along dim 0
