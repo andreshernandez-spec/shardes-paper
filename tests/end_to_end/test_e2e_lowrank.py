@@ -9,6 +9,7 @@ import pathlib
 import sys
 
 import numpy as np
+import pytest
 
 E2E = pathlib.Path(__file__).resolve().parents[2] / "experiments" / "end_to_end"
 sys.path.insert(0, str(E2E))
@@ -30,6 +31,7 @@ def test_factors_are_seeded_and_distinct():
 
 
 def test_adapters_are_the_mirrored_perturbation():
+    pytest.importorskip("torch")                               # the adapters are torch tensors; CI has none
     sigma, r = 5e-4, 2
     for m in (6, 7):
         t = lowrank.adapter_tensors(0, m, SHAPES, r, sigma)
