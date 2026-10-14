@@ -364,6 +364,29 @@ each arm (the RL side's first-step model), and whether RL's off-task block holds
 ES's collapsed. Falsified if RL needs more than twice the predicted steps, or fewer than
 half, on both arms.
 
+## S3c results (2026-10-14, `runs/grpo-run/README.md`)
+
+Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
+
+| arm | lr | test +0.10 first at (predicted) | test at 40 | off-task at 40 | class | GPU-s per answer |
+|---|---|---|---|---|---|---|
+| 3B instruct Countdown | 5e-7 | 15 (16) | +0.135 | −0.007 | works | 0.116 |
+| 3B base Countdown | 5e-7 | 30, between 25 and 30 (20) | +0.135 | +0.143 | works | 0.114 |
+| 3B instruct Countdown | 1e-6 | 15 (8) | +0.213 | −0.003 | works | 0.111 |
+
+The RL side's gate holds on both reference arms (15 against 16, 25 to 30 against 20)
+and by a hair on the doubled step (15 against 8). GRPO kept the off-task block on every
+arm where every ES run on these settings lost it, and its answers shortened where ES's
+ran to the caps: the collapse is ES's, not the task's. The measured ratios of rollouts to
++0.10 on the reserved block, ES over GRPO: 5 to 16 on the instruct model (forecast 2.8),
+9 to 18 on the base model (forecast 17). The measured cost per answer on this GPU is
+0.11 to 0.12 GPU-seconds for GRPO against 0.031 for an ES member's answer (3.7, where the
+Tulu 8B bench gave 5.3), so in compute ES stands at 1.4 to 4 times GRPO on the instruct
+model and 2.4 to 4.8 on the base model: not compute-competitive on either, with the
+forecast's parity line of 5 times the rollouts replaced by 3.7 on this card. One seed per
+arm, the Tulu run's recipe untuned for these models, 40 steps against the hundreds of
+the published Countdown runs.
+
 ## Results of the training runs (2026-10-13, `runs/probe-run/README.md`)
 
 Six runs at the preregistered prescription, two seeds of three settings, 30 updates of

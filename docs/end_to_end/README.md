@@ -4,7 +4,7 @@ One page to review the whole program from. Each line says what was planned, whet
 is done, and where the details and the evidence are. Status words: **done**, **running**,
 **open** (planned, not started), **deferred** (parked by decision), **dropped**. Dates
 are when a stage was decided or finished; the decisions themselves are listed in
-`review/01-goal-and-problems.md`. Updated 2026-10-13, after S3b.
+`review/01-goal-and-problems.md`. Updated 2026-10-14, after S3c.
 
 ## The question, as it has moved
 
@@ -39,7 +39,8 @@ unless another path is given; every number in a document comes from one.
 | L literature | ES failures, poor data efficiency and head-to-head comparisons with RL, with a-priori predictors | **done** (2026-10-12, agent compilation, provenance-labelled) | matched-budget GRPO wins in the LLM record (Abdi 7 of 8, Ba, Hoy at about 15x rollouts); ES wins at matched wall clock in EGGROLL (RWKV-7 Countdown; a Qwen3-4B base model on 40k DeepScaleR questions, so neither instruction tuning nor prompt repetition is an established condition for ES, both are hypotheses); three published predictors (Hoy's chi, Cho and Han's q, Liang's best-of-N) | `11-literature-es-vs-rl.md` | | $0 |
 | S3a the rule and the probe | progress per update ≈ αρD − cα²d/N; level-0 (nothing ranked) and level-1 (one iteration) predictors; six settings probed, predictions written before any run | **done** (2026-10-12) | 3B instruct Countdown "works" (ES/RL rollouts 2.8), 3B base "marginal" with GSM8K collapsing along the update's direction, 0.5B GSM8K "fails", 1.5B "works" on an unresolved cost, 3B GSM8K no odd response, 7B "marginal"; of five expectations two held, two mostly, one wrong as written, the level-0 test failed (Spearman 0.54) | `10-when-does-es-work.md` (rule, levels, settings, gates, results) | `probe/README.md`, `probe/<setting>/` | $16 |
 | S3b training runs against the predictions | 3B instruct Countdown, 3B base Countdown, 0.5B GSM8K at the rule's prescription, 30 updates at 64 members, scored on the reserved test blocks every 5, two seeds each | **done** (2026-10-13, 13.4 h on one H200) | the calls held in kind on all six runs on the task alone; the prescription's size was off by two to four; every Countdown run lost its off-task block late at either step and on every seed, which no one-update probe sees; the frozen class flips with the seed near a threshold | `10-when-does-es-work.md` ("Results of the training runs"), `es_vllm/probe_run.py` | `probe-run/README.md`, `probe-run/<setting>-s<seed>/` | $71 |
-| S3c a measured RL baseline, then the controls | GRPO trained by us on one cheap setting (3B Countdown or 1.5B GSM8K) with its learning curve and measured cost, the reference the rule's ratios have lacked (they are forecasts against the Tulu run's step and costs until then); then the repeated-against-stream control with the stream guard; the remaining probes after that | **open**, the RL baseline needs a decision (it reverses the 2026-09-26 rule that the RL side is only released checkpoints) | | `10-when-does-es-work.md` | | $15 to 30 for the baseline; $120 to 180 for the probes |
+| S3c the measured RL reference | GRPO trained by us with the Tulu 3.1 recipe on 3B instruct and base Countdown (5e-7) and instruct at 1e-6, 40 steps each, scored on the probe's blocks, every phase timed | **done** (2026-10-14, $17) | the RL side's first-step model holds (target at 15 and 25 to 30 steps against 16 and 20 predicted); GRPO keeps the off-task block ES lost; measured ES/GRPO rollouts 5 to 16 (instruct) and 9 to 18 (base), compute 1.4 to 4.8 times GRPO's at 0.11 GPU-s per GRPO answer against 0.031 per ES answer | `10-when-does-es-work.md` ("S3c"), `es_vllm/grpo_run.py` | `grpo-run/README.md`, `grpo-run/<arm>/` | $17 |
+| S3c' the controls and remaining probes | the repeated-against-stream control with the stream guard; the remaining probes of the settings table | **open** | | `10-when-does-es-work.md` | | $120 to 180 |
 | S3d calibration run | Tulu 8B on Countdown at Qiu et al.'s settings (30 members, σ 1e-3, 200 prompts, 500 iterations) | **deferred** (2026-10-13): Tulu DPO and Qiu's Llama Instruct are different starting checkpoints, so this is a transfer experiment, not a calibration anchor | | `10-when-does-es-work.md` | | $60 to 80 |
 | S3e the rule's verdict | over at least six settings with a run or a published outcome: predicted order right (Spearman ≥ 0.8), the three-way call right in five of six, level 0 predicts level 1 | **open**: the outcome classes and the unfinished-target rule are frozen in `10` before any further setting; the six probed settings, concentrated in two task families, are a pilot; the revised level-0 hypothesis (the update's odd response as the target, Spearman 0.83 on the same six records, exploratory) is tested only on fresh settings | | `10-when-does-es-work.md` ("What counts as the rule being useful", "Corrections of 2026-10-13") | | |
 | P paper | the manuscript | **open**: the Tulu comparison (the draft) is the defensible main result; the predictive stage enters as exploratory until the checks in S3c and S3e succeed | | `papers/end_to_end/draft.md`, `papers/end_to_end/README.md` | | |
@@ -73,14 +74,16 @@ headline of each, with the two newer ones:
 | E18 gain and cost by type | v_proj 17% of the gain at 2% of the parameters, but 11x the curvature | `block-check/` |
 | E19 1,024 members, per-type steps | −0.32 ± 0.07; IFEval +0.65, MATH −1.81 | `lowrank-run-1024/` |
 | E20 the probe, six settings | the table in `probe/README.md`; predictions before any run | `probe/` |
-| E21 training runs at the prescription | running; first run above | `probe-run/` |
+| E21 training runs at the prescription | calls held in kind on task; every Countdown run collapsed off task late | `probe-run/` |
+| E22 GRPO trained by us | RL's first-step model holds; GRPO keeps the off-task block; ES at 1.4 to 4.8 times GRPO's compute | `grpo-run/` |
 
 ## Open items
 
 Decisions for Andres:
 
-- The measured GRPO baseline (S3c, $15 to 30), the one experiment the rule's RL side
-  needs; RunPod holds about $55 after S3b.
+- What the next GPU dollars go to, with about $38 left on the balance: the
+  repeated-against-stream control (about $15), a second GRPO seed (about $9), or a
+  level-1 off-task predictor measured over a few updates (about $10 per setting).
 - Whether the paper becomes the Tulu comparison alone (the draft) or the predictive
   account with the Tulu result as its anchor.
 - Two seeds per run only for the cheap settings; the 8B settings run one seed.
@@ -114,6 +117,6 @@ written for a particular reader stay in `drafts/`, which is never committed.
 ## Budget
 
 Program budget $450 ($350 on 2026-09-26, a second $100 for S2 on 2026-10-10); about
-$441 spent by uptime through S3a. S3b ran on the RunPod balance of $126 reported on
-2026-10-13 and cost about $71 by uptime, leaving about $55. Every stage's cost above is by pod uptime, which runs
+$441 spent by uptime through S3a. S3b and S3c ran on the RunPod balance of $126
+reported on 2026-10-13 and cost about $71 and $17 by uptime, leaving about $38. Every stage's cost above is by pod uptime, which runs
 about 20% over the drivers' measured time.
