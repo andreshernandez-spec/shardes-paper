@@ -317,19 +317,24 @@ def compare(es_root: Path, grpo_root: Path, threshold: float = CLASS_WORKS) -> l
     from the logs, and their ratios."""
     from es_vllm import grpo_run  # noqa: PLC0415
 
+    # the reference arm of a setting: the recipe's learning rate and kl coefficient, seed 0
     grpo = {}
     for d in sorted(grpo_root.iterdir()):
-        if (d / "eval.jsonl").exists() and "-lr5e-7-" in d.name:
+        if not (d / "eval.jsonl").exists():
+            continue
+        c = json.loads((d / "run.json").read_text())["config"]
+        if c["lr"] == probe.RL_LR and c.get("beta", grpo_run.BETA) == grpo_run.BETA and c["seed"] == 0:
+            if c["setting"] in grpo:
+                raise SystemExit(f"two reference arms for {c['setting']}: {grpo[c['setting']][0]}, {d.name}")
             a = grpo_run.analyze(d)
-            grpo[d.name.split("-lr")[0]] = (d.name, loop_seconds_to(a["eval"], lines(d / "log.jsonl"), threshold=threshold))
+            grpo[c["setting"]] = (d.name, loop_seconds_to(a["eval"], lines(d / "log.jsonl"), threshold=threshold))
     rows = []
     for d in sorted(es_root.iterdir()):
         if not (d / "eval.jsonl").exists():
             continue
         a = analyze(d)
         es = loop_seconds_to(a["eval"], lines(d / "log.jsonl"), threshold=threshold)
-        setting = d.name.rsplit("-s", 1)[0]
-        ref = grpo.get(setting)
+        ref = grpo.get(a["setting"])
         row = {"run": d.name, "es_iteration": es and es["iteration"], "es_loop_seconds": es and es["loop_seconds"],
                "es_rollouts": es and es["rollouts"], "es_offtask_there": es and es["offtask_change"],
                "es_retained": es and es["retained_within_bound"], "grpo_arm": ref and ref[0],
@@ -386,6 +391,7 @@ def analyze(out: Path) -> dict:
                                 "offtask_change": g * step * pred["G_offtask"] if pred["G_offtask"] is not None else None}
         rows.append(row)
     res = {"setting": run_["config"]["setting"], "seed": run_["config"]["seed"], "step": step, "n": run_["config"]["n"],
+           "ranking": run_["config"].get("ranking", "real"), "shrink": run_["config"].get("shrink"),
            "iterations_done": len(log), "rollouts_total": sum(r["rollouts"] for r in log),
            "seconds_total": sum(r["seconds"] for r in log),
            "fitness": [{"iteration": r["iteration"], "mean": r["mean_fitness"], "sd": r["sd_fitness"],
@@ -412,7 +418,10 @@ def summary(root: Path) -> list:
         a = analyze(d)
         last, o = a["eval"][-1], a["observed"]
         fmt = lambda b: f"{last['by_block'][b]['change']:+.3f}" if b in last["by_block"] else "-"  # noqa: E731
+        variant = [x for x, on in ((f"N {a['n']}", a["n"] != probe.N_MEMBERS), ("random ranking", a["ranking"] == "random"),
+                                   (f"shrink {a['shrink']}", bool(a["shrink"]))) if on]
         rows.append({"run": d.name, "setting": a["setting"], "seed": a["seed"], "step": a["step"],
+                     "variant": ", ".join(variant) or None,
                      "call": (a["prediction"] or {}).get("call"), "updates_to_target_predicted": (a["prediction"] or {}).get("updates_to_target"),
                      "updates": a["iterations_done"], "rollouts": a["rollouts_total"],
                      "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
@@ -424,7 +433,8 @@ def summary(root: Path) -> list:
 
 
 def table(rows: list) -> str:
-    cols = (("run", "run"), ("call", "preregistered call"), ("step", "step"), ("updates_to_target_predicted", "updates to target, predicted"),
+    cols = (("run", "run"), ("call", "preregistered call"), ("step", "step"), ("variant", "variant"),
+            ("updates_to_target_predicted", "updates to target, predicted"),
             ("updates", "updates"), ("final_validation", "validation at end"), ("final_test", "test at end"),
             ("final_offtask", "off-task at end"), ("peak_test", "peak test gain"), ("peak_at", "at"),
             ("selected_at", "validation-selected checkpoint"), ("test_at_selected", "test there"),

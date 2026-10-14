@@ -5,6 +5,7 @@ import pathlib
 import sys
 
 import numpy as np
+import pytest
 
 E2E = pathlib.Path(__file__).resolve().parents[2] / "experiments" / "end_to_end"
 sys.path.insert(0, str(E2E))
@@ -135,3 +136,55 @@ def test_analysis_puts_observed_beside_predicted(tmp_path):
     assert rows[0]["class"] == "fails" and rows[0]["class_ignoring_retained"] == "works" and rows[0]["collapsed"]
     t = pr.table(rows).splitlines()
     assert len(t) == 3 and t[0].startswith("| run |") and "| fails | works | yes |" in t[2]
+
+
+def test_compare_pairs_each_run_with_the_reference_arm_by_config(tmp_path):
+    """The GRPO reference is the arm at the recipe's learning rate and kl coefficient, seed
+    0, found by its config; an ES run pairs with it through its setting, whatever the
+    directory names say (S4a's arms carry a variant in theirs)."""
+    P = 600
+    kinds = ["countdown"] * P + ["gsm8k"] * (P // 2)
+    block = ["validation"] * (P // 2) + ["test"] * (P // 2) + ["offtask"] * (P // 2)
+
+    def evals(gain_per_step):                 # exact: the first share of each block's prompts solved
+        rows = []
+        for g in (0, 5, 10, 15):
+            on = [1.1 if i % (P // 2) < (0.14 + gain_per_step * g) * (P // 2) else 0.0 for i in range(P)]
+            off = [10.0 if i < 0.8 * (P // 2) else 0.0 for i in range(P // 2)]
+            rows.append({"iteration": g, "rewards": on + off, "kinds": kinds, "block": block, "mean_len": 300.0})
+        return rows
+
+    def write(d, run, ev, log):
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps(run))
+        (d / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in ev) + "\n")
+        (d / "log.jsonl").write_text("\n".join(json.dumps(r) for r in log) + "\n")
+
+    es_log = [{"iteration": g, "fitness": [0.1] * 64, "mean_fitness": 0.1, "sd_fitness": 0.01, "rollouts": 64 * 192,
+               "update_norm": 10.0, "seconds": 300.0} for g in range(15)]
+    for name, extra in (("qwen3b-countdown-step3-s0", {"step": 3.0, "n": 64}),
+                        ("qwen3b-countdown-n256-s0", {"step": 15.3, "n": 256}),
+                        ("qwen3b-countdown-random-s0", {"step": 15.3, "n": 64, "ranking": "random", "shrink": None})):
+        write(tmp_path / "s4a" / name, {"config": {"setting": "qwen3b/countdown", "seed": 0, **extra}}, evals(0.012), es_log)
+    grpo_log = [{"iteration": g, "seconds": {"generate": 20.0, "train": 70.0}, "rollouts": 768, "mean_reward": 0.2,
+                 "live_prompts": 30, "kl": [0.01], "grad_norm": [0.5], "mean_len": 300.0, "tokens": 100000} for g in range(15)]
+    for name, cfg in (("qwen3b-countdown-lr5e-7-beta0-s0", {"lr": 5e-7, "beta": 0.0, "seed": 0}),
+                      ("qwen3b-countdown-lr5e-7-s0", {"lr": 5e-7, "beta": 0.01, "seed": 0}),
+                      ("qwen3b-countdown-lr5e-7-s1", {"lr": 5e-7, "beta": 0.01, "seed": 1}),
+                      ("qwen3b-countdown-lr1e-6-s0", {"lr": 1e-6, "beta": 0.01, "seed": 0})):
+        write(tmp_path / "grpo-run" / name, {"config": {"setting": "qwen3b/countdown", **cfg}}, evals(0.012), grpo_log)
+    rows = pr.compare(tmp_path / "s4a", tmp_path / "grpo-run")
+    assert [r["run"] for r in rows] == ["qwen3b-countdown-n256-s0", "qwen3b-countdown-random-s0", "qwen3b-countdown-step3-s0"]
+    assert all(r["grpo_arm"] == "qwen3b-countdown-lr5e-7-s0" for r in rows)
+    assert all(r["es_iteration"] == 10 and r["grpo_step"] == 10 for r in rows)
+    assert all(abs(r["seconds_ratio"] - 3000 / 900) < 1e-9 for r in rows)
+    # the summary names each run's variant
+    s = {r["run"]: r["variant"] for r in pr.summary(tmp_path / "s4a")}
+    assert s == {"qwen3b-countdown-step3-s0": None, "qwen3b-countdown-n256-s0": "N 256",
+                 "qwen3b-countdown-random-s0": "random ranking"}
+    assert "| variant |" in pr.table(pr.summary(tmp_path / "s4a")).splitlines()[0]
+    # two reference arms for one setting is an error, not a silent choice
+    write(tmp_path / "grpo-run" / "dup-lr5e-7-s0", {"config": {"setting": "qwen3b/countdown", "lr": 5e-7, "beta": 0.01, "seed": 0}},
+          evals(0.012), grpo_log)
+    with pytest.raises(SystemExit):
+        pr.compare(tmp_path / "s4a", tmp_path / "grpo-run")

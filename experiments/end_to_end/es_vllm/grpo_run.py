@@ -295,7 +295,7 @@ def analyze(out: Path) -> dict:
     rollouts = sum(r["rollouts"] for r in log)
     pred = run_.get("prediction") or {}
     return {"setting": run_["config"]["setting"], "seed": run_["config"]["seed"], "lr": run_["config"]["lr"],
-            "steps_done": len(log), "rollouts_total": rollouts,
+            "beta": run_["config"].get("beta", BETA), "steps_done": len(log), "rollouts_total": rollouts,
             "reward": [{"iteration": r["iteration"], "mean": r["mean_reward"], "live": r["live_prompts"], "kl": r["kl"][-1],
                         "grad_norm": r["grad_norm"][-1], "mean_len": r["mean_len"]} for r in log],
             "cost": {"seconds_per_step": step_s, "seconds_per_phase": phases,
@@ -317,7 +317,8 @@ def summary(root: Path) -> list:
         last, o = a["eval"][-1], a["observed"]
         first = next((r["iteration"] for r in a["eval"] if r["by_block"].get("test", {}).get("change", 0) >= probe_run.CLASS_WORKS), None)
         fmt = lambda b: f"{last['by_block'][b]['change']:+.3f}" if b in last["by_block"] else "-"  # noqa: E731
-        rows.append({"run": d.name, "setting": a["setting"], "lr": a["lr"], "steps": a["steps_done"], "rollouts": a["rollouts_total"],
+        rows.append({"run": d.name, "setting": a["setting"], "lr": a["lr"], "beta": a["beta"], "seed": a["seed"],
+                     "steps": a["steps_done"], "rollouts": a["rollouts_total"],
                      "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
                      "peak_test": o["best_test_change"], "peak_at": o["at_iteration_ignoring_retained"], "target_first_at": first,
                      "selected_at": o["selected_iteration"], "test_at_selected": o["test_change_at_selected"],
@@ -327,7 +328,8 @@ def summary(root: Path) -> list:
 
 
 def table(rows: list) -> str:
-    cols = (("run", "arm"), ("lr", "lr"), ("steps", "steps"), ("rollouts", "rollouts"), ("final_validation", "validation at end"),
+    cols = (("run", "arm"), ("lr", "lr"), ("beta", "beta"), ("seed", "seed"), ("steps", "steps"), ("rollouts", "rollouts"),
+            ("final_validation", "validation at end"),
             ("final_test", "test at end"), ("final_offtask", "off-task at end"), ("peak_test", "peak test gain"), ("peak_at", "at"),
             ("target_first_at", "test +0.10 first at"), ("selected_at", "validation-selected checkpoint"),
             ("test_at_selected", "test there"), ("class", "class"), ("collapsed", "collapsed"),
