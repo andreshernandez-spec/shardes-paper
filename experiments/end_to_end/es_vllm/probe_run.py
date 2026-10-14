@@ -142,6 +142,7 @@ def run(args) -> int:
     # what the weights depend on; the iteration count can grow on a resume
     conf = {"setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "seed": args.seed,
             "sigma": SIGMA, "alpha": ALPHA, "rank": RANK, "step": step, "n": n, "prompts": args.prompts,
+            "ranking": args.ranking, "shrink": args.shrink,
             "eval_every": 1 if args.smoke else args.eval_every, "smoke": args.smoke}
     if (out / "run.json").exists():
         if json.loads((out / "run.json").read_text())["config"] != conf:
@@ -167,10 +168,14 @@ def run(args) -> int:
                        worker_extension_cls="es_vllm.worker.ESWorker")
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
     rpc("lr_setup", mdir, args.seed, RANK, 0, shapes)
+    if args.shrink:
+        rpc("lr_keep_start")
     t0 = time.perf_counter()
     for rec in done:                                        # replay: the factors regenerate from their seeds
         rpc("lr_factors", args.seed, RANK, pairs, shapes, lowrank.generation_of(rec["iteration"]))
-        rpc("lr_step", list(step * lowrank.coefficients(rec["fitness"], n, ALPHA, RANK)))
+        rpc("lr_step", list(step * lowrank.coefficients(rec["ranked"], n, ALPHA, RANK)))
+        if args.shrink:
+            rpc("lr_shrink", args.shrink)
     if done:
         if rpc("lr_digest") != done[-1]["digest"]:
             raise SystemExit("the replayed weights are not the logged ones")
@@ -220,14 +225,19 @@ def run(args) -> int:
                 lengths.append(float(np.mean([len(x.outputs[0].token_ids) for x in o[q * len(ids):(q + 1) * len(ids)]])))
         decode_s = time.perf_counter() - t1
         fitness = np.asarray(rewards).mean(1)
-        k = list(step * lowrank.coefficients(fitness, n, ALPHA, RANK))
+        # the random-only control: the real fitnesses in a seeded random order, so the
+        # update has the real one's norm and none of its direction
+        ranked = fitness if args.ranking == "real" else fitness[np.random.default_rng((args.seed, g)).permutation(n)]
+        k = list(step * lowrank.coefficients(ranked, n, ALPHA, RANK))
         rpc("lr_factors", args.seed, RANK, pairs, shapes, lowrank.generation_of(g))
         norm = rpc("lr_norm", k)
         rpc("lr_step", k)
+        if args.shrink:
+            rpc("lr_shrink", args.shrink)
         check = rpc("lr_check")
         if not check["ok"]:
             raise SystemExit(f"engine weights are not the f32 copy after update {g + 1}")
-        append(log, {"iteration": g, "fitness": fitness.tolist(), "mean_fitness": float(fitness.mean()),
+        append(log, {"iteration": g, "fitness": fitness.tolist(), "ranked": ranked.tolist(), "mean_fitness": float(fitness.mean()),
                      "sd_fitness": float(fitness.std()), "rewards": rewards, "mean_len": lengths,
                      "prompt_digest": digest(rows), "rollouts": n * len(rows), "update_norm": norm,
                      "digest": rpc("lr_digest"), "check": check["ok"], "decode_seconds": decode_s,
@@ -448,6 +458,10 @@ def main(argv=None) -> int:
     ap.add_argument("--iterations", type=int, default=ITERATIONS)
     ap.add_argument("--eval-every", type=int, default=EVAL_EVERY)
     ap.add_argument("--prompts", choices=("repeated", "stream"), default="repeated")
+    ap.add_argument("--ranking", choices=("real", "random"), default="real",
+                    help="random: the fitnesses in a seeded random order, an update of the real norm with no direction")
+    ap.add_argument("--shrink", type=float, default=0.0,
+                    help="after each update, pull the weights this fraction of the way back toward the start")
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/probe-run"))
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)

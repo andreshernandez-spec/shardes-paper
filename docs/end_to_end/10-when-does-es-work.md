@@ -373,6 +373,63 @@ each arm (the RL side's first-step model), and whether RL's off-task block holds
 ES's collapsed. Falsified if RL needs more than twice the predicted steps, or fewer than
 half, on both arms.
 
+## S4a, the collapse and the resolution: preregistration (2026-10-14, before any run)
+
+Approved by Andres on 2026-10-14. Every Countdown ES run lost its off-task block late,
+at either step and on every seed, while GRPO on the same prompts did not. S4a asks what
+the collapse is, on the one checkpoint and task where it is best measured (Qwen2.5-3B-
+Instruct on Countdown, the probe's blocks, 64 members at sigma 5e-4 on the 192 train
+prompts, scored every 5 updates), by changing one thing at a time against the two
+finished runs at step 15.3 (`runs/probe-run/qwen3b-countdown-s0`, `-s1`):
+
+| arm | what changes | what it isolates |
+|---|---|---|
+| step 3.0 | the step, a fifth; population, sigma, prompts, horizon and scoring as before | the step itself (the instruct-against-base contrast changed the checkpoint too) |
+| random-only, step 15.3 | the real fitnesses in a seeded random order: an update of the real norm and no direction | the random walk alone |
+| 256 members, step 15.3, 20 updates | the random part's norm halved per unit, the useful part as before | the random part's size |
+| shrinkage 0.1, step 15.3 | after each update the weights move a tenth of the way back toward the start | an anchor, ES's analogue of GRPO's KL term |
+| GRPO 5e-7, seed 1 | a second population of samples | the reference's seed variance |
+| GRPO 5e-7, beta 0 | the KL term removed | whether the anchor is what keeps GRPO's off-task block |
+
+Each arm's `run.json` carries the instruct probe's prediction block; the ES arms' records
+go to `runs/s4a/`, the GRPO arms to `runs/grpo-run/`. One seed each; about 19 hours on
+one H200, about $100 by uptime (the ES arms about 2.7 hours each, the 256-member arm
+about 8.5 hours, the GRPO arms about one hour each).
+
+Predictions, from the instruct probe record (`G` 0.00227 per unit, `C` −3.0e-5 per unit
+squared on the validation block, `C` −1.2e-5 on the off-task block) and the finished
+runs:
+
+1. Step 3.0: the first-order model holds as it did for the base model at this step:
+   validation +0.20 at 30 (gain 0.204, random cost 0.008), the reserved block crossing
+   +0.10 between 15 and 30. If the collapse follows the task gain, as both settings
+   suggested (it began where the gain reached about +0.08 to +0.10), GSM8K starts down
+   between 15 and 25 here too; if it follows the step, GSM8K stays within −0.05 at 30.
+2. Random-only: no gain, validation −0.007 per update from the random cost (−0.2 at 30).
+   If the collapse is the random walk, GSM8K falls below −0.20 by 20 to 30 as the real
+   runs did; if it is the learned direction, GSM8K stays within the random part's own
+   cost, about −0.08 at 30.
+3. 256 members: the task gain per update as at 64 (+0.035 first order, the target by
+   update 5) with a quarter of the random cost. If the collapse is the random walk, it is
+   delayed past 20; if it is the direction, it comes at 15 to 20 as at 64 members.
+4. Shrinkage 0.1: the displacement is bounded near ten updates' worth, the task gain
+   saturates near +0.15; if the collapse is accumulated drift of either kind, GSM8K is
+   held above −0.20 at 30 and the task gain is kept; if it is the direction's local
+   effect, the anchor only delays it.
+5. GRPO seed 1: the reserved block reaches +0.10 within a factor of two of 16 steps,
+   GSM8K within −0.05 at 40. GRPO beta 0: the same learning; GSM8K within −0.05 at 40
+   if the KL term is not what keeps it, below −0.20 if it is.
+
+What counts: the collapse is called the random walk if arm 2 collapses and arm 3 is
+delayed; the learned direction if arm 2 holds and arm 3 collapses on schedule; mixed
+otherwise, and then the shrinkage arm says whether an anchor is enough. The outcome
+classes and the compute comparison are read as in S3b and S3c.
+
+The second half of S4a, GPU time permitting after these: the instruct and base members
+decoding the off-task block for the covariance diagnostic (`probe --members-offtask`),
+and a second member population with 600 validation prompts on the six probed settings,
+so the corrected rule can call something at two standard errors.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):

@@ -128,7 +128,7 @@ def run(args) -> int:
     out.mkdir(parents=True, exist_ok=True)
     conf = {"setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "seed": args.seed,
             "prompts_per_step": P, "samples_per_prompt": K, "minibatches": MINIBATCHES, "micro": MICRO,
-            "lr": args.lr, "beta": BETA, "clip": CLIP, "max_grad_norm": MAX_GRAD_NORM, "steps": steps,
+            "lr": args.lr, "beta": args.beta, "clip": CLIP, "max_grad_norm": MAX_GRAD_NORM, "steps": steps,
             "eval_every": eval_every, "optimizer": {"name": "AdamW", "betas": [0.9, 0.95], "eps": 1e-8, "weight_decay": 0.0},
             "temperature": 1.0, "smoke": args.smoke}
     pred = probe_run.prediction_block(E2E / args.prediction) if args.prediction else None
@@ -242,7 +242,7 @@ def run(args) -> int:
                 pg = -torch.minimum(a * ratio, a * ratio.clamp(1 - CLIP, 1 + CLIP))
                 kl = kl3(lp, rp)
                 tokens = m.sum()
-                loss = ((pg + BETA * kl) * m).sum() / tokens
+                loss = ((pg + args.beta * kl) * m).sum() / tokens
                 (loss / len(micro_batches)).backward()
                 tot_loss += float(loss) / len(micro_batches)
                 tot_kl += float((kl * m).sum() / tokens) / len(micro_batches)
@@ -357,6 +357,7 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--steps", type=int, default=STEPS)
     ap.add_argument("--lr", type=float, default=LR)
+    ap.add_argument("--beta", type=float, default=BETA, help="the kl3 coefficient; 0 removes the anchor to the start")
     ap.add_argument("--prompts", type=int, default=PROMPTS)
     ap.add_argument("--samples", type=int, default=SAMPLES)
     ap.add_argument("--eval-every", type=int, default=EVAL_EVERY)

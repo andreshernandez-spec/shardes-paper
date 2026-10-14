@@ -157,8 +157,29 @@ def worker_methods():
                         self._lr_base[name] = st.get_tensor(name).to("cuda", torch.float32)
         self._lr_k = None
         self._lr_scale = None
+        self._lr_start = None
         lr_factors(self, seed, r, pairs, shapes, generation)
         return len(self._lr_base)
+
+    def lr_keep_start(self):
+        """Keep an f32 copy of the start, for `lr_shrink`."""
+        self._lr_start = {n: t.clone() for n, t in self._lr_base.items()}
+        return len(self._lr_start)
+
+    def lr_shrink(self, gamma):
+        """Pull the f32 base a fraction `gamma` of the way back toward the start on every
+        perturbed leaf and write the engine's leaves from it, in place: the anchor an ES
+        run otherwise lacks (GRPO has its KL term)."""
+        rows = engine_rows(self)
+        for n in sorted(self._lr_base):
+            self._lr_base[n].sub_(gamma * (self._lr_base[n] - self._lr_start[n]))
+            param, off = rows[n]
+            w = self._lr_base[n].to(torch.bfloat16)
+            param.data[off:off + w.shape[0]].copy_(w)
+            del w
+        torch.cuda.synchronize()
+        self._lr_k = None
+        return len(rows)
 
     def lr_scale(self, by_kind):
         """A multiplier on the update per matrix type (`kind`), 1 where unset; None clears.
@@ -264,4 +285,5 @@ def worker_methods():
         return {"checked": seen, "mismatched": bad[:10], "ok": seen == len(self._lr_base) and not bad}
 
     return {"lr_setup": lr_setup, "lr_factors": lr_factors, "lr_scale": lr_scale, "lr_norm": lr_norm,
-            "lr_load": lr_load, "lr_step": lr_step, "lr_check": lr_check, "lr_digest": lr_digest}
+            "lr_load": lr_load, "lr_step": lr_step, "lr_check": lr_check, "lr_digest": lr_digest,
+            "lr_keep_start": lr_keep_start, "lr_shrink": lr_shrink}
