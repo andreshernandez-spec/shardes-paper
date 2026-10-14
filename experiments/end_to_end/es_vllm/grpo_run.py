@@ -305,8 +305,48 @@ def analyze(out: Path) -> dict:
                              "prediction_source": pred.get("source"), "ratio_es_over_rl_predicted": pred.get("ratio_es_over_rl_rollouts")}}
 
 
+def summary(root: Path) -> list:
+    """One row per arm under `root`: the blocks' changes, the step the test block first
+    reached the target, the class, the measured cost."""
+    rows = []
+    for d in sorted(root.iterdir()):
+        if not (d / "eval.jsonl").exists():
+            continue
+        a = analyze(d)
+        last, o = a["eval"][-1], a["observed"]
+        first = next((r["iteration"] for r in a["eval"] if r["by_block"].get("test", {}).get("change", 0) >= probe_run.CLASS_WORKS), None)
+        fmt = lambda b: f"{last['by_block'][b]['change']:+.3f}" if b in last["by_block"] else "-"  # noqa: E731
+        rows.append({"run": d.name, "setting": a["setting"], "lr": a["lr"], "steps": a["steps_done"], "rollouts": a["rollouts_total"],
+                     "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
+                     "peak_test": o["best_test_change"], "peak_at": o["at_iteration_ignoring_retained"], "target_first_at": first,
+                     "class": o["class"], "collapsed": o["collapsed"],
+                     "s_per_step": a["cost"]["seconds_per_step"], "gpu_s_per_answer": a["cost"]["gpu_seconds_per_answer"]})
+    return rows
+
+
+def table(rows: list) -> str:
+    cols = (("run", "arm"), ("lr", "lr"), ("steps", "steps"), ("rollouts", "rollouts"), ("final_validation", "validation at end"),
+            ("final_test", "test at end"), ("final_offtask", "off-task at end"), ("peak_test", "peak test gain"), ("peak_at", "at"),
+            ("target_first_at", "test +0.10 first at"), ("class", "class"), ("collapsed", "collapsed"),
+            ("s_per_step", "s per step"), ("gpu_s_per_answer", "GPU-s per answer"))
+
+    def fmt(x):
+        if x is None:
+            return "-"
+        if isinstance(x, bool):
+            return "yes" if x else "no"
+        if isinstance(x, float):
+            return f"{x:.3g}"
+        return f"{x:,}" if isinstance(x, int) and x >= 1000 else str(x)
+
+    head = "| " + " | ".join(n for _, n in cols) + " |"
+    sep = "|" + "|".join("---" for _ in cols) + "|"
+    return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--table", type=Path, help="the arms' directory: one row per arm")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
     ap.add_argument("--prediction", type=Path, help="the setting's probe record, to check the blocks and carry its RL-side numbers")
     ap.add_argument("--out", type=Path)
@@ -320,6 +360,9 @@ def main(argv=None) -> int:
     ap.add_argument("--eval-every", type=int, default=EVAL_EVERY)
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
+    if args.table:
+        print(table(summary(args.table if args.table.is_absolute() else E2E / args.table)))
+        return 0
     if args.analyze:
         print(json.dumps(analyze(E2E / args.analyze), indent=2))
         return 0
