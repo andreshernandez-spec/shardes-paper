@@ -5,7 +5,7 @@ import pathlib
 import sys
 
 import numpy as np
-import torch
+import pytest
 
 E2E = pathlib.Path(__file__).resolve().parents[2] / "experiments" / "end_to_end"
 sys.path.insert(0, str(E2E))
@@ -22,6 +22,7 @@ def test_advantages_are_group_normalized():
 
 
 def test_kl3_is_nonnegative_and_zero_at_equality():
+    torch = pytest.importorskip("torch")                     # CI runs the rest without it
     lp = torch.tensor([-1.0, -2.0, -0.5])
     assert torch.allclose(gr.kl3(lp, lp), torch.zeros(3))
     k = gr.kl3(lp, lp + torch.tensor([0.3, -0.3, 1.0]))
