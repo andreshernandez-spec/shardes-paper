@@ -3,8 +3,11 @@
 
     python -m es_vllm.probe --setting qwen3b/countdown --phase sample   --out runs/probe/qwen3b-countdown
     ... --phase gradient / scan / sign / members / steps (the last writes prediction.json)
+    ... --phase members-offtask (after members; rewrites prediction.json if steps ran)
     python -m es_vllm.probe --analyze runs/probe/qwen3b-countdown
-    (--smoke: tiny blocks and populations, wiring only)
+    (--smoke: tiny blocks and populations, wiring only; --seed: another member population;
+    --block 600: validation and off-task blocks of 600 prompts, the default block first and
+    the test block unchanged, so the records compare with a default probe's)
 
 Each phase is its own process (plain engine, torch, engine with the worker extension,
 engine with LoRA). Blocks per task: `train` (192 prompts, what one ES iteration or four
@@ -44,6 +47,11 @@ Level 1, one ES iteration:
   the call (works below 5, compute parity at the measured cost per answer; marginal
   below 25; fails otherwise, or before that if the live share is under 0.1), and the
   task damaged first.
+- `members-offtask`: the same members decode the validation and offtask blocks: per
+  mirrored pair, the odd effect on each block beside the train one, so the update's
+  first-order change on each block is decomposed over the pairs and the correlation
+  across pairs between train and off-task effects says whether the directions that rank
+  well are the ones that move the off-task block (`level1_offtask`).
 """
 
 import os
@@ -121,7 +129,7 @@ def setting(name: str, smoke: bool) -> dict:
     model, task = name.split("/")
     rel, template = MODELS[model]
     return {"name": name, "model": model, "repo": rel.repo, "revision": rel.commit,
-            "template": template, "task": task, "smoke": smoke}
+            "template": template, "task": task, "smoke": smoke, "seed": SEED, "block": None}
 
 
 def model_dir(cfg) -> str:
@@ -141,45 +149,66 @@ def row_kind(row) -> str:
     return "countdown" if is_countdown(row) else row["dataset"]
 
 
-class Task:
-    """Prompts in blocks, a renderer and a scorer for one task."""
+def digest(rows) -> str:
+    return hashlib.sha256("".join(json.dumps(r, sort_keys=True, default=str) + "\n" for r in rows).encode()).hexdigest()
 
-    def __init__(self, name: str, template: str, smoke: bool, es_at_scale: Path):
+
+class Task:
+    """Prompts in blocks, a renderer and a scorer for one task. `block` is the size of
+    the validation and off-task blocks (BLOCK by default); a larger block keeps the
+    default block as its first rows and leaves the train and test blocks as they are, so
+    its records compare with a default probe's and a run against it reserves the same
+    test prompts."""
+
+    def __init__(self, name: str, template: str, smoke: bool, es_at_scale: Path, block=None):
         from es_vllm.run_tulu import heldout_rows, load_prompts  # noqa: PLC0415
 
         self.name, self.template, self.smoke = name, template, smoke
-        n_train, n_block = (16, 24) if smoke else (P_TRAIN, BLOCK)
+        n_train, n_test = (16, 24) if smoke else (P_TRAIN, BLOCK)
+        n_val = n_test if block is None else int(block)
+        if n_val < n_test:
+            raise SystemExit(f"block {n_val} is smaller than the test block ({n_test})")
+        extra = n_val - n_test                 # rows after the test block, so the test block stays put
         if name == "countdown":
             from es_vllm.run_countdown import es_at_scale as pin, rows  # noqa: PLC0415
 
             self.clone = pin(es_at_scale)
             train, ev = rows(self.clone, "train"), rows(self.clone, "eval")
-            gsm = [r for r in heldout_rows(0, 40) if r["dataset"] == "gsm8k"]
-            self.blocks = {"train": train[:n_train], "validation": ev[:n_block],
-                           "test": ev[n_block:2 * n_block], "offtask": gsm[:n_block]}
+            gsm = [r for r in heldout_rows(0, 80) if r["dataset"] == "gsm8k"]
+            self.blocks = {"train": train[:n_train], "validation": ev[:n_test] + ev[2 * n_test:2 * n_test + extra],
+                           "test": ev[n_test:2 * n_test], "offtask": gsm[:n_val]}
         elif name == "gsm8k":
             pool = heldout_rows(0, 160)
             gsm = [r for r in pool if r["dataset"] == "gsm8k"]
             math = [r for r in pool if r["dataset"] == "MATH"]
             ifeval = [r for r in pool if r["dataset"] == "ifeval"]
-            self.blocks = {"train": gsm[:n_train], "validation": gsm[n_train:n_train + n_block],
-                           "test": gsm[n_train + n_block:n_train + 2 * n_block],
-                           "offtask": math[:n_block // 2] + ifeval[:n_block // 2]}
+            v0, t0 = n_train, n_train + n_test
+            self.blocks = {"train": gsm[:n_train], "validation": gsm[v0:t0] + gsm[t0 + n_test:t0 + n_test + extra],
+                           "test": gsm[t0:t0 + n_test],
+                           "offtask": math[:n_test // 2] + ifeval[:n_test // 2]
+                           + math[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2]}
         elif name == "tulu":
             self.blocks = {"train": load_prompts(E2E / "data" / "tulu31", 1, P_TRAIN)[0][:n_train],
-                           "validation": heldout_rows(120, 160)[:n_block],
-                           "test": heldout_rows(480, 520)[:n_block], "offtask": []}
+                           "validation": heldout_rows(120, 160)[:n_val],
+                           "test": heldout_rows(480, 520)[:n_test], "offtask": []}
         else:
             raise SystemExit(f"unknown task {name}")
+        self.n_test = n_test
         for b, rows_ in self.blocks.items():
-            want = {"train": n_train, "offtask": 0 if name == "tulu" else n_block}.get(b, n_block)
+            want = {"train": n_train, "test": n_test, "offtask": 0 if name == "tulu" else n_val}.get(b, n_val)
             if len(rows_) != want:
                 raise SystemExit(f"{name} {b}: {len(rows_)} rows, wanted {want}")
+            if len({digest([r]) for r in rows_}) != len(rows_):
+                raise SystemExit(f"{name} {b}: repeated rows")
 
     def digests(self) -> dict:
         """One hash per block, so a later run can show it used the same prompts."""
-        return {b: hashlib.sha256("".join(json.dumps(r, sort_keys=True, default=str) + "\n" for r in rows_).encode()).hexdigest()
-                for b, rows_ in self.blocks.items()}
+        return {b: digest(rows_) for b, rows_ in self.blocks.items()}
+
+    def prefix_digests(self) -> dict:
+        """For a block larger than the default, the hash of its first default-sized
+        rows: the block a default probe of the setting scored."""
+        return {b: digest(rows_[:self.n_test]) for b, rows_ in self.blocks.items() if len(rows_) > self.n_test}
 
     def render(self, tok, row) -> list:
         if is_countdown(row):                      # es-at-scale's raw prompt, as its trainer
@@ -418,7 +447,7 @@ def phase_scan(args, cfg, task) -> None:
     llm = engine(cfg, 0.5, worker_extension_cls="es_vllm.worker.ESWorker")
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
     pairs = 4
-    rpc("lr_setup", mdir, SEED, RANK, pairs, shapes)
+    rpc("lr_setup", mdir, cfg["seed"], RANK, pairs, shapes)
     log = out / "scan.jsonl"
     done = {(r["kind"], r["index"], r["length"], r["sign"]) for r in lines(log)}
     member_len = SIGMA * np.sqrt(d_m)
@@ -517,7 +546,7 @@ def phase_members(args, cfg, task) -> None:
     n, n2 = (8, 4) if cfg["smoke"] else (N_MEMBERS, N_MEMBERS2)
     template = lowrank.write_template(Path(args.workdir) / "adapter", RANK, cfg["repo"])
     # adapter ids 1..n are members 0..n-1 at sigma; n+1..n+n2 are members 0..n2-1 at sigma2
-    lowrank.install_adapters(template, SEED, shapes, RANK, SIGMA,
+    lowrank.install_adapters(template, cfg["seed"], shapes, RANK, SIGMA,
                              resolve=lambda i: (i - 1, 0, SIGMA) if i - 1 < n else (i - 1 - n, 0, SIGMA2))
     tok = tokenizer(cfg)
     rows = task.blocks["train"]
@@ -537,9 +566,79 @@ def phase_members(args, cfg, task) -> None:
         print(f"members {c0}-{ms[-1]} {time.perf_counter() - t0:.0f}s", flush=True)
     scorer.close()
     harness.write_atomic(out / "members.json", {
-        "phase": "members", "n": n, "n2": n2, "sigma": SIGMA, "sigma2": SIGMA2, "seed": SEED, "rank": RANK,
+        "phase": "members", "n": n, "n2": n2, "sigma": SIGMA, "sigma2": SIGMA2, "seed": cfg["seed"], "rank": RANK,
         "rewards": rewards[:n], "rewards2": rewards[n:], "mean_len": lens[:n], "mean_len2": lens[n:],
         "kinds": [row_kind(r) for r in rows], "seconds": time.perf_counter() - t0})
+
+
+def phase_members_offtask(args, cfg, task) -> None:
+    """The `members` populations decoding the validation and off-task blocks greedily, and
+    the start in the same process: per member, its effect on each block beside its train
+    fitness, for the covariance diagnostic (docs/end_to_end/10, corrections item 2). Written
+    a chunk at a time so a relaunch resumes; the record is assembled at the end and the
+    prediction rewritten with the diagnostic."""
+    from vllm.lora.request import LoRARequest  # noqa: PLC0415
+
+    out = E2E / args.out
+    mem = json.loads((out / "members.json").read_text())
+    n, n2 = mem["n"], mem["n2"]
+    if mem["seed"] != cfg["seed"] or mem["sigma"] != SIGMA or mem["sigma2"] != SIGMA2:
+        raise SystemExit("members.json is another population")
+    scorer = task.scorer()
+    shapes = lowrank.leaf_shapes(model_dir(cfg))
+    template = lowrank.write_template(Path(args.workdir) / "adapter", RANK, cfg["repo"])
+    lowrank.install_adapters(template, cfg["seed"], shapes, RANK, SIGMA,
+                             resolve=lambda i: (i - 1, 0, SIGMA) if i - 1 < n else (i - 1 - n, 0, SIGMA2))
+    tok = tokenizer(cfg)
+    rows, kinds, which = scan_rows(task)
+    ids = [task.render(tok, r) for r in rows]
+    chunk = 4 if cfg["smoke"] else 32
+    llm = engine(cfg, 0.6, enable_lora=True, max_lora_rank=RANK, max_loras=chunk, max_cpu_loras=n + n2)
+    log = out / "members-offtask.jsonl"
+    done = {m for rec in lines(log) for m in rec["members"]}
+    blocks = sorted(set(which))
+    t0 = time.perf_counter()
+
+    def per_block(outs):
+        return {b: float(np.mean([len(x.outputs[0].token_ids) for x, w in zip(outs, which) if w == b])) for b in blocks}
+
+    if -1 not in done:                                  # the start, member -1: no adapter
+        o = decode(llm, ids, task.params(rows))
+        append(log, {"members": [-1], "rewards": [score_outs(scorer, o, rows)], "mean_len": [per_block(o)],
+                     "seconds": time.perf_counter() - t0})
+        print(f"start {time.perf_counter() - t0:.0f}s", flush=True)
+    for c0 in range(0, n + n2, chunk):
+        ms = [m for m in range(c0, min(n + n2, c0 + chunk)) if m not in done]
+        if not ms:
+            continue
+        t1 = time.perf_counter()
+        o = decode(llm, [i for _ in ms for i in ids], task.params(rows * len(ms)),
+                   [LoRARequest(f"m{m}", m + 1, str(template)) for m in ms for _ in ids])
+        r = score_outs(scorer, o, rows * len(ms))
+        append(log, {"members": ms, "rewards": [r[q * len(ids):(q + 1) * len(ids)] for q in range(len(ms))],
+                     "mean_len": [per_block(o[q * len(ids):(q + 1) * len(ids)]) for q in range(len(ms))],
+                     "seconds": time.perf_counter() - t1})
+        print(f"members {ms[0]}-{ms[-1]} {time.perf_counter() - t0:.0f}s", flush=True)
+    scorer.close()
+    by = {m: (rw, ln) for rec in lines(log) for m, rw, ln in zip(rec["members"], rec["rewards"], rec["mean_len"])}
+    if set(by) != set(range(-1, n + n2)):
+        raise SystemExit(f"{len(by)} of {n + n2 + 1} decodes in {log}")
+    harness.write_atomic(out / "members-offtask.json", {
+        "phase": "members-offtask", "n": n, "n2": n2, "sigma": SIGMA, "sigma2": SIGMA2, "seed": cfg["seed"], "rank": RANK,
+        "kinds": kinds, "block": which, "start": by[-1][0], "start_mean_len": by[-1][1],
+        "rewards": [by[m][0] for m in range(n)], "rewards2": [by[m][0] for m in range(n, n + n2)],
+        "mean_len": [by[m][1] for m in range(n)], "mean_len2": [by[m][1] for m in range(n, n + n2)],
+        "seconds": sum(rec["seconds"] for rec in lines(log))})
+    if (out / "steps-meta.json").exists():
+        write_prediction(out, cfg)
+
+
+def write_prediction(out: Path, cfg: dict) -> dict:
+    pred = predict(out)
+    pred["setting"] = cfg["name"]
+    harness.write_atomic(out / "prediction.json", pred)
+    print(json.dumps(pred["rule"], indent=1), flush=True)
+    return pred
 
 
 def phase_steps(args, cfg, task) -> None:
@@ -560,10 +659,7 @@ def phase_steps(args, cfg, task) -> None:
         # every member scored alike: there is no update to scan, and the rule says so
         harness.write_atomic(out / "steps-meta.json", {"unit_norm": 0.0, "member_length": member_len,
                                                        "perturbed_params": d_m, "n": n, "no_ranking_signal": True})
-        pred = predict(out)
-        pred["setting"] = cfg["name"]
-        harness.write_atomic(out / "prediction.json", pred)
-        print(json.dumps(pred["rule"], indent=1), flush=True)
+        write_prediction(out, cfg)
         return
     if fitness.std() == 0:
         fitness = np.random.default_rng(0).standard_normal(n)        # wiring only
@@ -573,7 +669,7 @@ def phase_steps(args, cfg, task) -> None:
     ids = [task.render(tok, r) for r in rows]
     llm = engine(cfg, 0.5, worker_extension_cls="es_vllm.worker.ESWorker")
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
-    rpc("lr_setup", mdir, SEED, RANK, n // 2, shapes)
+    rpc("lr_setup", mdir, cfg["seed"], RANK, n // 2, shapes)
     unit = rpc("lr_norm", k)
     log = out / "steps.jsonl"
     done = {(r["length"], r["sign"]) for r in lines(log)}
@@ -622,10 +718,7 @@ def phase_steps(args, cfg, task) -> None:
     harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
                                                    "perturbed_params": d_m, "n": n,
                                                    "synthetic_ranking": bool(np.asarray(mem["rewards"]).mean(1).std() == 0)})
-    pred = predict(out)
-    pred["setting"] = cfg["name"]
-    harness.write_atomic(out / "prediction.json", pred)
-    print(json.dumps(pred["rule"], indent=1), flush=True)
+    write_prediction(out, cfg)
 
 
 # ------------------------------------------------------------------ the analysis and the rule
@@ -885,6 +978,75 @@ def level1(mem: dict, start_train: np.ndarray) -> dict:
     return out
 
 
+def level1_offtask(mem: dict, off: dict, start_train: np.ndarray, draws=1000) -> dict:
+    """The members' effects on the validation and off-task blocks beside their train
+    fitness, by mirrored pair: the odd part of a pair's effect on a block is its direction's
+    slope there, so the update's first-order change on each block is the sum of the
+    pairs' odd effects weighted by the update's coefficients (the same quantity the
+    `steps` scan measures directly, here decomposed over the members), and the
+    correlation across pairs between the train odd effect and a block's says whether the
+    directions that rank well are the ones that move the block. The even parts give the
+    random-direction curvature per length squared on each block from n/2 directions at
+    the member's length. Standard errors by bootstrap over the blocks' prompts; the
+    correlations also by bootstrap over pairs."""
+    n, r = mem["n"], mem["rank"]
+    fit = np.asarray(mem["rewards"]) / scale_of(mem["kinds"])[None]
+    f = fit.mean(1)                                                    # train fitness, as the update ranks it
+    coef = lowrank.coefficients(f, n, ALPHA, r)                        # the update's coefficient per pair
+    scale = scale_of(off["kinds"])
+    R = np.asarray(off["rewards"]) / scale[None]
+    start = np.asarray(off["start"]) / scale
+    blocks = np.asarray(off["block"])
+    train_odd = (f[0::2] - f[1::2]) / 2
+    train_even = (f[0::2] + f[1::2]) / 2 - start_train.mean()
+    sigma = mem["sigma"]
+    rng = np.random.default_rng(0)
+
+    def per_pair(R_, start_, sel):
+        D = R_[:, sel].mean(1) - start_[sel].mean()                   # each member's change on the block
+        return (D[0::2] - D[1::2]) / 2, (D[0::2] + D[1::2]) / 2
+
+    def along_update(odd):                                            # first-order change per unit update
+        return float(np.sum(coef * odd) * np.sqrt(r) / sigma)
+
+    def corr(a, b):
+        return float(np.corrcoef(a, b)[0, 1]) if a.std() > 0 and b.std() > 0 else None
+
+    out = {"n": n, "pairs": n // 2, "sigma": sigma, "prompts": {b: int((blocks == b).sum()) for b in sorted(set(blocks))},
+           "train_odd_sd": float(train_odd.std(ddof=1)), "train_even_mean": float(train_even.mean()),
+           "coefficient_norm": float(np.linalg.norm(coef)), "by_block": {}}
+    for b in sorted(set(blocks)):
+        sel = blocks == b
+        odd, even = per_pair(R, start, sel)
+        boot_g, boot_c, boot_e = [], [], []
+        for _ in range(draws):
+            i = rng.choice(np.flatnonzero(sel), int(sel.sum()))
+            o_, e_ = per_pair(R, start, i)
+            boot_g.append(along_update(o_))
+            boot_c.append(corr(train_odd, o_))
+            boot_e.append(float(e_.mean()))
+        pairs_c = [corr(train_odd[j], odd[j]) for j in (rng.choice(n // 2, n // 2) for _ in range(draws))]
+        pairs_c = [c for c in pairs_c if c is not None]
+        top = np.argsort(-np.abs(coef))[:4]
+        out["by_block"][b] = {
+            "odd_per_pair_sd": float(odd.std(ddof=1)), "even_mean": float(even.mean()),
+            "even_se": float(np.std(boot_e, ddof=1)),
+            "G_from_members": along_update(odd), "G_from_members_se": float(np.std(boot_g, ddof=1)),
+            "correlation_with_train_odd": corr(train_odd, odd),
+            "correlation_se_prompts": float(np.std([c for c in boot_c if c is not None], ddof=1)) if any(c is not None for c in boot_c) else None,
+            "correlation_90_pairs": [float(np.percentile(pairs_c, 5)), float(np.percentile(pairs_c, 95))] if pairs_c else None,
+            "top4_pairs_share_of_G": float(np.sum(coef[top] * odd[top]) / np.sum(coef * odd)) if np.sum(coef * odd) != 0 else None,
+            "mean_len": float(np.mean([m[b] for m in off["mean_len"]])), "start_mean_len": off["start_mean_len"][b]}
+    v, o = out["by_block"].get("validation"), out["by_block"].get("offtask")
+    if v and o:
+        out["validation_offtask_odd_correlation"] = corr(*(per_pair(R, start, blocks == b)[0] for b in ("validation", "offtask")))
+        g_v, g_o = v["G_from_members"], o["G_from_members"]
+        out["offtask_change_per_unit_gain"] = g_o / g_v if g_v > 0 else None
+        out["offtask_change_at_target"] = G_TARGET * g_o / g_v if g_v > 0 else None
+        out["validation_resolved"] = bool(g_v > RESOLVED_CALL * v["G_from_members_se"])
+    return out
+
+
 def predict(out: Path) -> dict:
     """The rule's inputs and call from a setting's records. `G` and RL's slope are the
     validation block's (the task's gain); `C` pools the validation and off-task blocks
@@ -928,6 +1090,8 @@ def predict(out: Path) -> dict:
     # level 1
     start_train = normalized(sample["start"]["train"]["rewards"], sample["start"]["train"]["kinds"])
     lvl1 = level1(mem, start_train)
+    off = (out / "members-offtask.json")
+    lvl1_off = level1_offtask(mem, json.loads(off.read_text()), start_train) if off.exists() else None
     if steps and smeta["unit_norm"] > 0:
         start_steps = np.asarray(next(p for p in steps if p["sign"] == 0)["rewards"])
         resp = responses([p for p in steps if p["sign"] != 0], start_steps, smeta["unit_norm"])
@@ -982,7 +1146,8 @@ def predict(out: Path) -> dict:
                           "block": s_[1]["block"], "effective_length": sgn_near["effective_length"]}
         verdict["bootstrap_over_prompts"] = bootstrap_rule(upd, sgn_arrays, rl_step, sample["prompts"], mem["n"],
                                                            sample["live_share"])
-    return {"setting": None, "level0": level0, "level1": lvl1, "update": update, "rule": verdict, "rule_net": net}
+    return {"setting": None, "level0": level0, "level1": lvl1, "level1_offtask": lvl1_off, "update": update,
+            "rule": verdict, "rule_net": net}
 
 
 def analyze(out: Path) -> dict:
@@ -997,16 +1162,24 @@ def analyze(out: Path) -> dict:
             "G": u.get("G"), "C": u.get("C"), "fitted_net_per_update": r["es"] and r["es"]["fitted_net_per_update"],
             "G_offtask": u.get("G_offtask"), "offtask_change_at_target": u.get("offtask_change_at_target"),
             "first_task_damaged": u.get("first_task_damaged"), "es": r["es"], "rl": r["rl"],
-            "bootstrap_over_prompts": r.get("bootstrap_over_prompts")}
+            "bootstrap_over_prompts": r.get("bootstrap_over_prompts"),
+            "members_offtask": {"G_from_members": {b: (v["G_from_members"], v["G_from_members_se"]) for b, v in lo["by_block"].items()},
+                                "correlation_with_train_odd": {b: v["correlation_with_train_odd"] for b, v in lo["by_block"].items()},
+                                "offtask_change_at_target": lo.get("offtask_change_at_target"),
+                                "validation_resolved": lo.get("validation_resolved")}
+            if (lo := pred.get("level1_offtask")) else None}
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--setting", help="model/task, e.g. qwen3b/countdown")
-    ap.add_argument("--phase", choices=("sample", "gradient", "scan", "sign", "members", "steps"))
+    ap.add_argument("--phase", choices=("sample", "gradient", "scan", "sign", "members", "steps", "members-offtask"))
     ap.add_argument("--out", type=Path)
     ap.add_argument("--analyze", type=Path)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--seed", type=int, default=SEED, help="the member population (and the scan's directions)")
+    ap.add_argument("--block", type=int, default=None,
+                    help=f"validation and off-task prompts (default {BLOCK}; the test block stays at {BLOCK})")
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/probe"))
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
@@ -1016,21 +1189,28 @@ def main(argv=None) -> int:
     if args.out is None or args.phase is None or args.setting is None:
         ap.error("--setting, --phase and --out, or --analyze")
     cfg = setting(args.setting, args.smoke)
+    cfg["seed"], cfg["block"] = args.seed, args.block
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
     args.workdir.mkdir(parents=True, exist_ok=True)
-    task = Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale)
+    task = Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale, block=args.block)
     env = out / "env.json"
-    if not env.exists():
+    if env.exists():
+        prev = json.loads(env.read_text())
+        if prev["block_digests"] != task.digests() or prev["constants"].get("seed", SEED) != args.seed:
+            raise SystemExit(f"{out} holds a probe of other blocks or another population")
+    else:
         env.write_text(json.dumps({
             "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "smoke": args.smoke,
             "blocks": {b: len(v) for b, v in task.blocks.items()}, "block_digests": task.digests(),
+            "block_prefix_digests": task.prefix_digests(),
             "constants": {"sigma": SIGMA, "sigma2": SIGMA2, "alpha": ALPHA, "rank": RANK, "k": K, "members": N_MEMBERS,
-                          "members2": N_MEMBERS2, "lengths": LENGTHS, "sign_lengths": SIGN_LENGTHS, "rl_lr": RL_LR},
+                          "members2": N_MEMBERS2, "lengths": LENGTHS, "sign_lengths": SIGN_LENGTHS, "rl_lr": RL_LR,
+                          "seed": args.seed, "block": len(task.blocks["validation"])},
             "env": env_block(E2E, ["runs"], ("vllm", "torch", "transformers"))}, indent=2))
     {"sample": phase_sample, "gradient": phase_gradient, "scan": phase_scan, "sign": phase_sign,
-     "members": phase_members, "steps": phase_steps}[args.phase](args, cfg, task)
+     "members": phase_members, "steps": phase_steps, "members-offtask": phase_members_offtask}[args.phase](args, cfg, task)
     return 0
 
 

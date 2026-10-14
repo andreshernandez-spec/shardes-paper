@@ -119,7 +119,9 @@ def run(args) -> int:
     from es_vllm.worker import ESWorker  # noqa: PLC0415
 
     cfg = probe.setting(args.setting, args.smoke)
-    task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale)
+    pred = probe_run.prediction_block(E2E / args.prediction) if args.prediction else None
+    task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale,
+                      block=pred["blocks"]["validation"] if pred and not args.smoke else None)
     P, K, steps = (8, 4, 2) if args.smoke else (args.prompts, args.samples, args.steps)
     eval_every = 1 if args.smoke else args.eval_every
     out = E2E / args.out
@@ -131,7 +133,6 @@ def run(args) -> int:
             "lr": args.lr, "beta": args.beta, "clip": CLIP, "max_grad_norm": MAX_GRAD_NORM, "steps": steps,
             "eval_every": eval_every, "optimizer": {"name": "AdamW", "betas": [0.9, 0.95], "eps": 1e-8, "weight_decay": 0.0},
             "temperature": 1.0, "smoke": args.smoke}
-    pred = probe_run.prediction_block(E2E / args.prediction) if args.prediction else None
     if pred is not None and not args.smoke and pred["block_digests"] != task.digests():
         raise SystemExit("the blocks are not the probe's")
     harness.write_atomic(out / "run.json", {

@@ -5,6 +5,7 @@ import pathlib
 import sys
 
 import numpy as np
+import pytest
 
 E2E = pathlib.Path(__file__).resolve().parents[2] / "experiments" / "end_to_end"
 sys.path.insert(0, str(E2E))
@@ -233,3 +234,101 @@ def test_unusable_lengths_fall_back_to_the_shortest():
     assert not any(v["usable"] for v in resp.values())
     used = [L for L, v in resp.items() if v["usable"]] or list(resp)
     assert max(used, key=float) == "2"
+
+
+def stub_data(monkeypatch, tmp_path):
+    """Synthetic prompt pools in place of the data modules: Countdown's eval split and
+    the Tulu stream's held-out rows, in the stream's order."""
+    import types
+
+    def heldout_rows(first, last):
+        return [{"dataset": ("gsm8k", "MATH", "ifeval")[i % 3], "messages": [{"role": "user", "content": f"q{i}"}],
+                 "ground_truth": str(i)} for i in range(first * 48, last * 48)]
+
+    tulu = types.ModuleType("es_vllm.run_tulu")
+    tulu.heldout_rows = heldout_rows
+    tulu.load_prompts = lambda d, a, b: ([{"dataset": "tulu", "messages": [{"role": "user", "content": f"t{i}"}]} for i in range(b)], None)
+    cd = types.ModuleType("es_vllm.run_countdown")
+    cd.es_at_scale = lambda p: p
+    cd.rows = lambda clone, split: [{"context": f"{split}{i}", "target": i} for i in range(2000 if split == "eval" else 200)]
+    monkeypatch.setitem(sys.modules, "es_vllm.run_tulu", tulu)
+    monkeypatch.setitem(sys.modules, "es_vllm.run_countdown", cd)
+
+
+@pytest.mark.parametrize("task", ["countdown", "gsm8k", "tulu"])
+def test_larger_blocks_keep_the_default_block_first_and_the_test_block_fixed(task, monkeypatch, tmp_path):
+    stub_data(monkeypatch, tmp_path)
+    base = probe.Task(task, "chat", False, tmp_path)
+    big = probe.Task(task, "chat", False, tmp_path, block=600)
+    assert {b: len(v) for b, v in base.blocks.items()} == {"train": 192, "validation": 300, "test": 300,
+                                                          "offtask": 0 if task == "tulu" else 300}
+    assert len(big.blocks["validation"]) == 600 and len(big.blocks["test"]) == 300 and len(big.blocks["train"]) == 192
+    assert len(big.blocks["offtask"]) == (0 if task == "tulu" else 600)
+    # the default blocks are the first rows of the larger ones; train and test are the same rows
+    for b in ("validation", "offtask"):
+        assert big.blocks[b][:300] == base.blocks[b]
+    assert big.digests()["test"] == base.digests()["test"] and big.digests()["train"] == base.digests()["train"]
+    assert big.prefix_digests() == {b: base.digests()[b] for b in ("validation", "offtask") if base.blocks[b]}
+    assert base.prefix_digests() == {}
+    # the added rows are new: none of them is in any default block
+    seen = {probe.digest([r]) for rows in base.blocks.values() for r in rows}
+    assert not any(probe.digest([r]) in seen for b in ("validation", "offtask") for r in big.blocks[b][300:])
+    if task == "gsm8k":                                   # the off-task mix is kept, half and half
+        kinds = [r["dataset"] for r in big.blocks["offtask"]]
+        assert kinds.count("MATH") == 300 and kinds.count("ifeval") == 300
+    with pytest.raises(SystemExit):
+        probe.Task(task, "chat", False, tmp_path, block=100)
+    smoke = probe.Task(task, "chat", True, tmp_path)
+    assert len(smoke.blocks["train"]) == 16 and len(smoke.blocks["test"]) == 24
+
+
+def test_members_offtask_diagnostic_recovers_constructed_effects(tmp_path):
+    """Mirrored pairs whose directions help the train prompts, help validation less and
+    hurt the off-task block, plus a common even loss off-task: the diagnostic recovers the
+    signs, the ratio of the first-order changes and the even parts."""
+    rng = np.random.default_rng(3)
+    n, P, prompts, scale, sigma = 64, 600, 192, 10.0, 5e-4
+    t = rng.normal(0, 0.1, n // 2)                       # each pair's slope on the train prompts
+    v, o = 0.8 * t + rng.normal(0, 0.02, n // 2), -0.5 * t + rng.normal(0, 0.02, n // 2)
+    members = []
+    for m in range(n):
+        s = 1 if m % 2 == 0 else -1
+        members.append(bernoulli(rng, 0.5 + s * t[m // 2], prompts, scale))
+    start_train = bernoulli(rng, 0.5, prompts, scale)
+    mem = {"n": n, "n2": 0, "sigma": sigma, "sigma2": 1e-3, "seed": 0, "rank": 1, "rewards": members, "rewards2": [],
+           "kinds": ["gsm8k"] * prompts}
+    kinds = ["gsm8k"] * P + ["MATH"] * P
+    block = ["validation"] * P + ["offtask"] * P
+    rewards = []
+    for m in range(n):
+        s = 1 if m % 2 == 0 else -1
+        p = [0.5 + s * v[m // 2]] * P + [0.5 + s * o[m // 2] - 0.03] * P
+        rewards.append(bernoulli(rng, np.asarray(p), 2 * P, scale))
+    off = {"n": n, "n2": 0, "sigma": sigma, "sigma2": 1e-3, "seed": 0, "rank": 1, "kinds": kinds, "block": block,
+           "start": bernoulli(rng, 0.5, 2 * P, scale), "start_mean_len": {"validation": 300.0, "offtask": 400.0},
+           "rewards": rewards, "rewards2": [], "mean_len": [{"validation": 310.0, "offtask": 420.0}] * n, "mean_len2": []}
+    d = probe.level1_offtask(mem, off, np.asarray(start_train) / scale, draws=200)
+    val, oft = d["by_block"]["validation"], d["by_block"]["offtask"]
+    assert d["pairs"] == 32 and d["prompts"] == {"validation": P, "offtask": P}
+    assert val["correlation_with_train_odd"] > 0.6 and oft["correlation_with_train_odd"] < -0.4
+    assert val["correlation_90_pairs"][0] > 0.3 and oft["correlation_90_pairs"][1] < -0.1
+    assert val["G_from_members"] > 3 * val["G_from_members_se"] and d["validation_resolved"]
+    assert oft["G_from_members"] < -3 * oft["G_from_members_se"]
+    # the first-order changes along the update scale as the constructed slopes: -0.5 / 0.8
+    assert abs(d["offtask_change_per_unit_gain"] + 0.625) < 0.2
+    assert abs(d["offtask_change_at_target"] - 0.1 * d["offtask_change_per_unit_gain"]) < 1e-12
+    assert abs(oft["even_mean"] + 0.03) < 3 * oft["even_se"] + 0.005 and abs(val["even_mean"]) < 3 * val["even_se"] + 0.005
+    assert d["validation_offtask_odd_correlation"] < -0.4
+    assert 0 < val["top4_pairs_share_of_G"] < 1
+    # the summary, with and without the record
+    pred = {"setting": "x", "level0": {k: None for k in ("live_share", "gradient_sharedness", "curvature_per_length2",
+                                                         "rl_first_step_gain", "first_task_damaged_random")},
+            "level1": {}, "update": None, "rule": {"call": "c", "ratio_es_over_rl_rollouts": None, "es": None, "rl": None},
+            "level1_offtask": d}
+    (tmp_path / "prediction.json").write_text(json.dumps(pred))
+    a = probe.analyze(tmp_path)
+    assert a["members_offtask"]["offtask_change_at_target"] == d["offtask_change_at_target"]
+    assert a["members_offtask"]["G_from_members"]["offtask"][0] == oft["G_from_members"]
+    pred["level1_offtask"] = None
+    (tmp_path / "prediction.json").write_text(json.dumps(pred))
+    assert probe.analyze(tmp_path)["members_offtask"] is None

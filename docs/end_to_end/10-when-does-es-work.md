@@ -430,6 +430,49 @@ decoding the off-task block for the covariance diagnostic (`probe --members-offt
 and a second member population with 600 validation prompts on the six probed settings,
 so the corrected rule can call something at two standard errors.
 
+### S4a, second half: the second probe (preregistered 2026-10-14, before any run)
+
+The six settings probed again (`runs/probe2/<model>-<task>/`), every phase, with the
+member population of seed 1 (the scan's four random directions are its first four pairs),
+600 validation and 600 off-task prompts whose first 300 are the first probe's blocks and
+the same 192 train and 300 test prompts (`env.json` carries the prefix digests), and the
+scans extended until the even response is resolved (commit c945036, which the first
+batch's records predate). On the two Countdown settings the members also decode the
+validation and off-task blocks (`--phase members-offtask`, `level1_offtask` in
+prediction.json): per mirrored pair, the odd part of the pair's change on a block is its
+direction's slope there, so the update's first-order change on each block is the sum of
+the pairs' odd effects weighted by the update's coefficients, the quantity the `steps`
+scan measures directly, here decomposed over the members; the correlation across pairs
+between the train odd effect and the off-task one says whether the directions that rank
+well are the ones that move the off-task block. Run on the S4a pod after the six arms,
+about 6 to 8 hours (the full probe at 600 prompts is about an hour per setting, the
+off-task decodes about half an hour each), about $35 to 45 by uptime.
+
+Expectations:
+
+1. The second population's `G` on the validation block is within two standard errors of
+   the first's on every setting (a population property of the setting, not of the draw),
+   and the direct `G` from the `steps` scan agrees with `G_from_members` on the validation
+   block within two standard errors of the latter (the decomposition is consistent).
+2. The extended scans resolve the cost on the Countdown settings and on 7B GSM8K, so the
+   corrected rule calls them: instruct Countdown works or marginal, base Countdown
+   marginal, 0.5B GSM8K fails on rollouts, 7B GSM8K marginal. 3B GSM8K stays
+   undetermined (no odd response at 300 prompts; 600 halves nothing that is zero), and
+   RL's slope stays under two standard errors there.
+3. The off-task diagnostic on the base model shows a resolved negative correlation
+   between the train and off-task odd effects (its first probe put the update's single
+   draw at −0.017 per unit on GSM8K, and its run found a direction that broke GSM8K).
+   On the instruct model the correlation is unresolved at one update: the run's collapse
+   came after the task gain reached +0.08, and a local diagnostic at the start does not
+   see it. If the instruct correlation is resolved and negative, the learned direction
+   carries the damage from the start, and S4a's arms 2 and 3 should say "direction".
+
+What counts: the diagnostic is validated only where it agrees with S4a's gate on the
+same checkpoint; a resolved negative correlation with a "random walk" verdict from the
+arms, or an unresolved one with a "direction" verdict, leaves it a description of the
+members and not a predictor. Expectation 1 failing on the odd response means the
+level-1 numbers are draws, and the rule needs populations, not one.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):

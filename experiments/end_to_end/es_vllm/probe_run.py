@@ -112,11 +112,12 @@ def prediction_block(path: Path) -> dict:
     u, r = p["update"], p["rule"]
     if r["es"] is None:
         raise SystemExit(f"{path}: the rule gave no prescription ({r['call']})")
-    return {"source": str(path), "setting": p["setting"], "call": r["call"], "step_multiple": r["es"]["step_multiple"],
+    source = str(path.relative_to(E2E)) if path.is_relative_to(E2E) else str(path)   # no machine paths in records
+    return {"source": source, "setting": p["setting"], "call": r["call"], "step_multiple": r["es"]["step_multiple"],
             "updates_to_target": r["es"]["updates"], "fitted_net_per_update": r["es"]["fitted_net_per_update"],
             "G": u["G"], "G_se": u["G_se"], "C": u["C"], "C_se": u["C_se"], "G_offtask": u["G_offtask"],
             "unit_norm": u["unit_norm"], "ratio_es_over_rl_rollouts": r["ratio_es_over_rl_rollouts"],
-            "block_digests": env["block_digests"]}
+            "block_digests": env["block_digests"], "blocks": env["blocks"]}
 
 
 def run(args) -> int:
@@ -125,8 +126,10 @@ def run(args) -> int:
     from es_vllm.worker import ESWorker  # noqa: PLC0415
 
     cfg = probe.setting(args.setting, args.smoke)
-    task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale)
     pred = prediction_block(E2E / args.prediction) if args.prediction else None
+    # the probe's blocks, validation and off-task included (a probe may score larger ones)
+    task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale,
+                      block=pred["blocks"]["validation"] if pred and not args.smoke else None)
     if pred is not None and not args.smoke:
         if pred["setting"] != args.setting:
             raise SystemExit(f"the prediction is for {pred['setting']}, the run for {args.setting}")

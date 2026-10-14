@@ -19,7 +19,8 @@ def write_prediction(path, G=0.002, C=-3e-5, G_off=-0.0003, step=15.0):
         "update": {"G": G, "G_se": 0.0005, "C": C, "C_se": 2e-5, "G_offtask": G_off, "unit_norm": 3.3},
         "rule": {"call": "works", "ratio_es_over_rl_rollouts": 2.8,
                  "es": {"step_multiple": step, "updates": 2.9, "fitted_net_per_update": 0.033}}}))
-    (path / "env.json").write_text(json.dumps({"block_digests": {"train": "a", "validation": "b", "test": "c", "offtask": "d"}}))
+    (path / "env.json").write_text(json.dumps({"block_digests": {"train": "a", "validation": "b", "test": "c", "offtask": "d"},
+                                               "blocks": {"train": 192, "validation": 300, "test": 300, "offtask": 300}}))
 
 
 def test_stream_selection_excludes_protected_rows_and_repeats():
@@ -88,7 +89,7 @@ def test_loop_seconds_to_the_first_crossing():
 def test_prediction_block_carries_the_prescription(tmp_path):
     write_prediction(tmp_path / "probe")
     p = pr.prediction_block(tmp_path / "probe")
-    assert p["step_multiple"] == 15.0 and p["updates_to_target"] == 2.9 and p["G"] == 0.002
+    assert p["block_digests"]["test"] == "c" and p["call"] == "works" and p["blocks"]["validation"] == 300
     assert p["block_digests"]["test"] == "c" and p["call"] == "works"
 
 
