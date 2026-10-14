@@ -60,4 +60,4 @@ def test_analysis_reports_curves_cost_and_class(tmp_path):
     rows = gr.summary(tmp_path)
     assert len(rows) == 1 and rows[0]["target_first_at"] == 10 and rows[0]["class"] == "works" and rows[0]["rollouts"] == 7680
     t = gr.table(rows).splitlines()
-    assert len(t) == 3 and "| 10 | works | no |" in t[2] and "| 7,680 |" in t[2]
+    assert len(t) == 3 and "| works | no |" in t[2] and "| 7,680 |" in t[2]

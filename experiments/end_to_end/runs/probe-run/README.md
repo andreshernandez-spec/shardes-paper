@@ -26,20 +26,23 @@ by each row's kind (Countdown 1.1, the Tulu verifiers 10).
 ## The table
 
 `python -m es_vllm.probe_run --table runs/probe-run`. Changes are in normalized reward
-units against the evaluation at update 0; "class" is the outcome class frozen in `10`
-(works: the reserved test block reaches +0.10 at an evaluation where the off-task block
-is within −0.02; marginal: +0.05 under the same condition; fails otherwise), "class, task
-alone" the class the test block would earn without that condition, and "collapsed" is set
+units against the evaluation at update 0. "class" is the outcome class of `10` as amended
+on 2026-10-14: the checkpoint is selected on the validation block (the evaluation with the
+largest validation change among those whose off-task block is within −0.02) and the class
+is the test block's change there (works at +0.10, marginal at +0.05, fails otherwise), so
+"works" means that one evaluated checkpoint qualifies, whatever happens later; "class by
+test peak" is the definition of 2026-10-13, which selected on the test block (the two agree
+on these six runs); "class, task alone" ignores the off-task condition; "collapsed" is set
 when any block falls more than 0.02 below its start at any evaluation.
 
-| run | preregistered call | step | updates to target, predicted | updates | validation at end | test at end | off-task at end | peak test gain | at | class | class, task alone | collapsed |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| qwen0.5b-gsm8k-s0 | fails: rollouts | 1.1 | 63.3 | 30 | +0.053 | +0.030 | +0.013 | 0.0333 | 15 | fails | fails | yes |
-| qwen0.5b-gsm8k-s1 | fails: rollouts | 1.1 | 63.3 | 30 | -0.003 | -0.027 | +0.003 | 0.00667 | 10 | fails | fails | yes |
-| qwen3b-base-countdown-s0 | marginal | 3.01 | 21.8 | 30 | +0.090 | +0.104 | -0.340 | 0.104 | 30 | marginal | works | yes |
-| qwen3b-base-countdown-s1 | marginal | 3.01 | 21.8 | 30 | +0.128 | +0.169 | -0.100 | 0.169 | 30 | works | works | yes |
-| qwen3b-countdown-s0 | works | 15.3 | 2.89 | 30 | -0.114 | -0.118 | -0.837 | 0.135 | 15 | fails | works | yes |
-| qwen3b-countdown-s1 | works | 15.3 | 2.89 | 30 | -0.070 | -0.055 | -0.843 | 0.164 | 15 | works | works | yes |
+| run | preregistered call | step | updates to target, predicted | updates | validation at end | test at end | off-task at end | peak test gain | at | validation-selected checkpoint | test there | class | class by test peak | class, task alone | collapsed |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen0.5b-gsm8k-s0 | fails: rollouts | 1.1 | 63.3 | 30 | +0.053 | +0.030 | +0.013 | 0.0333 | 15 | 30 | 0.03 | fails | fails | fails | yes |
+| qwen0.5b-gsm8k-s1 | fails: rollouts | 1.1 | 63.3 | 30 | -0.003 | -0.027 | +0.003 | 0.00667 | 10 | 25 | -0.00333 | fails | fails | fails | yes |
+| qwen3b-base-countdown-s0 | marginal | 3.01 | 21.8 | 30 | +0.090 | +0.104 | -0.340 | 0.104 | 30 | 20 | 0.0751 | marginal | marginal | works | yes |
+| qwen3b-base-countdown-s1 | marginal | 3.01 | 21.8 | 30 | +0.128 | +0.169 | -0.100 | 0.169 | 30 | 15 | 0.122 | works | works | works | yes |
+| qwen3b-countdown-s0 | works | 15.3 | 2.89 | 30 | -0.114 | -0.118 | -0.837 | 0.135 | 15 | - | - | fails | fails | works | yes |
+| qwen3b-countdown-s1 | works | 15.3 | 2.89 | 30 | -0.070 | -0.055 | -0.843 | 0.164 | 15 | 5 | 0.111 | works | works | works | yes |
 
 The collapse flag's 0.02 is below the 300-prompt standard error (about 0.025 on these
 blocks), so a flag set by a single evaluation within that range (0.5B GSM8K: a −0.03 dip of the off-task
@@ -123,15 +126,37 @@ to 0.03 per block, and the by-task changes):
 | 25 | +0.045 | +0.051 | -0.737 | 544 | +0.691 |
 | 30 | -0.070 | -0.055 | -0.843 | 963 | +0.830 |
 
+## Compute to the target
+
+`python -m es_vllm.probe_run --compare runs/probe-run runs/grpo-run`: each run's loop
+seconds (decode and update for ES, the phases for GRPO; no setup, no evaluation) and
+rollouts summed through the first evaluation at +0.10 on the reserved test block, against
+the GRPO arm of the same setting at 5e-7 (`runs/grpo-run/`). Threshold crossings on
+300-prompt blocks are noisy, and a crossing says nothing about what follows.
+
+| ES run | +0.10 at update | ES loop s | ES rollouts | off-task there | retained | GRPO +0.10 at step | GRPO loop s | GRPO rollouts | GRPO off-task there | seconds, ES/GRPO | rollouts, ES/GRPO |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen0.5b-gsm8k-s0 | - | - | - | - | - | - | - | - | - | - | - |
+| qwen0.5b-gsm8k-s1 | - | - | - | - | - | - | - | - | - | - | - |
+| qwen3b-base-countdown-s0 | 30 | 7,026 | 368,640 | -0.340 | no | 30 | 2,633 | 23,040 | +0.093 | 2.67 | 16.00 |
+| qwen3b-base-countdown-s1 | 15 | 3,673 | 184,320 | +0.033 | yes | 30 | 2,633 | 23,040 | +0.093 | 1.40 | 8.00 |
+| qwen3b-countdown-s0 | 15 | 4,817 | 184,320 | -0.277 | no | 15 | 1,376 | 11,520 | -0.017 | 3.50 | 16.00 |
+| qwen3b-countdown-s1 | 5 | 1,598 | 61,440 | -0.003 | yes | 15 | 1,376 | 11,520 | -0.017 | 1.16 | 5.33 |
+
 ## What the runs say about the rule
 
-- **The calls in kind.** On the task alone every run did what its call said: the two
-  Countdown settings learn (every seed reaches +0.10 on the reserved block, the instruct
-  model at 5 to 15 updates, the base model at 15 to 30) and the 0.5B GSM8K setting does
-  not (peaks of +0.033 and +0.007, within noise, while its train block rises 0.9 points
-  on both seeds: it learns its 192 repeated prompts, not the task). The observed classes with the retained block
-  counted are works / fails (instruct, by seed), works / marginal (base, by seed), fails
-  / fails (0.5B).
+- **What they establish.** Initial learning on Countdown at every seed (every seed
+  reaches +0.10 on the reserved block, the instruct model at 5 to 15 updates, the base
+  model at 15 to 30) and no detectable held-out gain on GSM8K at 0.5B (peaks of +0.033
+  and +0.007, within noise, while the train block rises 0.9 points on both seeds: the
+  192 repeated prompts are learned, not the task). They do not establish the forecasts'
+  sizes or sustained retention. Against GRPO on the same blocks (the table above), the
+  two seed-1 runs reached +0.10 within twice GRPO's compute with GSM8K intact (1.16 and
+  1.40 times, GSM8K −0.003 and +0.033 at the crossing), the program's usefulness line;
+  both then deteriorated (GSM8K −0.84 and −0.10 by the end). The seed-0 runs crossed at
+  3.50 and 2.67 times with GSM8K already down. The classes, with the checkpoint selected
+  on validation or on the test peak alike: works / fails (instruct, by seed), works /
+  marginal (base, by seed), fails / fails (0.5B).
 - **The prescription's size.** The gross prescription said 2.9 updates for the instruct
   model and 22 for the base model; the net one (the corrected rule, `10`) 3.8 and 19.
   Observed: the instruct seeds reached +0.10 on the test block at 5 and at 10 to 15

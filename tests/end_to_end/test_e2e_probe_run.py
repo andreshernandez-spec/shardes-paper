@@ -49,22 +49,40 @@ def ev(it, test, val, off):
     return {"iteration": it, "by_block": {"validation": {"change": val}, "test": {"change": test}, "offtask": {"change": off}}}
 
 
-def test_observed_classes_follow_the_frozen_definitions():
-    # the first run: the target reached at 15 with GSM8K already 0.28 down, then a collapse
+def test_observed_classes_select_on_validation():
+    # the first run: GSM8K leaves the bound from update 5 on, so no checkpoint qualifies
     first = [ev(0, 0, 0, 0), ev(5, 0.033, 0.091, -0.067), ev(10, 0.070, 0.057, -0.123), ev(15, 0.135, 0.115, -0.277),
              ev(20, 0.060, 0.112, -0.600), ev(25, -0.005, -0.012, -0.843), ev(30, -0.118, -0.114, -0.837)]
     o = pr.observed_class(first)
-    assert o["class"] == "fails" and o["class_ignoring_retained"] == "works" and o["collapsed"]
-    assert o["best_test_change"] == 0.135 and o["at_iteration_ignoring_retained"] == 15
-    # the second: marginal at 15 with GSM8K up, the target at 30 with GSM8K 0.34 down, collapsed
+    assert o["class"] == "fails" and o["selected_iteration"] is None and o["class_by_test_peak"] == "fails"
+    assert o["class_ignoring_retained"] == "works" and o["best_test_change"] == 0.135 and o["collapsed"]
+    # the second: the only checkpoint within the bound is 15, test +0.059 there: marginal
     second = [ev(0, 0, 0, 0), ev(15, 0.059, 0.055, 0.143), ev(30, 0.104, 0.090, -0.340)]
     o = pr.observed_class(second)
-    assert o["class"] == "marginal" and o["at_iteration"] == 15 and o["class_ignoring_retained"] == "works" and o["collapsed"]
-    # a clean success and a plain failure
+    assert o["class"] == "marginal" and o["selected_iteration"] == 15 and o["test_change_at_selected"] == 0.059
+    assert o["class_by_test_peak"] == "marginal" and o["class_ignoring_retained"] == "works" and o["collapsed"]
+    # selection on validation differs from the test peak: the peak at 10 is not the checkpoint
+    o = pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.12, 0.03, 0.0), ev(20, 0.04, 0.12, 0.0)])
+    assert o["class"] == "fails" and o["selected_iteration"] == 20 and o["class_by_test_peak"] == "works"
     assert pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.11, 0.1, -0.01)])["class"] == "works"
     assert pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.06, 0.05, 0.0)])["class"] == "marginal"
     o = pr.observed_class([ev(0, 0, 0, 0), ev(10, 0.02, 0.01, 0.0), ev(20, -0.03, 0.0, 0.0)])
-    assert o["class"] == "fails" and o["collapsed"]
+    assert o["class"] == "fails" and o["selected_iteration"] == 10 and o["collapsed"]
+
+
+def test_loop_seconds_to_the_first_crossing():
+    evals = [ev(0, 0, 0, 0), ev(5, 0.04, 0.03, 0.0), ev(10, 0.11, 0.09, -0.01), ev(15, 0.14, 0.12, -0.05)]
+    es_log = [{"iteration": g, "seconds": 300.0, "rollouts": 12288} for g in range(15)]
+    r = pr.loop_seconds_to(evals, es_log)
+    assert r["iteration"] == 10 and r["loop_seconds"] == 3000.0 and r["rollouts"] == 122880 and r["retained_within_bound"]
+    grpo_log = [{"iteration": g, "seconds": {"generate": 10.0, "train": 80.0}, "rollouts": 768} for g in range(15)]
+    r = pr.loop_seconds_to(evals, grpo_log, threshold=0.05)
+    assert r["iteration"] == 10 and r["loop_seconds"] == 900.0 and r["rollouts"] == 7680
+    assert pr.loop_seconds_to(evals, es_log, threshold=0.5) is None
+    t = pr.compare_table([{"run": "a-s0", "es_iteration": 5, "es_loop_seconds": 1598.0, "es_rollouts": 61440, "es_offtask_there": -0.003,
+                           "es_retained": True, "grpo_arm": "a-lr5e-7-s0", "grpo_step": 15, "grpo_loop_seconds": 1376.0,
+                           "grpo_rollouts": 11520, "grpo_offtask_there": -0.017, "seconds_ratio": 1.16, "rollouts_ratio": 5.33}]).splitlines()
+    assert len(t) == 3 and "| 1.16 | 5.33 |" in t[2] and "| 61,440 |" in t[2] and "| yes |" in t[2]
 
 
 def test_prediction_block_carries_the_prescription(tmp_path):

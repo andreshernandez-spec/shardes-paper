@@ -29,15 +29,16 @@ task's units; the analysis normalizes by each row's kind.
 ## The table
 
 `python -m es_vllm.grpo_run --table runs/grpo-run`. Changes are in normalized reward
-units against the evaluation at step 0; the class is the one frozen in `10`
-(`probe_run.observed_class`); "test +0.10 first at" is the first evaluation at or above
-the target.
+units against the evaluation at step 0; the class is `10`'s as amended on 2026-10-14
+(the checkpoint selected on the validation block, the class by the test block there;
+`probe_run.observed_class`); "test +0.10 first at" is the first evaluation at or above the
+target.
 
-| arm | lr | steps | rollouts | validation at end | test at end | off-task at end | peak test gain | at | test +0.10 first at | class | collapsed | s per step | GPU-s per answer |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| qwen3b-base-countdown-lr5e-7-s0 | 5e-07 | 40 | 30,720 | +0.121 | +0.135 | +0.143 | 0.156 | 35 | 30 | works | no | 87.3 | 0.114 |
-| qwen3b-countdown-lr1e-6-s0 | 1e-06 | 40 | 30,720 | +0.159 | +0.213 | -0.003 | 0.213 | 40 | 15 | works | yes | 85.6 | 0.111 |
-| qwen3b-countdown-lr5e-7-s0 | 5e-07 | 40 | 30,720 | +0.138 | +0.135 | -0.007 | 0.148 | 30 | 15 | works | no | 89.4 | 0.116 |
+| arm | lr | steps | rollouts | validation at end | test at end | off-task at end | peak test gain | at | test +0.10 first at | validation-selected checkpoint | test there | class | collapsed | s per step | GPU-s per answer |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3b-base-countdown-lr5e-7-s0 | 5e-07 | 40 | 30,720 | +0.121 | +0.135 | +0.143 | 0.156 | 35 | 30 | 40 | 0.135 | works | no | 87.3 | 0.114 |
+| qwen3b-countdown-lr1e-6-s0 | 1e-06 | 40 | 30,720 | +0.159 | +0.213 | -0.003 | 0.213 | 40 | 15 | 20 | 0.122 | works | yes | 85.6 | 0.111 |
+| qwen3b-countdown-lr5e-7-s0 | 5e-07 | 40 | 30,720 | +0.138 | +0.135 | -0.007 | 0.148 | 30 | 15 | 35 | 0.114 | works | no | 89.4 | 0.116 |
 
 ## The curves
 
@@ -96,15 +97,18 @@ the target.
   The answers shortened under GRPO (329 to 223 and 495 to 318 tokens) where ES's ran to
   the caps. The collapse the ES runs showed is therefore a property of ES's path on
   these tasks, not of the task or the prompts.
-- **The measured ratios.** On the same blocks, ES reached +0.10 on the reserved test
-  block at 61k and 184k rollouts (instruct, two seeds) and at 184k and 369k (base);
-  GRPO at 11.5k and about 21k. Rollouts: ES at 5 to 16 times GRPO's on the instruct
-  model (the probe forecast 2.8) and 9 to 18 on the base model (forecast 17). Cost on
-  this GPU: 0.116 and 0.114 GPU-seconds per GRPO answer (generation 7, old log-probs 11,
-  training 71 of 89 seconds per step) against 0.031 per ES answer, so in GPU-seconds ES
-  is at 1.4 to 4 times GRPO on the instruct model and 2.4 to 4.8 on the base model. ES
-  is compute-competitive on neither, and the forecast's compute parity line (5 times the
-  rollouts, from the Tulu 8B bench's 0.255 against 0.048) is 3.7 on this card.
+- **The measured ratios**, from the loops (`probe_run --compare`, the table in
+  `runs/probe-run/README.md`): to the first evaluation at +0.10 on the reserved block, ES
+  used 5.3 and 16 times GRPO's rollouts on the instruct model (seeds 1 and 0) and 8 and
+  16 on the base model (the probes forecast 2.8 and 17), and 1.16 and 3.50 times GRPO's
+  loop seconds on the instruct model, 1.40 and 2.67 on the base model, GRPO at 5e-7 in
+  both. The per-answer costs say the same: 0.116 and 0.114 GPU-seconds per GRPO answer
+  (generation 7, old log-probs 11, training 71 of 89 seconds per step) against 0.020 to
+  0.026 per answer in the ES runs. The two seed-1 ES crossings came within twice GRPO's
+  compute with GSM8K intact and deteriorated afterwards; the seed-0 crossings came with
+  GSM8K already down. These are threshold crossings on 300-prompt blocks, noisy by a
+  factor of about two from the evaluation grid alone. GRPO's KL term against the start
+  (beta 0.01) is a confound for the retention difference: ES has no anchor at all.
 - **The third arm**, the instruct model at twice the reference step (1e-6): the target at
   step 15 as well against a predicted 8 (the doubled first-step gain), inside the gate by
   a hair; +0.213 on the reserved block at 40, the largest Countdown gain of any run in

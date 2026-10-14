@@ -281,15 +281,19 @@ the corrected analysis sits beside it as `rule_net`, dated.
    predicted 3" compared the observed net on the test block with a gross prescription;
    against the net prescription the observed time to target is 3 to 4 times the
    predicted, not 4 to 5.
-2. **A retained block's odd response is a single draw.** The update's directional effect
-   on a block it was not ranked on is a directional derivative along the update's random
-   part as much as along its useful part; across draws it averages to zero, within one
-   draw it is large. The base model's probe put GSM8K at −0.25 after five updates; the
-   run shows +0.09. The retained-block bound therefore uses the even response only, and
-   the odd off-task response is reported as a single draw and not used. The level-1
-   predictor of systematic off-task change would be the covariance across members between
-   task fitness and off-task fitness, which needs the members to decode the off-task
-   block; proposed for the next batch.
+2. **A retained block's odd response is a single draw.** The odd response of a block the
+   update was not ranked on is `grad R_off . u` with `u = E[u] + noise`: its expectation,
+   `grad R_off . E[u]`, is the systematic effect of the training direction on that task,
+   which can help or harm, and only the noise part averages away across draws. At 64
+   members the noise part is of the systematic part's size, so one draw does not resolve
+   the sign (the base model's probe put GSM8K at −0.25 after five updates; the run showed
+   +0.09). The corrected rule's retained-block bound uses the even response only; that
+   bounds the random part's damage and omits the systematic directional term, so it is
+   not a retention bound. The level-1 predictor proposed for the next batch, the
+   covariance across members between task fitness and off-task fitness (the members
+   decoding the off-task block), is a local diagnostic whose power to predict delayed
+   damage is unvalidated. (Corrected 2026-10-14 after a review: an earlier version of
+   this item said the odd off-task response averages to zero across draws.)
 3. **Calls carry their resolution.** An odd or even response within two standard errors
    of zero makes the call "undetermined", not "works" or "fails"; the bootstrap resamples
    the same prompts for the update and the RL proxy, keeping their covariance, and a
@@ -314,7 +318,12 @@ the corrected analysis sits beside it as `rule_net`, dated.
    (off-task) block is within −0.02; "marginal" if it reaches 0.05 at such an evaluation;
    "fails" otherwise. The class the test block alone would earn is reported beside it,
    and "collapsed" is recorded when any block falls more than 0.02 below its start at any
-   evaluation (`probe_run.observed_class`). A run shorter than the prescribed update count cannot measure the
+   evaluation (`probe_run.observed_class`). Amended 2026-10-14, after a review: the
+   checkpoint is selected on the validation block (the evaluation with the largest
+   validation change among those whose retained block is within −0.02) and the class is
+   the test block's change at that checkpoint; "works" means that one evaluated checkpoint
+   qualifies, whatever happens later; the class by the test block's own peak is kept
+   beside it. On the six runs of S3b the two definitions agree. A run shorter than the prescribed update count cannot measure the
    time to target; it reports the gain per update over the run against the prescription
    (the 0.5B GSM8K prescription is 90 updates against a 30-update run).
 7. **The scans.** Extending a scan until the curvature is resolved can leave the region
@@ -377,15 +386,19 @@ Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
 The RL side's gate holds on both reference arms (15 against 16, 25 to 30 against 20)
 and by a hair on the doubled step (15 against 8). GRPO kept the off-task block on every
 arm where every ES run on these settings lost it, and its answers shortened where ES's
-ran to the caps: the collapse is ES's, not the task's. The measured ratios of rollouts to
-+0.10 on the reserved block, ES over GRPO: 5 to 16 on the instruct model (forecast 2.8),
-9 to 18 on the base model (forecast 17). The measured cost per answer on this GPU is
-0.11 to 0.12 GPU-seconds for GRPO against 0.031 for an ES member's answer (3.7, where the
-Tulu 8B bench gave 5.3), so in compute ES stands at 1.4 to 4 times GRPO on the instruct
-model and 2.4 to 4.8 on the base model: not compute-competitive on either, with the
-forecast's parity line of 5 times the rollouts replaced by 3.7 on this card. One seed per
-arm, the Tulu run's recipe untuned for these models, 40 steps against the hundreds of
-the published Countdown runs.
+ran to the caps: the collapse is ES's, not the task's. The comparison, measured from the loops
+(`probe_run --compare`, the table in `runs/probe-run/README.md`): to the first evaluation
+at +0.10 on the reserved block, ES used 5.3 and 16 times GRPO's rollouts on the instruct
+model (seeds 1 and 0) and 8 and 16 on the base model (the probes forecast 2.8 and 17),
+and 1.16 and 3.50 times GRPO's loop seconds on the instruct model, 1.40 and 2.67 on the
+base model, GRPO at 5e-7 in both (per answer: 0.11 to 0.12 GPU-seconds for GRPO, 0.020
+to 0.026 in the ES runs). The two seed-1 ES runs reached the target within twice GRPO's
+compute with GSM8K intact, the program's usefulness line, and deteriorated afterwards;
+the seed-0 runs crossed with GSM8K already down. These are threshold crossings on
+300-prompt blocks. One seed per arm, the Tulu run's recipe untuned for these models, 40
+steps against the hundreds of the published Countdown runs, and GRPO's KL term against
+the start (beta 0.01) where ES has no anchor at all, so the retention difference is not
+attributable to the estimator alone.
 
 ## Results of the training runs (2026-10-13, `runs/probe-run/README.md`)
 
@@ -398,8 +411,9 @@ Six runs at the preregistered prescription, two seeds of three settings, 30 upda
 | 3B base Countdown, seeds 0 and 1 | marginal | 3.0 | +0.104 (30), +0.169 (30) | +0.104, −0.340; +0.169, −0.100 | marginal / works; works / works | both |
 | 0.5B GSM8K, seeds 0 and 1 | fails | 1.1 | +0.033 (15), +0.007 (10) | +0.030, +0.013; −0.027, +0.003 | fails; fails | within noise |
 
-On the task alone the calls held in kind on all six runs. The prescription's size was
-off by two to four (the instruct model reached the target at 5 to 15 updates against 2.9
+The runs establish initial learning on Countdown at every seed and no detectable
+held-out gain on GSM8K at 0.5B; they do not establish the forecasts' sizes or sustained
+retention. The prescription's size was off by two to four (the instruct model reached the target at 5 to 15 updates against 2.9
 gross or 3.8 net; the base model at 15 to 30 against 22 or 19), with the first-order
 model tracking the base model's validation curve through 30 updates and failing in shape
 at the larger step (gain, plateau, unwinding). Every Countdown run lost its off-task

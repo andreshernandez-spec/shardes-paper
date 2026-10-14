@@ -243,30 +243,110 @@ CLASS_WORKS, CLASS_MARGINAL, RETAINED_LOSS, COLLAPSE = 0.10, 0.05, -0.02, -0.02
 
 
 def observed_class(evals: list) -> dict:
-    """The outcome classes frozen in docs/end_to_end/10 (corrections, item 6), from the
-    evaluations' changes by block: "works" if the test block's change reaches 0.10 at an
-    evaluation where the retained (off-task) block is within -0.02, "marginal" if it
-    reaches 0.05 at such an evaluation, "fails" otherwise. The class the test block alone
-    would earn is reported beside it, and "collapsed" is set when any block falls more
-    than 0.02 below its start at any evaluation."""
-    def cls(best):
-        return "works" if best >= CLASS_WORKS else "marginal" if best >= CLASS_MARGINAL else "fails"
+    """The outcome class of a run (docs/end_to_end/10, corrections item 6 as amended on
+    2026-10-14): the checkpoint is selected on the validation block, the evaluation with
+    the largest validation change among those whose retained (off-task) block is within
+    -0.02, and the class is the test block's change at that checkpoint: "works" at 0.10,
+    "marginal" at 0.05, "fails" otherwise. "Works" therefore means that one evaluated
+    checkpoint qualifies, whatever happens later. The class the test block's own peak
+    would earn (the definition of 2026-10-13, which selected on the test block) and the
+    peak ignoring the retained block are kept beside it, and "collapsed" is set when any
+    block falls more than 0.02 below its start at any evaluation."""
+    def cls(x):
+        return "works" if x >= CLASS_WORKS else "marginal" if x >= CLASS_MARGINAL else "fails"
 
-    best_ok, at_ok, best_any, at_any, collapsed = 0.0, None, 0.0, None, False
+    sel, best_val = None, None
+    peak_ok, at_peak_ok, peak_any, at_peak_any, collapsed = 0.0, None, 0.0, None, False
     for r in evals:
+        if r["iteration"] == 0:
+            continue
         test = r["by_block"].get("test", {}).get("change", 0.0)
+        val = r["by_block"].get("validation", {}).get("change", 0.0)
         retained_ok = r["by_block"].get("offtask", {"change": 0.0})["change"] >= RETAINED_LOSS
-        if test > best_any:
-            best_any, at_any = test, r["iteration"]
-        if retained_ok and test > best_ok:
-            best_ok, at_ok = test, r["iteration"]
+        if retained_ok and (best_val is None or val > best_val):
+            sel, best_val = r, val
+        if test > peak_any:
+            peak_any, at_peak_any = test, r["iteration"]
+        if retained_ok and test > peak_ok:
+            peak_ok, at_peak_ok = test, r["iteration"]
         if any(v["change"] < COLLAPSE for v in r["by_block"].values()):
             collapsed = True
-    return {"class": cls(best_ok), "best_test_change_with_retained_within_bound": best_ok, "at_iteration": at_ok,
-            "class_ignoring_retained": cls(best_any), "best_test_change": best_any, "at_iteration_ignoring_retained": at_any,
+    test_at_sel = sel["by_block"]["test"]["change"] if sel else 0.0
+    return {"class": cls(test_at_sel), "selected_iteration": sel["iteration"] if sel else None,
+            "validation_change_at_selected": best_val, "test_change_at_selected": test_at_sel if sel else None,
+            "offtask_change_at_selected": sel["by_block"].get("offtask", {}).get("change") if sel else None,
+            "class_by_test_peak": cls(peak_ok), "best_test_change_with_retained_within_bound": peak_ok, "at_iteration": at_peak_ok,
+            "class_ignoring_retained": cls(peak_any), "best_test_change": peak_any, "at_iteration_ignoring_retained": at_peak_any,
             "collapsed": collapsed,
             "thresholds": {"works": CLASS_WORKS, "marginal": CLASS_MARGINAL, "retained_loss": RETAINED_LOSS,
                            "collapse": COLLAPSE}}
+
+
+def loop_seconds_to(evals: list, log: list, block: str = "test", threshold: float = CLASS_WORKS):
+    """The first evaluation at or above `threshold` on `block`, with the loop seconds
+    (an ES iteration's decode and update, a GRPO step's phases) and the rollouts of the
+    iterations before it: the compute to that gain, without setup or evaluation."""
+    for r in evals:
+        if r["by_block"].get(block, {}).get("change", 0.0) >= threshold:
+            k = r["iteration"]
+            before = [x for x in log if x["iteration"] < k]
+            secs = sum(sum(x["seconds"].values()) if isinstance(x["seconds"], dict) else x["seconds"] for x in before)
+            return {"iteration": k, "loop_seconds": float(secs), "rollouts": int(sum(x["rollouts"] for x in before)),
+                    "validation_change": r["by_block"]["validation"]["change"],
+                    "offtask_change": r["by_block"].get("offtask", {}).get("change"),
+                    "retained_within_bound": r["by_block"].get("offtask", {"change": 0.0})["change"] >= RETAINED_LOSS}
+    return None
+
+
+def compare(es_root: Path, grpo_root: Path, threshold: float = CLASS_WORKS) -> list:
+    """Each ES run against the GRPO arm of its setting at the reference learning rate: the
+    loop seconds and rollouts to the first evaluation at `threshold` on the test block,
+    from the logs, and their ratios."""
+    from es_vllm import grpo_run  # noqa: PLC0415
+
+    grpo = {}
+    for d in sorted(grpo_root.iterdir()):
+        if (d / "eval.jsonl").exists() and "-lr5e-7-" in d.name:
+            a = grpo_run.analyze(d)
+            grpo[d.name.split("-lr")[0]] = (d.name, loop_seconds_to(a["eval"], lines(d / "log.jsonl"), threshold=threshold))
+    rows = []
+    for d in sorted(es_root.iterdir()):
+        if not (d / "eval.jsonl").exists():
+            continue
+        a = analyze(d)
+        es = loop_seconds_to(a["eval"], lines(d / "log.jsonl"), threshold=threshold)
+        setting = d.name.rsplit("-s", 1)[0]
+        ref = grpo.get(setting)
+        row = {"run": d.name, "es_iteration": es and es["iteration"], "es_loop_seconds": es and es["loop_seconds"],
+               "es_rollouts": es and es["rollouts"], "es_offtask_there": es and es["offtask_change"],
+               "es_retained": es and es["retained_within_bound"], "grpo_arm": ref and ref[0],
+               "grpo_step": ref and ref[1] and ref[1]["iteration"], "grpo_loop_seconds": ref and ref[1] and ref[1]["loop_seconds"],
+               "grpo_rollouts": ref and ref[1] and ref[1]["rollouts"], "grpo_offtask_there": ref and ref[1] and ref[1]["offtask_change"]}
+        ok = es and ref and ref[1]
+        row["seconds_ratio"] = es["loop_seconds"] / ref[1]["loop_seconds"] if ok else None
+        row["rollouts_ratio"] = es["rollouts"] / ref[1]["rollouts"] if ok else None
+        rows.append(row)
+    return rows
+
+
+def compare_table(rows: list) -> str:
+    cols = (("run", "ES run"), ("es_iteration", "+0.10 at update"), ("es_loop_seconds", "ES loop s"), ("es_rollouts", "ES rollouts"),
+            ("es_offtask_there", "off-task there"), ("es_retained", "retained"), ("grpo_step", "GRPO +0.10 at step"),
+            ("grpo_loop_seconds", "GRPO loop s"), ("grpo_rollouts", "GRPO rollouts"), ("grpo_offtask_there", "GRPO off-task there"),
+            ("seconds_ratio", "seconds, ES/GRPO"), ("rollouts_ratio", "rollouts, ES/GRPO"))
+
+    def fmt(x):
+        if x is None:
+            return "-"
+        if isinstance(x, bool):
+            return "yes" if x else "no"
+        if isinstance(x, float):
+            return f"{x:+.3f}" if abs(x) < 1 else f"{x:,.0f}" if abs(x) >= 100 else f"{x:.2f}"
+        return f"{x:,}" if isinstance(x, int) and x >= 1000 else str(x)
+
+    head = "| " + " | ".join(n for _, n in cols) + " |"
+    sep = "|" + "|".join("---" for _ in cols) + "|"
+    return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
 
 
 def analyze(out: Path) -> dict:
@@ -324,7 +404,9 @@ def summary(root: Path) -> list:
                      "updates": a["iterations_done"], "rollouts": a["rollouts_total"],
                      "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
                      "peak_test": o["best_test_change"], "peak_at": o["at_iteration_ignoring_retained"],
-                     "class": o["class"], "class_ignoring_retained": o["class_ignoring_retained"], "collapsed": o["collapsed"]})
+                     "selected_at": o["selected_iteration"], "test_at_selected": o["test_change_at_selected"],
+                     "class": o["class"], "class_by_test_peak": o["class_by_test_peak"],
+                     "class_ignoring_retained": o["class_ignoring_retained"], "collapsed": o["collapsed"]})
     return rows
 
 
@@ -332,7 +414,9 @@ def table(rows: list) -> str:
     cols = (("run", "run"), ("call", "preregistered call"), ("step", "step"), ("updates_to_target_predicted", "updates to target, predicted"),
             ("updates", "updates"), ("final_validation", "validation at end"), ("final_test", "test at end"),
             ("final_offtask", "off-task at end"), ("peak_test", "peak test gain"), ("peak_at", "at"),
-            ("class", "class"), ("class_ignoring_retained", "class, task alone"), ("collapsed", "collapsed"))
+            ("selected_at", "validation-selected checkpoint"), ("test_at_selected", "test there"),
+            ("class", "class"), ("class_by_test_peak", "class by test peak"), ("class_ignoring_retained", "class, task alone"),
+            ("collapsed", "collapsed"))
 
     def fmt(x):
         if x is None:
@@ -351,6 +435,8 @@ def table(rows: list) -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--table", type=Path, help="the runs directory: one row per run")
+    ap.add_argument("--compare", nargs=2, type=Path, metavar=("ES_RUNS", "GRPO_RUNS"),
+                    help="each ES run against its setting's GRPO arm: loop seconds and rollouts to +0.10 on the test block")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
     ap.add_argument("--prediction", type=Path, help="the setting's probe record (step and the numbers to hold the run against)")
     ap.add_argument("--out", type=Path)
@@ -365,6 +451,10 @@ def main(argv=None) -> int:
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/probe-run"))
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
+    if args.compare:
+        es, gr = (p if p.is_absolute() else E2E / p for p in args.compare)
+        print(compare_table(compare(es, gr)))
+        return 0
     if args.table:
         print(table(summary(args.table if args.table.is_absolute() else E2E / args.table)))
         return 0

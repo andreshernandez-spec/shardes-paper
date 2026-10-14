@@ -319,6 +319,7 @@ def summary(root: Path) -> list:
         rows.append({"run": d.name, "setting": a["setting"], "lr": a["lr"], "steps": a["steps_done"], "rollouts": a["rollouts_total"],
                      "final_validation": fmt("validation"), "final_test": fmt("test"), "final_offtask": fmt("offtask"),
                      "peak_test": o["best_test_change"], "peak_at": o["at_iteration_ignoring_retained"], "target_first_at": first,
+                     "selected_at": o["selected_iteration"], "test_at_selected": o["test_change_at_selected"],
                      "class": o["class"], "collapsed": o["collapsed"],
                      "s_per_step": a["cost"]["seconds_per_step"], "gpu_s_per_answer": a["cost"]["gpu_seconds_per_answer"]})
     return rows
@@ -327,7 +328,8 @@ def summary(root: Path) -> list:
 def table(rows: list) -> str:
     cols = (("run", "arm"), ("lr", "lr"), ("steps", "steps"), ("rollouts", "rollouts"), ("final_validation", "validation at end"),
             ("final_test", "test at end"), ("final_offtask", "off-task at end"), ("peak_test", "peak test gain"), ("peak_at", "at"),
-            ("target_first_at", "test +0.10 first at"), ("class", "class"), ("collapsed", "collapsed"),
+            ("target_first_at", "test +0.10 first at"), ("selected_at", "validation-selected checkpoint"),
+            ("test_at_selected", "test there"), ("class", "class"), ("collapsed", "collapsed"),
             ("s_per_step", "s per step"), ("gpu_s_per_answer", "GPU-s per answer"))
 
     def fmt(x):
