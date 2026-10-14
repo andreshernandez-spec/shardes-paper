@@ -136,6 +136,15 @@ def test_analysis_puts_observed_beside_predicted(tmp_path):
     assert rows[0]["class"] == "fails" and rows[0]["class_ignoring_retained"] == "works" and rows[0]["collapsed"]
     t = pr.table(rows).splitlines()
     assert len(t) == 3 and t[0].startswith("| run |") and "| fails | works | yes |" in t[2]
+    # with shrinkage 0.1 the prediction counts the geometrically weighted updates
+    (out / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/countdown", "seed": 0, "step": 15.0, "n": 64,
+                                                         "shrink": 0.1}, "prediction": pred}))
+    p10 = pr.analyze(out)["eval"][-1]["predicted"]
+    eff_g, eff_c = 0.9 * (1 - 0.9 ** 10) / 0.1, 0.81 * (1 - 0.9 ** 20) / (1 - 0.81)
+    assert abs(p10["gain_first_order"] - eff_g * 15 * 0.002) < 1e-9 and abs(p10["random_cost"] - eff_c * 225 * 3e-5) < 1e-9
+    assert pr.effective_updates(10, 0.0) == (10.0, 10.0) and abs(pr.effective_updates(1000, 0.1)[0] - 9.0) < 1e-9
+    (out / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/countdown", "seed": 0, "step": 15.0, "n": 64},
+                                              "prediction": pred}))
     # the curves printer: a heading per run and one row per evaluation, the prediction beside
     c = pr.curves(tmp_path).splitlines()
     assert c[0] == "**run** (step 15, 10 updates, 122,880 rollouts, 0.8 h)"

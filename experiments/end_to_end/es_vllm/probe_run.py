@@ -367,6 +367,17 @@ def compare_table(rows: list) -> str:
     return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
 
 
+def effective_updates(g: int, gamma: float) -> tuple:
+    """After `g` updates with the weights pulled a fraction `gamma` back toward the start
+    after each, the displacement is sum_i (1 - gamma)^(g - i + 1) u_i: the number of
+    updates the first-order gain counts, and the number the random part's variance
+    counts. Both are `g` without shrinkage."""
+    if not gamma:
+        return float(g), float(g)
+    q = 1.0 - gamma
+    return q * (1.0 - q ** g) / gamma, q ** 2 * (1.0 - q ** (2 * g)) / (1.0 - q ** 2)
+
+
 def analyze(out: Path) -> dict:
     """Observed changes per block and task beside the rule's prediction."""
     run_ = json.loads((out / "run.json").read_text())
@@ -386,12 +397,17 @@ def analyze(out: Path) -> dict:
                             for b in ("validation", "test", "offtask") if (blocks == b).any()},
                "by_task": {t: {"change": float(d[kinds == t].mean()), "change_se": se(d[kinds == t])} for t in sorted(set(kinds))}}
         if pred:
-            # a random ranking has the random cost and no gain (docs/end_to_end/10, S4a arm 2)
+            # a random ranking has the random cost and no gain (docs/end_to_end/10, S4a arm 2);
+            # shrinkage after each update weights update i by (1 - gamma)^(g - i + 1), so the
+            # first-order gain counts eff_g updates and the random part's variance eff_c
             real = run_["config"].get("ranking", "real") == "real"
-            gain = g * step * pred["G"] if real else 0.0
-            row["predicted"] = {"validation_change": gain - g * step ** 2 * -pred["C"],
-                                "gain_first_order": gain, "random_cost": g * step ** 2 * -pred["C"],
-                                "offtask_change": (g * step * pred["G_offtask"] if real else 0.0) if pred["G_offtask"] is not None else None}
+            gamma = run_["config"].get("shrink") or 0.0
+            eff_g, eff_c = effective_updates(g, gamma)
+            gain = eff_g * step * pred["G"] if real else 0.0
+            row["predicted"] = {"validation_change": gain - eff_c * step ** 2 * -pred["C"],
+                                "gain_first_order": gain, "random_cost": eff_c * step ** 2 * -pred["C"],
+                                "effective_updates": [eff_g, eff_c],
+                                "offtask_change": (eff_g * step * pred["G_offtask"] if real else 0.0) if pred["G_offtask"] is not None else None}
         rows.append(row)
     res = {"setting": run_["config"]["setting"], "seed": run_["config"]["seed"], "step": step, "n": run_["config"]["n"],
            "ranking": run_["config"].get("ranking", "real"), "shrink": run_["config"].get("shrink"),
