@@ -425,6 +425,41 @@ delayed; the learned direction if arm 2 holds and arm 3 collapses on schedule; m
 otherwise, and then the shrinkage arm says whether an anchor is enough. The outcome
 classes and the compute comparison are read as in S3b and S3c.
 
+### S4a results (2026-10-15, `runs/s4a/README.md`)
+
+Six arms, 16 hours on one H200, about $85. The gate: the random-only arm collapsed
+(GSM8K −0.083 at 10, −0.470 at 20, 0.000 from 25, the answers at the cap, with no
+ranking signal at all) and the 256-member arm was delayed (GSM8K within −0.053 through
+20, where both 64-member seeds had lost the block). **The collapse is the random walk**:
+the update's random part, accumulated over updates, whose cost on the off-task block
+grows as the model moves (the one-update curvature predicted −0.028 at 10 against
+−0.083) and reaches a cliff. The step-3.0 arm (a fifth of the prescription) kept GSM8K
+within −0.04 for 30 updates and reached +0.185 on the reserved block, with the
+first-order model's +0.196 at 30 against +0.194 observed; the shrinkage arm kept GSM8K
+within −0.07 at the full step and reached +0.235 at 25, the program's largest gain, for
+1.15 times GRPO's loop seconds to the target. GRPO's second seed crossed at 20 (within
+the window) and GRPO without its KL term kept GSM8K (−0.020 at 40) and learned more
+(+0.191), so the KL anchor is not what separates GRPO's retention from un-anchored ES's.
+
+Against the predictions: 1 held on its step-following branch (crossing earlier than
+written, at 10); 2 held on the random-walk branch; 3 held (target by 5, delayed past 20),
+with the task gain saturating near +0.2 from update 5 against the first-order +0.55 at
+20; 4 held on retention and missed on the gain (+0.235, not a saturation near +0.15; the
+anchored first-order model gives +0.27 at 30, the written figure was rougher); 5 held
+on both GRPO arms. Compute to the target against the reference arm, from the loops:
+3.4 times GRPO's seconds at step 3.0 (16 times the rollouts), 4.3 at 256 members (21),
+1.15 with shrinkage (5.3).
+
+Two corrections for what follows. The frozen class's retained-block bound of −0.02 is
+below the off-task block's standard error (0.021), so it fails the 256-member and
+shrinkage arms on readings between −0.03 and −0.07 that are within two standard errors
+of the start; the S4a classes stand as frozen, and S4b's preregistration states the bound
+in standard errors of the block it is read on (two) or reads it on a 600-prompt block.
+And the rule's retained-block bound, derived from the even response of one update, is
+not what limits a run: the random part's accumulated damage is, which the shrinkage,
+step and member count control; a prescription has to carry one of them, and the second
+probe says what a probe can predict about it.
+
 The second half of S4a, GPU time permitting after these: the instruct and base members
 decoding the off-task block for the covariance diagnostic (`probe --members-offtask`),
 and a second member population with 600 validation prompts on the six probed settings,
