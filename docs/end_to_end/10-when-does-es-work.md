@@ -636,7 +636,20 @@ instruction-following task and a reasoning task, with replication on A.
 
 About $100, about $130 with setup and polling. C's constraint type is chosen before any
 learning signal is inspected, by the count of unique examples: at least 1,092 rows of
-the type in the stream (192 train, 600 validation, 300 test). Deferred until their
+the type in the stream (192 train, 600 validation, 300 test). **Feasibility, checked
+2026-10-15: no type has them.** The stream's IFEval rows are spread over its constraint
+types almost evenly, and the stream cycles through the training set, so the largest type
+has 644 unique rows in all ("Multiple Sections"; "Quotation" 638, "Keyword Frequency"
+638), far short of 1,092. The rows are base prompts (12,245 distinct across the IFEval
+rows) with the constraint sentence attached and a single verifier record per type, so a
+single-type setting of the required size can only be constructed (the type's sentence
+attached to base prompts the stream pairs with other types, verified by the same
+function), which is a generator of the kind E was deferred for, or the blocks shrunk to
+what one type has (192, 300 and 150: 642 rows, within one of the largest type's count),
+or the setting changed to IFEval with every type (the family, as the GSM8K settings were
+a family), which no longer raises the sharedness the setting was for. Which of these,
+or none for this batch, is a decision for the review; D needs no such choice (MATH alone
+has 2,343 unique rows in the first 200 steps, and its `Task` branch exists). Deferred until their
 feasibility is specified: B (7B instruct Countdown: the GRPO driver's f32 policy, its
 gradients and Adam states, the bf16 reference and vLLM's share do not fit one H200, so
 it needs a memory plan, such as a bf16 policy with an f32 master off the GPU or 8-bit
@@ -675,12 +688,23 @@ the fallback was used, and P1 to P4 with their values, written before the run an
 stamped into the run's record; `probe_run` reads it (today's loader reads the legacy
 `rule` block and has to change).
 
-Implementation before any run, about two days without a GPU: the two Task branches with
-their block digests; the prescription record and its loader; the ±0.9 `λ` point in the
-steps phase; the spread's interval; per-family retention with the paired interval and
-the two off-task halves in the class; the un-anchored arm's naming. Then the probes (A
-twice, C, D) in one pod session with their records committed, then the ES and GRPO arms
-in a second session.
+Implementation, done 2026-10-15 without a GPU (commit on the branch): the MATH `Task`
+branch; the prescription record (`prescribe` in `probe.py`, written beside
+prediction.json by the steps phase: the method, the step, the shrinkage, the fallback,
+the responses at the first displacement and P1 to P4) and its loader in `probe_run`
+(the prescription sets the step and the anchor; `--shrink 0` is the un-anchored
+control); the ±0.9 `λ` point in the steps phase; the spread ratio's interval over pairs
+and prompts; per-family retention with the paired interval on the selection and
+reserved halves of the off-task block (`probe_run.retention`, beside the frozen class).
+A dry run of the prescription on the second probe's records: 3B instruct Countdown
+learns at a 17.3-unit step (first displacement 15.6; P2 no call, the spread ratio's
+interval 0.07 to 0.94 straddling the cutoff; P3 +0.097 over five anchored updates, which
+the S4a shrinkage arm's +0.082 sits inside; P4 none, the slope unresolved at 600
+prompts); 3B base Countdown learns and collapses (ratio 5.7 to 18.4; P4 21 steps, GRPO
+crossed at 25 to 30); 0.5B GSM8K falls back to a 3.2-unit step and is undetermined.
+C's `Task` branch waits on the decision above. Then the probes (A twice, D, and C if
+chosen) in one pod session with their records committed, then the ES and GRPO arms in a
+second session.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 

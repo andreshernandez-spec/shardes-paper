@@ -202,3 +202,63 @@ def test_compare_pairs_each_run_with_the_reference_arm_by_config(tmp_path):
           evals(0.012), grpo_log)
     with pytest.raises(SystemExit):
         pr.compare(tmp_path / "s4a", tmp_path / "grpo-run")
+
+
+def fam(iteration, val, test, selection, reserved):
+    """An evaluation row with per-family retained changes on the two off-task halves:
+    `selection` and `reserved` map a family to (change, change_se)."""
+    row = ev(iteration, val, test, 0.0)
+    row["by_family_half"] = {f: {"selection": {"change": selection[f][0], "change_se": selection[f][1], "prompts": 150},
+                                 "reserved": {"change": reserved[f][0], "change_se": reserved[f][1], "prompts": 150}}
+                             for f in selection}
+    return row
+
+
+def test_retention_uses_a_fixed_margin_with_paired_intervals_per_family(tmp_path):
+    ok = {"MATH": (-0.005, 0.01), "ifeval": (0.0, 0.01)}        # lower bound -0.025, above the margin
+    lost_math = {"MATH": (-0.08, 0.01), "ifeval": (0.0, 0.01)}
+    unresolved_math = {"MATH": (-0.03, 0.02), "ifeval": (0.0, 0.01)}
+    evals = [ev(0, 0, 0, 0), fam(5, 0.06, 0.07, ok, ok), fam(10, 0.12, 0.11, unresolved_math, ok),
+             fam(15, 0.15, 0.14, lost_math, lost_math)]
+    r = pr.retention(evals)
+    # 15 is ineligible (MATH lost on the selection half); 10 is eligible (unresolved does not
+    # disqualify) and has the larger validation change
+    assert r["selected_iteration"] == 10 and r["class"] == "works" and r["margin"] == 0.03
+    assert r["per_evaluation"][2]["eligible"] is False and r["per_evaluation"][1]["selection"]["MATH"] == "unresolved"
+    assert r["retained_at_selected"]["MATH"]["status"] == "within" and r["retained_within_margin"]
+    # a gain in one family does not cancel a loss in another
+    cancel = {"MATH": (-0.08, 0.01), "ifeval": (0.10, 0.01)}
+    r2 = pr.retention([ev(0, 0, 0, 0), fam(5, 0.12, 0.11, cancel, cancel)])
+    assert r2["class"] == "fails" and r2["selected_iteration"] is None
+    # the old rows without family halves give no selection
+    assert pr.retention([ev(0, 0, 0, 0), ev(5, 0.12, 0.11, 0.0)])["selected_iteration"] is None
+
+
+def test_analysis_splits_the_retained_families_by_half_and_reads_a_prescription(tmp_path):
+    write_prediction(tmp_path / "probe")
+    (tmp_path / "probe" / "prescription.json").write_text(json.dumps({
+        "method": "anchored", "step_multiple": 15.6, "shrink": 0.1, "fallback": False, "unit_norm": 3.3,
+        "P1_learns": "learns", "P2_collapses": "no call", "P3_pace": None, "P4_rl_pace": None}))
+    p = pr.prediction_block(tmp_path / "probe")
+    assert p["step_multiple"] == 15.6 and p["shrink"] == 0.1 and p["call"] == "learns" and p["prescription"]["method"] == "anchored"
+    out = tmp_path / "run"
+    out.mkdir()
+    (out / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/gsm8k", "seed": 0, "step": 15.6, "n": 64, "shrink": 0.1},
+                                              "prediction": p}))
+    P = 600                                   # the off-task block as the Task builds it: both families in each half
+    kinds = ["gsm8k"] * P + ["MATH"] * 150 + ["ifeval"] * 150 + ["MATH"] * 150 + ["ifeval"] * 150
+    block = ["validation"] * 300 + ["test"] * 300 + ["offtask"] * 600
+    evs = []
+    for g in (0, 5):
+        on = [10.0 if i % 300 < 150 + 12 * g else 0.0 for i in range(P)]           # the task gains 0.04 per update
+        math = [10.0 if i < 75 - 2 * g else 0.0 for i in range(150)]                # MATH loses 10 of 150 by update 5
+        ife = [10.0] * 150
+        evs.append({"iteration": g, "rewards": on + math + ife + math + ife, "kinds": kinds, "block": block, "mean_len": 300.0})
+    (out / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n")
+    (out / "log.jsonl").write_text("\n".join(json.dumps({"iteration": g, "fitness": [0.1] * 64, "mean_fitness": 0.1, "sd_fitness": 0.01,
+                                                           "rollouts": 64 * 192, "update_norm": 10.0, "seconds": 300.0}) for g in range(5)) + "\n")
+    a = pr.analyze(out)
+    fh = a["eval"][-1]["by_family_half"]
+    assert set(fh) == {"MATH", "ifeval"} and fh["MATH"]["selection"]["prompts"] == 150 and fh["MATH"]["reserved"]["prompts"] == 150
+    assert abs(fh["ifeval"]["selection"]["change"]) < 1e-9 and fh["MATH"]["selection"]["change"] < 0
+    assert a["retention"]["margin"] == 0.03 and a["retention"]["reserved_half_present"]

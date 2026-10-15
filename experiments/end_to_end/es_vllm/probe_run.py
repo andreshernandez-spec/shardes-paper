@@ -106,10 +106,21 @@ def stream_batches(task, iterations: int, per: int) -> list:
 
 
 def prediction_block(path: Path) -> dict:
-    """What the run is held against, from the probe's prediction.json."""
+    """What the run is held against, from the probe's prediction.json (the first batches'
+    rule) or, when the probe wrote one, its prescription.json (S4b's anchored step and
+    the four predictions), which then sets the step and the shrinkage."""
     p = json.loads((path / "prediction.json").read_text())
     env = json.loads((path / "env.json").read_text())
     u, r = p["update"], p["rule"]
+    if (path / "prescription.json").exists():
+        q = json.loads((path / "prescription.json").read_text())
+        return {"source": str(path.relative_to(E2E)) if path.is_relative_to(E2E) else str(path), "setting": p["setting"],
+                "prescription": q, "call": q["P1_learns"], "step_multiple": q["step_multiple"], "shrink": q["shrink"],
+                "updates_to_target": None, "fitted_net_per_update": None,
+                "G": u["G"] if u else None, "G_se": u["G_se"] if u else None, "C": u["C"] if u else None,
+                "C_se": u["C_se"] if u else None, "G_offtask": u["G_offtask"] if u else None,
+                "unit_norm": q["unit_norm"], "ratio_es_over_rl_rollouts": None,
+                "block_digests": env["block_digests"], "blocks": env["blocks"]}
     if r["es"] is None:
         raise SystemExit(f"{path}: the rule gave no prescription ({r['call']})")
     source = str(path.relative_to(E2E)) if path.is_relative_to(E2E) else str(path)   # no machine paths in records
@@ -138,6 +149,9 @@ def run(args) -> int:
     step = args.step if args.step is not None else (pred["step_multiple"] if pred else None)
     if step is None:
         raise SystemExit("--step or --prediction")
+    if pred and "shrink" in pred and args.shrink is None:
+        args.shrink = pred["shrink"]                     # the prescription's anchor, unless overridden
+    args.shrink = args.shrink or 0.0
     n = 8 if args.smoke else args.members
     chunk = min(CHUNK, n)                                   # adapters per generate call
     out = E2E / args.out
@@ -295,6 +309,51 @@ def observed_class(evals: list) -> dict:
                            "collapse": COLLAPSE}}
 
 
+RETENTION_MARGIN, RETAINED_SELECTION = 0.03, 300   # S4b: the fixed loss margin; the selection half of the off-task block
+
+
+def retention(evals: list, margin: float = RETENTION_MARGIN, half: int = RETAINED_SELECTION) -> dict:
+    """S4b's retention and class (docs/end_to_end/10, "S4b, fresh settings for the verdict:
+    design", choice 4): on each retained task family separately, the paired change against
+    the evaluation at update 0 with its interval; "within" the margin when the interval's
+    lower bound is above -margin, "lost" when its upper bound is below -margin,
+    "unresolved" otherwise. The off-task block's first `half` prompts are the selection
+    half, the rest the reserved half. The checkpoint is the evaluation with the largest
+    validation change among those within the margin on every family of the selection
+    half (unresolved families do not disqualify, and are reported); the class is the
+    reserved test block's change there (works at +0.10, marginal at +0.05); the final
+    retention is read on the reserved half at that checkpoint. Needs the per-prompt
+    changes of each evaluation (`by_family_half` from `analyze`)."""
+    def cls(x):
+        return "works" if x >= CLASS_WORKS else "marginal" if x >= CLASS_MARGINAL else "fails"
+
+    def status(c):
+        lo, hi = c["change"] - 2 * c["change_se"], c["change"] + 2 * c["change_se"]
+        return "within" if lo > -margin else "lost" if hi < -margin else "unresolved"
+
+    sel, best_val, per_eval = None, None, []
+    for r in evals:
+        fam = r.get("by_family_half") or {}
+        if r["iteration"] == 0 or not fam:
+            continue
+        selection = {f: status(c["selection"]) for f, c in fam.items() if c.get("selection")}
+        reserved = {f: status(c["reserved"]) for f, c in fam.items() if c.get("reserved")}
+        ok = all(v != "lost" for v in selection.values())
+        val = r["by_block"].get("validation", {}).get("change", 0.0)
+        per_eval.append({"iteration": r["iteration"], "selection": selection, "reserved": reserved, "eligible": ok})
+        if ok and (best_val is None or val > best_val):
+            sel, best_val = r, val
+    if sel is None:
+        return {"class": "fails", "selected_iteration": None, "test_change_at_selected": None, "retained_at_selected": None,
+                "per_evaluation": per_eval, "margin": margin, "selection_half": half, "reserved_half_present": bool(per_eval and per_eval[0]["reserved"])}
+    fam = sel["by_family_half"]
+    reserved = {f: {**c["reserved"], "status": status(c["reserved"])} for f, c in fam.items() if c.get("reserved")}
+    return {"class": cls(sel["by_block"].get("test", {}).get("change", 0.0)), "selected_iteration": sel["iteration"],
+            "validation_change_at_selected": best_val, "test_change_at_selected": sel["by_block"].get("test", {}).get("change"),
+            "retained_at_selected": reserved, "retained_within_margin": all(v["status"] == "within" for v in reserved.values()) if reserved else None,
+            "per_evaluation": per_eval, "margin": margin, "selection_half": half, "reserved_half_present": bool(reserved)}
+
+
 def loop_seconds_to(evals: list, log: list, block: str = "test", threshold: float = CLASS_WORKS):
     """The first evaluation at or above `threshold` on `block`, with the loop seconds
     (an ES iteration's decode and update, a GRPO step's phases) and the rollouts of the
@@ -396,6 +455,14 @@ def analyze(out: Path) -> dict:
                                 "change": float(d[blocks == b].mean()), "change_se": se(d[blocks == b])}
                             for b in ("validation", "test", "offtask") if (blocks == b).any()},
                "by_task": {t: {"change": float(d[kinds == t].mean()), "change_se": se(d[kinds == t])} for t in sorted(set(kinds))}}
+        # the retained families on the off-task block's selection and reserved halves (S4b)
+        off = np.flatnonzero(blocks == "offtask")
+        if off.size:
+            halves = {"selection": off[:RETAINED_SELECTION], "reserved": off[RETAINED_SELECTION:]}
+            row["by_family_half"] = {str(t): {h: {"change": float(d[i[kinds[i] == t]].mean()), "change_se": se(d[i[kinds[i] == t]]),
+                                                  "prompts": int((kinds[i] == t).sum())}
+                                               for h, i in halves.items() if (kinds[i] == t).any()}
+                                     for t in sorted(set(kinds[off]))}
         if pred:
             # a random ranking has the random cost and no gain (docs/end_to_end/10, S4a arm 2);
             # shrinkage after each update weights update i by (1 - gamma)^(g - i + 1), so the
@@ -415,7 +482,8 @@ def analyze(out: Path) -> dict:
            "seconds_total": sum(r["seconds"] for r in log),
            "fitness": [{"iteration": r["iteration"], "mean": r["mean_fitness"], "sd": r["sd_fitness"],
                         "update_norm": r["update_norm"]} for r in log],
-           "eval": rows, "prediction": pred, "observed": observed_class(rows) if rows else None}
+           "eval": rows, "prediction": pred, "observed": observed_class(rows) if rows else None,
+           "retention": retention(rows) if rows else None}
     if pred and rows:
         last = rows[-1]
         val = last["by_block"].get("validation", {})
@@ -527,8 +595,9 @@ def main(argv=None) -> int:
     ap.add_argument("--prompts", choices=("repeated", "stream"), default="repeated")
     ap.add_argument("--ranking", choices=("real", "random"), default="real",
                     help="random: the fitnesses in a seeded random order, an update of the real norm with no direction")
-    ap.add_argument("--shrink", type=float, default=0.0,
-                    help="after each update, pull the weights this fraction of the way back toward the start")
+    ap.add_argument("--shrink", type=float, default=None,
+                    help="after each update, pull the weights this fraction of the way back toward the start "
+                         "(default: the prescription's, else 0; --shrink 0 is the un-anchored control)")
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/probe-run"))
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)

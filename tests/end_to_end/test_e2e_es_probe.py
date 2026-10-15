@@ -255,7 +255,7 @@ def stub_data(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "es_vllm.run_countdown", cd)
 
 
-@pytest.mark.parametrize("task", ["countdown", "gsm8k", "tulu"])
+@pytest.mark.parametrize("task", ["countdown", "gsm8k", "math", "tulu"])
 def test_larger_blocks_keep_the_default_block_first_and_the_test_block_fixed(task, monkeypatch, tmp_path):
     stub_data(monkeypatch, tmp_path)
     base = probe.Task(task, "chat", False, tmp_path)
@@ -273,9 +273,11 @@ def test_larger_blocks_keep_the_default_block_first_and_the_test_block_fixed(tas
     # the added rows are new: none of them is in any default block
     seen = {probe.digest([r]) for rows in base.blocks.values() for r in rows}
     assert not any(probe.digest([r]) in seen for b in ("validation", "offtask") for r in big.blocks[b][300:])
-    if task == "gsm8k":                                   # the off-task mix is kept, half and half
+    if task in ("gsm8k", "math"):                         # the off-task mix is kept, half and half
         kinds = [r["dataset"] for r in big.blocks["offtask"]]
-        assert kinds.count("MATH") == 300 and kinds.count("ifeval") == 300
+        other = "MATH" if task == "gsm8k" else "gsm8k"
+        assert kinds.count(other) == 300 and kinds.count("ifeval") == 300
+        assert all(r["dataset"] == ("gsm8k" if task == "gsm8k" else "MATH") for b in ("train", "validation", "test") for r in big.blocks[b])
     with pytest.raises(SystemExit):
         probe.Task(task, "chat", False, tmp_path, block=100)
     smoke = probe.Task(task, "chat", True, tmp_path)
@@ -324,6 +326,10 @@ def test_members_offtask_diagnostic_recovers_constructed_effects(tmp_path):
     # slopes' own spread, on each block
     assert abs(d["train_odd_true_sd"] - t.std(ddof=1)) < 0.02 and d["train_odd_noise_sd"] < d["train_odd_sd"]
     assert abs(val["odd_per_pair_true_sd"] - v.std(ddof=1)) < 0.02 and abs(oft["odd_per_pair_true_sd"] - o.std(ddof=1)) < 0.02
+    # the spread ratio, off-task over train, about 0.5 by construction, with its interval
+    sr = d["spread_ratio"]
+    assert not sr["unresolved"] and abs(sr["ratio"] - o.std(ddof=1) / t.std(ddof=1)) < 0.2
+    assert sr["interval_90"][0] < sr["ratio"] < sr["interval_90"][1] and sr["draws_resolved_share"] > 0.9
     # the summary, with and without the record
     pred = {"setting": "x", "level0": {k: None for k in ("live_share", "gradient_sharedness", "curvature_per_length2",
                                                          "rl_first_step_gain", "first_task_damaged_random")},
@@ -369,3 +375,50 @@ def test_rule_curve_reads_the_measured_responses():
         v["by_block"]["offtask"]["even"] = -0.05 * v["lam"]
     assert probe.rule_curve(bad, 0.0061, 192, 64)["call"] == "fails: retained-task loss"
     assert probe.rule_curve({}, 0.0061, 192, 64)["call"].startswith("undetermined: no length")
+
+
+def test_prescription_reads_the_responses_at_the_first_displacement():
+    """S4b's prescription record: the curve rule's step with shrinkage 0.1, the responses
+    interpolated at 0.9 of it, and the four predictions with their resolution rules."""
+    def resp_curve(odd_scale, odd_se, even_se):
+        out = {}
+        for lam in (2.0, 5.0, 12.0, 30.0):
+            odd, even = odd_scale * (1 - np.exp(-lam / 5)), -2e-4 * lam ** 2
+            out[f"{lam * 3.3:.6g}"] = {"lam": lam, "usable_by_block": True, "by_block": {
+                "validation": {"odd": odd, "even": even, "G": odd / lam, "G_se": odd_se / lam, "C": even / lam ** 2, "C_se": even_se / lam ** 2},
+                "offtask": {"odd": 0.0, "even": -1.2e-4 * lam ** 2, "G": 0.0, "G_se": odd_se / lam, "C": -1.2e-4, "C_se": even_se / lam ** 2}}}
+        return out
+    r = resp_curve(0.05, 0.002, 0.002)
+    curve = probe.rule_curve(r, 0.0061, 192, 64)
+    sgn = {"0.3": {"usable": True, "by_block": {"validation": {"slope_along_rl_direction": 0.25, "slope_se": 0.05}}}}
+    pred = {"update": {"responses": r}, "rule_curve": curve, "level1_offtask": None,
+            "level0": {"rl_slope_along_direction": 0.25, "rl_first_step_gain": 0.0061, "sign_direction_responses": sgn}}
+    q = probe.prescribe(pred, {"unit_norm": 3.3, "member_length": 26.4})
+    assert q["method"] == "anchored" and q["shrink"] == 0.1 and not q["fallback"]
+    assert abs(q["step_multiple"] - curve["es"]["step_multiple"]) < 1e-9
+    assert abs(q["first_displacement_multiple"] - 0.9 * q["step_multiple"]) < 1e-9
+    v = q["response_at_first_displacement"]
+    lam = q["first_displacement_multiple"]
+    assert abs(v["odd"] - 0.05 * (1 - np.exp(-lam / 5))) < 0.003 and v["within_scan"]   # piecewise linear
+    assert q["P1_learns"] == "learns" and q["P2_collapses"] == "no call"
+    eff_g, eff_c = 0.9 * (1 - 0.9 ** 5) / 0.1, 0.81 * (1 - 0.9 ** 10) / 0.19
+    assert abs(q["P3_pace"]["predicted_validation_change_after_5"] - (eff_g * v["odd"] + eff_c * v["even"])) < 1e-9
+    assert abs(q["P4_rl_pace"]["predicted_step_to_target"] - 0.1 / 0.0061) < 1e-9
+    # an unresolved RL slope gives no P4; a negative, resolved odd response gives "does not learn"
+    sgn["0.3"]["by_block"]["validation"]["slope_se"] = 0.2
+    assert probe.prescribe(pred, {"unit_norm": 3.3, "member_length": 26.4})["P4_rl_pace"] is None
+    neg = resp_curve(-0.05, 0.002, 0.002)
+    pred_neg = {**pred, "update": {"responses": neg}, "rule_curve": probe.rule_curve(neg, 0.0061, 192, 64)}
+    q_neg = probe.prescribe(pred_neg, {"unit_norm": 3.3, "member_length": 26.4})
+    assert q_neg["fallback"] and abs(q_neg["step_multiple"] - 0.4 * 26.4 / 3.3) < 1e-9 and q_neg["P1_learns"] == "does not learn"
+    noisy = resp_curve(0.05, 0.05, 0.05)
+    q_noisy = probe.prescribe({**pred, "update": {"responses": noisy}, "rule_curve": probe.rule_curve(noisy, 0.0061, 192, 64)},
+                              {"unit_norm": 3.3, "member_length": 26.4})
+    assert q_noisy["P1_learns"] == "undetermined"
+    # P2 from the spread ratio's interval
+    for ratio, call in (({"ratio": 11.8, "interval_90": [5.7, 18.4], "unresolved": False}, "collapses"),
+                        ({"ratio": 0.2, "interval_90": [0.1, 0.3], "unresolved": False}, "holds"),
+                        ({"ratio": 0.3, "interval_90": [0.07, 0.94], "unresolved": False}, "no call"),
+                        ({"ratio": 0.2, "interval_90": [0.1, 0.3], "unresolved": True}, "no call")):
+        assert probe.prescribe({**pred, "level1_offtask": {"spread_ratio": ratio}}, {"unit_norm": 3.3, "member_length": 26.4})["P2_collapses"] == call
+    assert probe.response_at({}, 1.0, "validation") == {}

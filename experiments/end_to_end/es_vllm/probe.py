@@ -17,6 +17,10 @@ in env.json). Rewards stay in the task's units in the records and are normalized
 [0, 1] by the task's maximum in the analysis.
 
 Level 0, nothing ranked:
+Tasks: `countdown` (es-at-scale's problems, off-task GSM8K), `gsm8k` (the Tulu stream's
+GSM8K rows, off-task MATH and IFEval), `math` (its MATH rows, off-task GSM8K and IFEval;
+S4b), `tulu` (the stream itself).
+
 - `sample`: 16 answers per train prompt at temperature 1.0 from the start, scored. The
   live share (prompts whose answers do not all score alike) and its complement, Cho and
   Han's zero-advantage share; the start's greedy reward on every block; answers per
@@ -91,8 +95,10 @@ SIGN_LENGTHS = (0.5, 1.0)                  # Tulu units; scaled by sqrt(d / d_tu
 TULU_D_M = 6_979_321_856                   # runs/lowrank-check/members.json perturbed_params
 RL_LR, RL_ROLLOUTS_PER_STEP = 5e-7, R.TULU31_ROLLOUTS_PER_STEP   # the Tulu run: 0.045 / sqrt(8.03e9)
 G_TARGET, DAMAGE = 0.1, 0.02               # of the reward range
+CLASS_MARGINAL_TARGET = 0.05               # P1 "learns": the reserved block reaches this within 30 updates
 WORKS, MARGINAL, LIVE_MIN = 5.0, 25.0, 0.1  # runs/throughput-bench: 0.255 / 0.048 per answer
 USABLE = 0.2                               # a scan point is usable if neither sign moved more
+SHRINK, FALLBACK_MULT = 0.1, 0.4            # S4b: the anchor, and the fallback step in member lengths
 CAPS = {"countdown": 512, "tulu": 2048}    # es_vllm/countdown-s1.yaml; the Tulu run
 SCALE = {"countdown": 1.1}                 # a row kind's maximum reward; the Tulu verifiers give 10
 
@@ -187,6 +193,16 @@ class Task:
                            "test": gsm[t0:t0 + n_test],
                            "offtask": math[:n_test // 2] + ifeval[:n_test // 2]
                            + math[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2]}
+        elif name == "math":                   # MATH alone, from the stream's rows (S4b setting D)
+            pool = heldout_rows(0, 200)
+            math = [r for r in pool if r["dataset"] == "MATH"]
+            gsm = [r for r in pool if r["dataset"] == "gsm8k"]
+            ifeval = [r for r in pool if r["dataset"] == "ifeval"]
+            v0, t0 = n_train, n_train + n_test
+            self.blocks = {"train": math[:n_train], "validation": math[v0:t0] + math[t0 + n_test:t0 + n_test + extra],
+                           "test": math[t0:t0 + n_test],
+                           "offtask": gsm[:n_test // 2] + ifeval[:n_test // 2]
+                           + gsm[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2]}
         elif name == "tulu":
             self.blocks = {"train": load_prompts(E2E / "data" / "tulu31", 1, P_TRAIN)[0][:n_train],
                            "validation": heldout_rows(120, 160)[:n_val],
@@ -638,7 +654,101 @@ def write_prediction(out: Path, cfg: dict) -> dict:
     pred["setting"] = cfg["name"]
     harness.write_atomic(out / "prediction.json", pred)
     print(json.dumps(pred["rule"], indent=1), flush=True)
+    harness.write_atomic(out / "prescription.json", prescribe(pred, json.loads((out / "steps-meta.json").read_text())))
     return pred
+
+
+def prescribed_step(pred: dict, fallback: float) -> float:
+    """S4b's step in units of the update: the curve rule's, or `fallback` (the smallest
+    scanned multiple, FALLBACK_MULT member lengths) when the curve gives no positive net
+    gain or no feasible step."""
+    es = (pred.get("rule_curve") or {}).get("es")
+    return float(es["step_multiple"]) if es and es.get("feasible") else float(FALLBACK_MULT * fallback)
+
+
+def response_at(resp: dict, lam: float, block: str) -> dict:
+    """The block's odd and even responses (and their standard errors) at a multiple of
+    the unit update, interpolated linearly between the scanned lengths usable on every
+    block, from zero to the first."""
+    pts = sorted(((v["lam"], v["by_block"][block]) for v in resp.values() if v["usable_by_block"] and block in v["by_block"]),
+                 key=lambda x: x[0])
+    if not pts:
+        return {}
+    lams = np.asarray([0.0] + [lam_ for lam_, _ in pts])
+    series = lambda key, scale: np.asarray([0.0] + [b[key] * scale(lam_) for lam_, b in pts])  # noqa: E731
+    at = lambda y: float(np.interp(lam, lams, y))  # noqa: E731
+    return {"odd": at(series("odd", lambda x: 1.0)), "odd_se": at(series("G_se", lambda x: x)),
+            "even": at(series("even", lambda x: 1.0)), "even_se": at(series("C_se", lambda x: x * x)),
+            "within_scan": bool(lam <= lams[-1])}
+
+
+def prescribe(pred: dict, smeta: dict) -> dict:
+    """The frozen prescription record of S4b (docs/end_to_end/10, "S4b, fresh settings for
+    the verdict: design"): the method, the step (the curve rule's or the fallback), the
+    shrinkage, and the four predictions from the probe's responses at the applied step's
+    first displacement, 0.9 of the step.
+
+    P1 learns: the validation odd response at that point positive at two standard errors
+    with the net (odd plus even) positive; does not learn: the odd response negative at
+    two standard errors; undetermined otherwise. P2 collapses (exploratory): the off-task
+    block's per-direction spread over the train block's with its interval over pairs and
+    prompts; collapses when the interval's lower bound is above 1, holds when its upper
+    bound is below a third, no call otherwise or when either spread is unresolved. P3
+    pace: the validation change after five anchored updates, 3.69 times the odd response
+    plus 2.78 times the even one at that point, with the band a quarter to once that. P4
+    RL's pace: the step at which GRPO reaches +0.10 from the sign-direction slope at the
+    shortest usable length, only where that slope is resolved at two standard errors."""
+    from es_vllm.probe_run import effective_updates  # noqa: PLC0415
+
+    u = pred.get("update") or {}
+    unit = smeta.get("unit_norm") or 0.0
+    member_mult = smeta["member_length"] / unit if unit else 0.0
+    lam = prescribed_step(pred, member_mult)
+    fallback = not ((pred.get("rule_curve") or {}).get("es") or {}).get("feasible")
+    first = lam * (1 - SHRINK)
+    resp = u.get("responses") or {}
+    v = response_at(resp, first, "validation") if resp else {}
+    # P1
+    if not v:
+        p1 = "undetermined"
+    elif v["odd"] >= RESOLVED_CALL * v["odd_se"] and v["odd"] + v["even"] > 0:
+        p1 = "learns"
+    elif v["odd"] <= -RESOLVED_CALL * v["odd_se"]:
+        p1 = "does not learn"
+    else:
+        p1 = "undetermined"
+    # P2 (exploratory)
+    lo = pred.get("level1_offtask") or {}
+    ratio = lo.get("spread_ratio") or {}
+    if not ratio or ratio.get("unresolved"):
+        p2 = "no call"
+    elif ratio["interval_90"][0] > 1.0:
+        p2 = "collapses"
+    elif ratio["interval_90"][1] < 1.0 / 3.0:
+        p2 = "holds"
+    else:
+        p2 = "no call"
+    # P3
+    eff_g, eff_c = effective_updates(5, SHRINK)
+    p3 = {"predicted_validation_change_after_5": eff_g * v["odd"] + eff_c * v["even"],
+          "band": [0.25 * (eff_g * v["odd"] + eff_c * v["even"]), eff_g * v["odd"] + eff_c * v["even"]]} if v else None
+    # P4
+    l0 = pred.get("level0") or {}
+    slope, slope_se = l0.get("rl_slope_along_direction"), None
+    sgn = l0.get("sign_direction_responses") or {}
+    if sgn:
+        used = [L for L, x in sgn.items() if x["usable"]] or list(sgn)
+        slope_se = sgn[min(used, key=float)]["by_block"]["validation"].get("slope_se")
+    rl_gain = l0.get("rl_first_step_gain") or 0.0
+    if slope is not None and slope_se and slope >= RESOLVED_CALL * slope_se and rl_gain > 0:
+        p4 = {"predicted_step_to_target": G_TARGET / rl_gain, "band": [0.5 * G_TARGET / rl_gain, 2 * G_TARGET / rl_gain]}
+    else:
+        p4 = None
+    return {"method": "anchored", "step_multiple": lam, "shrink": SHRINK, "fallback": bool(fallback),
+            "first_displacement_multiple": first, "unit_norm": unit, "response_at_first_displacement": v,
+            "P1_learns": p1, "P2_collapses": p2, "P2_spread_ratio": ratio or None, "P3_pace": p3, "P4_rl_pace": p4,
+            "constants": {"resolved_se": RESOLVED_CALL, "learns_at": CLASS_MARGINAL_TARGET, "anchored_updates_for_P3": [eff_g, eff_c]},
+            "date": "2026-10-15"}
 
 
 def phase_steps(args, cfg, task) -> None:
@@ -704,12 +814,14 @@ def phase_steps(args, cfg, task) -> None:
         for sign in (1, -1):
             point(member_len * mult, sign)
         mult *= 2
-    # the prescribed step, evaluated directly (rule_net's, from the points so far)
+    # the prescribed steps, evaluated directly from the points so far: rule_net's (the
+    # first batches) and the anchored prescription's first displacement (S4b: the curve
+    # rule's step, or the fallback, after the pull-back)
     harness.write_atomic(out / "steps-meta.json", {"unit_norm": unit, "member_length": member_len,
                                                    "perturbed_params": d_m, "n": n})
-    pre = (predict(out).get("rule_net") or {}).get("es")
-    if pre:
-        L = pre["step_multiple"] * unit
+    pred = predict(out)
+    for L in [x["step_multiple"] * unit for x in ((pred.get("rule_net") or {}).get("es"),) if x] + \
+             [prescribed_step(pred, member_len / unit) * (1 - SHRINK) * unit]:
         if all(abs(p["length"] - L) > 0.1 * L for p in lines(log) if p["sign"] != 0):
             for sign in (1, -1):
                 point(L, sign)
@@ -1110,6 +1222,27 @@ def level1_offtask(mem: dict, off: dict, start_train: np.ndarray, draws=1000) ->
             "top4_pairs_share_of_G": float(np.sum(coef[top] * odd[top]) / np.sum(coef * odd)) if np.sum(coef * odd) != 0 else None,
             "mean_len": float(np.mean([m[b] for m in off["mean_len"]])), "start_mean_len": off["start_mean_len"][b]}
     v, o = out["by_block"].get("validation"), out["by_block"].get("offtask")
+    if o:
+        # the off-task spread over the train spread, both with their sampling part removed,
+        # with a 90% interval from a bootstrap over the pairs and the prompts of both blocks
+        sel = blocks == "offtask"
+        noise_off = o["odd_per_pair_noise_sd"] ** 2
+        ratios = []
+        for _ in range(draws):
+            j = rng.choice(n // 2, n // 2)                               # the same pairs on both blocks
+            ti = rng.choice(fit.shape[1], fit.shape[1])
+            ft = fit[:, ti].mean(1)
+            t_odd = ((ft[0::2] - ft[1::2]) / 2)[j]
+            o_odd = per_pair(R, start, rng.choice(np.flatnonzero(sel), int(sel.sum())))[0][j]
+            tv = max(t_odd.var(ddof=1) - train_noise, 0.0)
+            ov = max(o_odd.var(ddof=1) - noise_off, 0.0)
+            ratios.append(np.sqrt(ov / tv) if tv > 0 else np.inf)
+        ratios = np.asarray(ratios)
+        finite = ratios[np.isfinite(ratios)]
+        unresolved = bool(out["train_odd_true_sd"] == 0.0 or o["odd_per_pair_true_sd"] == 0.0 or finite.size < 0.9 * draws)
+        out["spread_ratio"] = {"ratio": float(o["odd_per_pair_true_sd"] / out["train_odd_true_sd"]) if out["train_odd_true_sd"] > 0 else None,
+                               "interval_90": [float(np.percentile(finite, 5)), float(np.percentile(finite, 95))] if finite.size else None,
+                               "unresolved": unresolved, "draws_resolved_share": float(finite.size / draws)}
     if v and o:
         out["validation_offtask_odd_correlation"] = corr(*(per_pair(R, start, blocks == b)[0] for b in ("validation", "offtask")))
         g_v, g_o = v["G_from_members"], o["G_from_members"]
