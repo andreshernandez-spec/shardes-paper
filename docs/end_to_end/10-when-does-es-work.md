@@ -539,6 +539,51 @@ arms, or an unresolved one with a "direction" verdict, leaves it a description o
 members and not a predictor. Expectation 1 failing on the odd response means the
 level-1 numbers are draws, and the rule needs populations, not one.
 
+#### The second probe's results (2026-10-15, `runs/probe2/README.md`)
+
+Six settings, 5.6 hours on the S4a pod, about $30. Expectation 1 held at a matched
+length on six of six settings (the level-1 odd response replicates across populations
+where it is read at the same length; where the rule reads it, at the longest usable
+length, two settings miss because their second scan ran into the saturated part of the
+curve, item 10), and the members' decomposition agrees with the scan at the small-step
+end of its curve. Expectation 2 failed: the extended scans resolve the random cost on
+the GSM8K settings, where the odd response is now absent (0.5B, 1.5B and 7B at
+reliability 0 on this population, within noise at every length; 3B GSM8K's negative,
+−0.022 ± 0.009 at 37.5 units, so it is called "fails: no odd response"), and not on the
+Countdown settings, where one update's cost on the validation block stays within two
+standard errors of zero at 600 prompts (−0.023 ± 0.012 on instruct at 35 units; +0.015
+± 0.009, a gain, on base at 17). Nothing moved from undetermined to a call except 3B
+GSM8K. The first probe's GSM8K odd responses (0.0013 to 0.0017 per unit on 0.5B, 1.5B
+and 7B) were draws at the high end: the training runs on 0.5B found no held-out gain,
+and this population finds none at one update. RL's slope replicates within two standard
+errors on every setting. The level-0 test fails again (Spearman 0.43).
+
+Expectation 3 held for the instruct model (the train-versus-GSM8K correlation across
+pairs 0.19, 90% −0.07 to 0.43) and failed for the base model (−0.05, −0.29 to 0.22,
+not the resolved negative value expected): neither population's ranking carries GSM8K
+damage, and the base model's first-probe "destructive direction" (−0.017 per unit) was
+the seed-0 update's own random part (that update lowered GSM8K by 0.07, 0.18 and 0.29 at
+2.7, 6.8 and 17 units; the seed-1 update by −0.03, 0.00 and +0.02). The diagnostic's
+correlation is not a predictor of the collapse. What the decodes do give, read after
+the fact and on two settings: the spread across directions of a random rank-1
+perturbation's effect on the off-task block, with the sampling part removed, is 0.091 of
+the range on the base model (twelve times its effect on the train block) and 0.003 on
+the instruct model (a third). That is the random walk's lever on each checkpoint,
+measured at the start with nothing ranked, and it agrees with S4a's verdict and with
+the runs (the base model lost GSM8K at step 3.0, the instruct model did not). It enters
+S4b's preregistration as a candidate predictor to test prospectively: an off-task block
+whose per-direction spread exceeds the task's is predicted to collapse at the task's
+prescribed step, and one below a third of it to hold.
+
+The second half's own conclusion for the rule: with 64 members and 600 prompts, a
+one-update probe resolves the odd response where it is large (Countdown) and the random
+cost where it is large (GSM8K), never both on one setting, and never the net gain at
+its two-standard-error worst (the exploratory curve rule calls one setting, the base
+model, from a first-update response the run did not sustain). A call at two standard
+errors needs either more rollouts in the probe than the rule allowed itself or a
+different quantity: the response curve read at the step a run would take, and the
+off-task block's per-direction spread for the collapse.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
