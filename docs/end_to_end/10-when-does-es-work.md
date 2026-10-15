@@ -483,9 +483,12 @@ on both GRPO arms. Compute to the target against the reference arm, from the loo
 
 Two corrections for what follows. The frozen class's retained-block bound of −0.02 is
 below the off-task block's standard error (0.021), so it fails the 256-member and
-shrinkage arms on readings between −0.03 and −0.07 that are within two standard errors
-of the start; the S4a classes stand as frozen, and S4b's preregistration states the bound
-in standard errors of the block it is read on (two) or reads it on a 600-prompt block.
+shrinkage arms on readings between −0.03 and −0.07; those readings are not within two
+standard errors of the start either (the shrinkage arm's −0.067 at 25 is 3.6 paired
+standard errors below it, the 256-member arm's −0.053 at 10 is 3.1), so what the two arms
+show is a loss held within 0.07 while the un-anchored runs lost everything, a trade-off,
+not retention. The S4a classes stand as frozen; S4b separates the acceptable loss (a
+fixed margin) from the measurement's precision (a paired interval), see its design.
 And the rule's retained-block bound, derived from the even response of one update, is
 not what limits a run: the random part's accumulated damage is, which the shrinkage,
 step and member count control; a prescription has to carry one of them, and the second
@@ -584,89 +587,100 @@ errors needs either more rollouts in the probe than the rule allowed itself or a
 different quantity: the response curve read at the step a run would take, and the
 off-task block's per-direction spread for the collapse.
 
-## S4b, fresh settings for the verdict: design for review (2026-10-15, nothing run)
+## S4b, fresh settings for the verdict: design (2026-10-15, decided after review; nothing run)
 
-The stage's purpose is unchanged from the map: the prospective test, on settings not
-yet probed, of what the probe predicts. What S4a and the second probe changed is what
-the probe can predict and what a prescription has to carry. The choices below are open;
-each has a recommended default, marked, so the whole stage can be approved or amended
-from this section. Nothing here is preregistered until the choices are made and the
-settings' prediction records are written before their runs, as in S3a and S3b.
+The stage is the prospective test of anchored ES and of the candidate predictors on
+settings not yet probed. It is not a validation of the rollout-efficiency rule, whose
+call is reported and not gated. The five choices were laid out with recommended defaults
+on 2026-10-15 and reviewed by Andres the same day; his decisions are the design below,
+with the earlier option noted where it was changed. Nothing is preregistered until the
+settings' prescription records are written before their runs.
 
-**Choice 1: what the prescription carries.** The rule's step from the quadratic fit
-(`rule_net`, 15 to 20 units on the Countdown settings) collapsed every run that took
-it; S4a found three ways out.
+**1. Prescription.** The anchored curve-selected step: the curve rule's step `λ` (the
+fewest updates to the net target on the interpolated responses) with shrinkage 0.1
+after every update, on every setting. The anchor control, on A: a second arm at the same
+step and seed with shrinkage 0, so the pair varies the anchor alone (the earlier
+proposal, a small un-anchored step against the anchored large one, varied the step and
+the anchor together; the small step stays an optional third policy and is not run in
+this batch). The fallback, frozen now: a setting whose curve gives no positive net gain
+or no feasible step runs at the smallest scanned multiple (0.4 member lengths, about 2.8
+units) with shrinkage 0.1, so that its prediction, "does not learn" or "undetermined",
+is tested at a defined step. The applied update of `λ` followed by the pull-back leaves a
+first displacement of 0.9 `λ`; that is the point the probe measures (choice 5).
 
-| option | the step | evidence | cost against the default |
+**2. Predictions.** Four, from the probe's record, written before the run.
+
+| prediction | from | the call | scored as |
 |---|---|---|---|
-| S1 small step, no anchor | the smallest scanned multiple at which the validation odd response is resolved at two standard errors (2.8 units on 3B instruct Countdown, 2.75 on base) | the step-3.0 arm learned to +0.185 and kept GSM8K; the base model at 3.0 still lost GSM8K (`runs/probe-run/`) | none |
-| S2 anchored, recommended | the exploratory curve rule's step (the fewest updates to the net target on the interpolated responses: 17 units on both Countdown settings) with shrinkage 0.1 after every update | the shrinkage arm: GSM8K within −0.07 at the full step, +0.235 on the reserved block, 1.15 times GRPO's loop seconds; the anchor also bounds drift the probe cannot see | none |
-| S3 both, one arm each | S1 and S2 on every setting | separates the step from the anchor on every setting | about +$60 (one more ES run per setting) |
+| P1 learns | the odd and even responses at the applied step's first displacement (0.9 `λ`) | learns: the odd response positive at two standard errors and the net (odd plus even) positive; does not learn: the odd response negative at two standard errors; undetermined otherwise | learns: the reserved block reaches +0.05 within 30 updates; does not: it stays under; undetermined: reported, not scored |
+| P2 collapses (exploratory) | the off-task block's per-direction spread over the train block's, both noise-removed, with the ratio's interval from a bootstrap over pairs and prompts | collapses: the interval's lower bound above 1; holds: its upper bound below a third; abstain when either spread is unresolved or the interval straddles a threshold | reported with its coverage (settings with a call) and accuracy, separately from the gate: a new, method-dependent hypothesis whose thresholds came from un-anchored runs, tested here under the anchored policy (the instruct ratio 0.30 sits at the cutoff, and that model collapsed un-anchored at the large step despite it) |
+| P3 pace | the responses at 0.9 `λ` with the anchor's geometric weights (`probe_run.effective_updates`: five anchored updates retain 3.69 updates' worth of first-order gain and 2.78 of the random part's variance) | the validation change after five updates: 3.69 odd + 2.78 even | within a quarter to once the prediction (S4a's anchored arm: observed +0.082 against +0.108; the un-anchored arms 0.4 to 0.6 of theirs) |
+| P4 RL's pace | the sign-direction slope at the shortest usable length, where it is resolved at two standard errors (else no prediction) | GRPO reaches +0.10 on the reserved block at 0.1 over the first-step gain | within a factor of two of the predicted step; a target predicted within 20 steps and not reached by 40 is a miss, one predicted beyond 20 and not reached is undetermined; one count per setting (seeds and learning-rate arms are not counts); the denominator is the settings with a prediction |
 
-Recommendation: S2 on every setting, and S1 as well on the cheapest setting (1.5B
-instruct Countdown, about +$8), so that the stage has one check of whether the anchor
-is needed where the off-task spread is small. The curve rule's step part is frozen by
-this choice; its call part (undetermined on every setting at this probe size) is dropped
-in favour of choice 2. GRPO's beta-0 arm showed the anchor is not what GRPO's own
-retention rests on, so giving ES one is a stated method choice, not a handicap removed.
+Gates: P1 and P4 are gated, right on every setting with a call (A counted once); P2 and
+P3 are reported. The stage reports measured cost, learning and retention on every
+setting whether the predictors succeed or fail. Success on P1 supports the behavioural
+prediction under the frozen training policy and does not establish the rollout-
+efficiency rule. The decision on S4c is taken on these results and is not conditioned
+on P2; three fresh settings are a prospective pilot, and a broader verdict needs more
+independent settings.
 
-**Choice 2: what is predicted, and from what.** The rule's call (works, marginal,
-fails from the ratio of rollouts) could not be made at two standard errors on any of the
-six settings in either probe, so it is reported and not gated. Four predictions can be
-made from a probe at this size and are the stage's test:
+**3. Settings.** The first batch is A, C and D: the cheap Countdown setting, an
+instruction-following task and a reasoning task, with replication on A.
 
-| prediction | from | the call | holds if |
-|---|---|---|---|
-| P1 learns | the validation odd response at the chosen step, resolved at two standard errors or not | learns: the reserved block reaches +0.05 within 30 updates; does not: it stays under | the call is right on the setting |
-| P2 collapses | the off-task block's per-direction spread over the train block's (noise removed; the two Countdown settings gave 11.8 and 0.30) | above 1: the block falls below −0.20 within 30 updates at the prescription; below a third: it stays within two standard errors of its start; between: no call | right on every setting where a call is made (at least three of the settings should give one) |
-| P3 how fast | the odd response at the chosen step, times five | the validation gain over the first five updates is between a quarter and once that (S4a's arms: 0.4 to 0.6) | within the band on every setting that learns |
-| P4 RL's pace | the sign-direction slope at the shortest usable length (the preregistered reading) | GRPO reaches +0.10 on the reserved block within a factor of two of the predicted step | right on three of four settings (three of three so far) |
+| setting | arms | about |
+|---|---|---|
+| A. 1.5B instruct Countdown | the probe twice (populations 1 and 0); anchored ES at seeds 0 and 1; the un-anchored control at seed 0; GRPO | $40 |
+| C. 3B instruct, one IFEval constraint type | the probe; anchored ES; GRPO | $29 and the Task branch |
+| D. 3B instruct, MATH alone | the probe; anchored ES; GRPO | $29 and the Task branch |
 
-The stage sustains the rule, and S4c goes ahead, if P1 and P2 hold; P3 and P4 calibrate
-the sizes. The off-task spread is a candidate from two settings and this is its first
-prospective test; if it fails, the collapse has no local predictor in this program.
+About $100, about $130 with setup and polling. C's constraint type is chosen before any
+learning signal is inspected, by the count of unique examples: at least 1,092 rows of
+the type in the stream (192 train, 600 validation, 300 test). Deferred until their
+feasibility is specified: B (7B instruct Countdown: the GRPO driver's f32 policy, its
+gradients and Adam states, the bf16 reference and vLLM's share do not fit one H200, so
+it needs a memory plan, such as a bf16 policy with an f32 master off the GPU or 8-bit
+optimizer states, and revised timings before a cost can be quoted) and E (the Countdown
+stream control: the source has 200 unique training problems and 30 fresh batches need
+5,760, so it needs a generator with difficulty controls and disjointness checks against
+every block, and GRPO on the same stream, before it is a control at all). F (Tulu 8B
+Countdown) stays with S4c and is a transfer experiment, Tulu DPO not being Qiu et al.'s
+start.
 
-**Choice 3: the settings.** Ranked by what each adds; costs by uptime on one H200 at
-$5.29/h (a probe at 600 prompts with the off-task decodes, one ES run of 30 updates with
-the anchor, one GRPO arm of 40 steps).
+**4. Retention.** A fixed margin of 0.03 of the normalized reward, the practical limit
+of acceptable loss, assessed on each retained task family separately (GSM8K, MATH and
+IFEval, each where it is a retained block, so that a gain in one cannot cancel a loss in
+another) with the paired confidence interval of the change (the per-prompt change
+against the evaluation at update 0, as `probe_run.analyze` computes it): within the
+margin if the interval's lower bound is above −0.03, lost if its upper bound is below
+−0.03, unresolved otherwise. Precision decides whether a reading is resolved, not how
+much loss is acceptable. The checkpoint is selected on the validation block among
+evaluations within the margin on the retained-task validation half (the first 300
+off-task prompts, the first probe's block); the final retention assessment uses the
+reserved second half (the 300 prompts the second probe's design added), which selection
+never touches. Historical classes are unchanged. The S4a text that said the anchored
+arms kept GSM8K "within two standard errors" was wrong: the shrinkage arm's losses at
+15, 20 and 25 (−0.063, −0.057, −0.067) are 3.2 to 3.7 paired standard errors below the
+start and the 256-member arm's −0.053 at 10 is 3.1; those arms kept GSM8K within 0.07,
+a trade-off, not retention within the margin (corrected in the S4a results above).
 
-| setting | what it adds | predicted in advance (to be replaced by the probe's record) | about |
-|---|---|---|---|
-| A. 1.5B instruct Countdown | a small model on the task with signal; P2 at a third checkpoint; the S1 control | learns; spread unknown | $18, +$8 with S1 |
-| B. 7B instruct Countdown | the size axis on the task with signal | learns; a robust checkpoint, spread below a third | $55 |
-| C. 3B instruct, one IFEval constraint type | a second task family with structured reward, off-task GSM8K and MATH | the first task family with signal beyond Countdown, if any | $29 and the Task branch |
-| D. 3B instruct, MATH alone | the reasoning family where the Tulu runs lost most, off-task GSM8K and IFEval | does not learn at 64 members (no odd response, as the GSM8K family) | $29 and the Task branch |
-| E. 3B instruct Countdown, prompt stream | the repeated-against-stream control (corrections item 7), no probe or GRPO arm needed | learns more slowly, keeps GSM8K longer | $14 |
-| F. Tulu 8B Countdown with its own GRPO arm | the literature's checkpoint on this task | learns (the first probe's margin 6 to 29) | $65 |
+**5. Probe.** As the second probe (600 prompts, the population of seed 1, the scans
+extended until resolved, the members decoding the off-task block on every setting),
+with three additions: the steps scan evaluates the applied step's first displacement,
+±0.9 `λ`, as a direct point; the noise-removed spreads carry an interval from a bootstrap
+over both pairs and prompts, and an unresolved corrected variance is reported as such;
+and A is probed with a second population (seed 0). The prescription is a frozen record
+per setting, `prescription.json`, holding the method, the step, the shrinkage, whether
+the fallback was used, and P1 to P4 with their values, written before the run and
+stamped into the run's record; `probe_run` reads it (today's loader reads the legacy
+`rule` block and has to change).
 
-Recommendation: A, B, C, D and E, about $145 plus a fifth for setup and polling, about
-$175; F moves to S4c, whose question (Qiu et al.'s comparison) it serves directly, and
-is not run twice. Two seeds on A only (the decisions list: two seeds for the cheap
-settings). C and D need a `Task` branch each (train, validation and test blocks from
-the Tulu stream's rows of that dataset, the first 192, 600 and 300 after the probe's
-ordering; off-task from the other two families as now), about a day of work without a
-GPU, with the block digests recorded before any run.
-
-**Choice 4: the bound and the classes.** The runs evaluate on the second probe's blocks
-(600 validation and off-task prompts, 300 reserved test), so the off-task standard error
-is 0.015 and the retained bound is two standard errors, −0.03; the frozen class keeps
-its structure (the checkpoint selected on the validation block among evaluations within
-the bound, the class from the reserved block there: works at +0.10, marginal at +0.05)
-with that bound. The S3b and S4a classes are not recomputed.
-
-**Choice 5: what the probe measures.** As the second probe: every phase at 600 prompts
-with the member population of seed 1, the scans extended until resolved, the members
-decoding the off-task block on every setting (the spread needs it; about 50 minutes per
-setting on 3B), and the prediction record written before the run. The GSM8K family
-settings of the first two probes are not run: at 64 members on 600 prompts they have no
-odd response, and P1 calls them "does not learn", which the 0.5B runs already showed.
-
-**Order and gates within the stage.** The Task branches and the block digests first;
-then the five probes in one pod session with their records committed; then the ES arms
-and GRPO arms in a second session, each run's record stamping the prediction it is held
-against. If the probes of C and D both show no odd response, their ES runs are kept (P1
-is a prediction either way) and their GRPO arms are kept (P4). A setting whose probe
-fails a phase is dropped from the stage with the failure recorded, not replaced.
+Implementation before any run, about two days without a GPU: the two Task branches with
+their block digests; the prescription record and its loader; the ±0.9 `λ` point in the
+steps phase; the spread's interval; per-family retention with the paired interval and
+the two off-task halves in the class; the un-anchored arm's naming. Then the probes (A
+twice, C, D) in one pod session with their records committed, then the ES and GRPO arms
+in a second session.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 

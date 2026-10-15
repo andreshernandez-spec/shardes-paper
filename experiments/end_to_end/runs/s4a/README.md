@@ -174,7 +174,7 @@ updates.
 | qwen3b-countdown-step3-s0 | 15 | 4,719 | 184,320 | -0.040 | no | 15 | 1,376 | 11,520 | -0.017 | 3.43 | 16.00 |
 
 "retained" is the −0.02 bound again; every crossing here had GSM8K between −0.03 and
-−0.04, within two standard errors of its start. The GRPO seed-1 arm crossed at step 20
+−0.04 (1.8 to 2.6 paired standard errors below its start). The GRPO seed-1 arm crossed at step 20
 (1,700 loop seconds, 15,360 rollouts), so against that seed the ratios are 0.93 to 3.5
 in seconds.
 
@@ -206,7 +206,9 @@ Against the preregistration's predictions:
    step before collapsing. The random cost at 256 members, a quarter of the 64-member
    one, keeps GSM8K; it does not raise the ceiling.
 4. **Shrinkage 0.1.** GSM8K held between −0.03 and −0.07 for all 30 updates (the same
-   step without the anchor: 0.000 by 25), the accumulated-drift branch. The gain did not
+   step without the anchor: 0.000 by 25), the accumulated-drift branch; the losses at
+   15, 20 and 25 are 3.2 to 3.7 paired standard errors below the start, a loss kept
+   small rather than no loss. The gain did not
    saturate near +0.15 as written: +0.235 on the reserved block at 25, the largest of the
    program (GRPO at the doubled learning rate: +0.213 at 40), then +0.154 at 30 after a
    dip in the members' fitness at update 28. The anchored first-order model gives +0.27
