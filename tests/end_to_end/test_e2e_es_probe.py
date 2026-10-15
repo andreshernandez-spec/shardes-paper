@@ -320,6 +320,10 @@ def test_members_offtask_diagnostic_recovers_constructed_effects(tmp_path):
     assert abs(oft["even_mean"] + 0.03) < 3 * oft["even_se"] + 0.005 and abs(val["even_mean"]) < 3 * val["even_se"] + 0.005
     assert d["validation_offtask_odd_correlation"] < -0.4
     assert 0 < val["top4_pairs_share_of_G"] < 1
+    # the spread of the pairs' effects with the sampling part removed: the constructed
+    # slopes' own spread, on each block
+    assert abs(d["train_odd_true_sd"] - t.std(ddof=1)) < 0.02 and d["train_odd_noise_sd"] < d["train_odd_sd"]
+    assert abs(val["odd_per_pair_true_sd"] - v.std(ddof=1)) < 0.02 and abs(oft["odd_per_pair_true_sd"] - o.std(ddof=1)) < 0.02
     # the summary, with and without the record
     pred = {"setting": "x", "level0": {k: None for k in ("live_share", "gradient_sharedness", "curvature_per_length2",
                                                          "rl_first_step_gain", "first_task_damaged_random")},

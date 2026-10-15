@@ -1063,6 +1063,11 @@ def level1_offtask(mem: dict, off: dict, start_train: np.ndarray, draws=1000) ->
     train_even = (f[0::2] + f[1::2]) / 2 - start_train.mean()
     sigma = mem["sigma"]
     rng = np.random.default_rng(0)
+    # the spread of the pairs' odd effects has a sampling part: the bootstrap over prompts
+    # gives each pair's noise, and the true spread is what is left
+    boot_train = np.asarray([((fit[:, i].mean(1))[0::2] - (fit[:, i].mean(1))[1::2]) / 2
+                             for i in (rng.choice(fit.shape[1], fit.shape[1]) for _ in range(draws))])
+    train_noise = float(np.mean(boot_train.var(axis=0, ddof=1)))
 
     def per_pair(R_, start_, sel):
         D = R_[:, sel].mean(1) - start_[sel].mean()                   # each member's change on the block
@@ -1075,23 +1080,28 @@ def level1_offtask(mem: dict, off: dict, start_train: np.ndarray, draws=1000) ->
         return float(np.corrcoef(a, b)[0, 1]) if a.std() > 0 and b.std() > 0 else None
 
     out = {"n": n, "pairs": n // 2, "sigma": sigma, "prompts": {b: int((blocks == b).sum()) for b in sorted(set(blocks))},
-           "train_odd_sd": float(train_odd.std(ddof=1)), "train_even_mean": float(train_even.mean()),
+           "train_odd_sd": float(train_odd.std(ddof=1)), "train_odd_noise_sd": float(np.sqrt(train_noise)),
+           "train_odd_true_sd": float(np.sqrt(max(train_odd.var(ddof=1) - train_noise, 0.0))),
+           "train_even_mean": float(train_even.mean()),
            "coefficient_norm": float(np.linalg.norm(coef)), "by_block": {}}
     for b in sorted(set(blocks)):
         sel = blocks == b
         odd, even = per_pair(R, start, sel)
-        boot_g, boot_c, boot_e = [], [], []
+        boot_g, boot_c, boot_e, boot_o = [], [], [], []
         for _ in range(draws):
             i = rng.choice(np.flatnonzero(sel), int(sel.sum()))
             o_, e_ = per_pair(R, start, i)
             boot_g.append(along_update(o_))
             boot_c.append(corr(train_odd, o_))
             boot_e.append(float(e_.mean()))
+            boot_o.append(o_)
+        noise = float(np.mean(np.asarray(boot_o).var(axis=0, ddof=1)))
         pairs_c = [corr(train_odd[j], odd[j]) for j in (rng.choice(n // 2, n // 2) for _ in range(draws))]
         pairs_c = [c for c in pairs_c if c is not None]
         top = np.argsort(-np.abs(coef))[:4]
         out["by_block"][b] = {
-            "odd_per_pair_sd": float(odd.std(ddof=1)), "even_mean": float(even.mean()),
+            "odd_per_pair_sd": float(odd.std(ddof=1)), "odd_per_pair_noise_sd": float(np.sqrt(noise)),
+            "odd_per_pair_true_sd": float(np.sqrt(max(odd.var(ddof=1) - noise, 0.0))), "even_mean": float(even.mean()),
             "even_se": float(np.std(boot_e, ddof=1)),
             "G_from_members": along_update(odd), "G_from_members_se": float(np.std(boot_g, ddof=1)),
             "correlation_with_train_odd": corr(train_odd, odd),

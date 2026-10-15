@@ -166,7 +166,9 @@ def against(root: Path, other: Path) -> list:
     return out
 
 
-OFFTASK = (("setting", "setting"), ("block", "block"), ("G_members", "G from the members"), ("G_direct", "G from the steps scan"),
+OFFTASK = (("setting", "setting"), ("block", "block"), ("odd_sd", "odd effect per direction, SD (noise removed)"),
+           ("odd_sd_ratio", "over the train block's"),
+           ("G_members", "G from the members"), ("G_direct", "G from the steps scan"),
            ("corr", "corr. with the train odd effect"), ("corr90", "90% over pairs"), ("even", "even part at the member length"),
            ("per_gain", "off-task change per unit gain, members / direct"), ("at_target", "at the target gain, members / direct"))
 
@@ -190,6 +192,9 @@ def offtask(root: Path) -> list:
             pg = lo.get("offtask_change_per_unit_gain")
             dg = (u["G_offtask"] / u["G"]) if u.get("G_offtask") is not None and u.get("G") else None
             out.append({"setting": p.parent.name, "block": b,
+                        "odd_sd": v.get("odd_per_pair_true_sd"),
+                        "odd_sd_ratio": v["odd_per_pair_true_sd"] / lo["train_odd_true_sd"]
+                        if v.get("odd_per_pair_true_sd") is not None and lo.get("train_odd_true_sd") else None,
                         "G_members": f"{v['G_from_members']:.3g} ± {v['G_from_members_se']:.2g}",
                         "G_direct": f"{d['G']:.3g} ± {d['G_se']:.2g}" if d else None,
                         "corr": v.get("correlation_with_train_odd"),

@@ -82,11 +82,11 @@ def test_against_compares_the_measured_inputs_within_two_standard_errors(tmp_pat
 
 
 def test_offtask_table_puts_the_members_beside_the_scan(tmp_path):
-    lo = {"n": 64, "pairs": 32, "sigma": 5e-4, "prompts": {"validation": 600, "offtask": 600},
+    lo = {"n": 64, "pairs": 32, "sigma": 5e-4, "prompts": {"validation": 600, "offtask": 600}, "train_odd_sd": 0.012, "train_odd_true_sd": 0.01,
           "by_block": {"validation": {"G_from_members": 0.0021, "G_from_members_se": 0.0006, "correlation_with_train_odd": 0.4,
-                                      "correlation_90_pairs": [0.1, 0.6], "even_mean": -0.01, "even_se": 0.004},
+                                      "correlation_90_pairs": [0.1, 0.6], "even_mean": -0.01, "even_se": 0.004, "odd_per_pair_sd": 0.009, "odd_per_pair_true_sd": 0.008},
                        "offtask": {"G_from_members": -0.0008, "G_from_members_se": 0.0005, "correlation_with_train_odd": -0.2,
-                                   "correlation_90_pairs": [-0.45, 0.05], "even_mean": -0.004, "even_se": 0.003}},
+                                   "correlation_90_pairs": [-0.45, 0.05], "even_mean": -0.004, "even_se": 0.003, "odd_per_pair_sd": 0.091, "odd_per_pair_true_sd": 0.09}},
           "offtask_change_per_unit_gain": -0.381, "offtask_change_at_target": -0.0381, "validation_resolved": True}
     (tmp_path / "qwen3b-countdown").mkdir()
     (tmp_path / "qwen3b-countdown" / "prediction.json").write_text(json.dumps(full_prediction(0.0023, 0.0004, -4.7e-5, 1.5e-5, 0.23, 0.06, "works", lo)))
@@ -96,6 +96,7 @@ def test_offtask_table_puts_the_members_beside_the_scan(tmp_path):
     assert [(r["setting"], r["block"]) for r in rows] == [("qwen3b-countdown", "offtask"), ("qwen3b-countdown", "validation")]
     assert rows[0]["G_members"] == "-0.0008 ± 0.0005" and rows[0]["G_direct"] == "-0.0005 ± 0.0004"
     assert rows[0]["corr90"] == "-0.45 to 0.05" and rows[0]["per_gain"].startswith("-0.381 / -0.217")
+    assert rows[0]["odd_sd"] == 0.09 and abs(rows[0]["odd_sd_ratio"] - 9.0) < 1e-9 and abs(rows[1]["odd_sd_ratio"] - 0.8) < 1e-9
     assert rows[1]["per_gain"] is None and rows[1]["G_direct"] == "0.0023 ± 0.0004"
     t = pt.table(rows, pt.OFFTASK).splitlines()
     assert len(t) == 4 and t[0].startswith("| setting | block |")
