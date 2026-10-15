@@ -107,11 +107,26 @@ def measured(pred: dict) -> dict:
     return {"G": v.get("G", u.get("G")), "G_se": v.get("G_se", u.get("G_se")), "C": v.get("C"), "C_se": v.get("C_se"),
             "rl_slope": rl.get("slope_along_rl_direction"), "rl_slope_se": rl.get("slope_se"),
             "length_used": n.get("length_used"), "lam": (u.get("responses") or {}).get(n.get("length_used") or "", {}).get("lam"),
+            "responses": u.get("responses") or {},
             "call": n.get("call"), "ratio": n.get("ratio_es_over_rl_rollouts"),
+            "curve_call": (pred.get("rule_curve") or {}).get("call"),
             "hypot": lambda a, b: float(np.hypot(a, b))}
 
 
+def at_length(m: dict, length) -> dict:
+    """A probe's validation response at a scanned length (the key, or the nearest length
+    within 1%), or {}."""
+    if length is None:
+        return {}
+    r = m["responses"].get(length)
+    if r is None:
+        near = [k for k in m["responses"] if abs(float(k) - float(length)) <= 0.01 * float(length)]
+        r = m["responses"][near[0]] if near else None
+    return r["by_block"]["validation"] if r else {}
+
+
 AGAINST = (("setting", "setting"), ("G1", "G, first"), ("G2", "G, second"), ("G_agree", "G within 2 SE"),
+           ("G2m", "G, second at the first's length"), ("G_agree_m", "within 2 SE there"),
            ("C1", "C, first"), ("C2", "C, second"), ("C_agree", "C within 2 SE"),
            ("rl1", "RL slope, first"), ("rl2", "RL slope, second"), ("rl_agree", "RL slope within 2 SE"),
            ("lam2", "longest usable multiple, second"), ("call1", "call, first"), ("call2", "call, second"))
@@ -140,7 +155,13 @@ def against(root: Path, other: Path) -> list:
         g1, g2, ga = pair("G")
         c1, c2, ca = pair("C")
         r1, r2, ra = pair("rl_slope")
-        out.append({"setting": p.parent.name, "G1": g1, "G2": g2, "G_agree": ga, "C1": c1, "C2": c2, "C_agree": ca,
+        m = at_length(b, a["length_used"])                 # the second probe read where the first was
+        g2m, gam = None, None
+        if m and a["G"] is not None and a["G_se"] is not None:
+            g2m = f"{m['G']:.3g} ± {m['G_se']:.2g}"
+            gam = "yes" if abs(a["G"] - m["G"]) <= 2 * a["hypot"](a["G_se"], m["G_se"]) else "no"
+        out.append({"setting": p.parent.name, "G1": g1, "G2": g2, "G_agree": ga, "G2m": g2m, "G_agree_m": gam,
+                    "C1": c1, "C2": c2, "C_agree": ca,
                     "rl1": r1, "rl2": r2, "rl_agree": ra, "lam2": b["lam"], "call1": a["call"], "call2": b["call"]})
     return out
 

@@ -75,6 +75,8 @@ def test_against_compares_the_measured_inputs_within_two_standard_errors(tmp_pat
     assert rows[0]["G_agree"] == "yes" and rows[0]["rl_agree"] == "yes"       # |0.0004| < 2 * hypot(0.0004, 0.0004)
     assert rows[0]["C_agree"] == "no"                                        # |4.3e-5| > 2 * hypot(1.5e-5, 1.5e-5)
     assert rows[0]["call1"].startswith("undetermined") and rows[0]["call2"] == "works" and rows[0]["lam2"] == 20.0
+    # the second probe read at the first probe's length (the same key here): 0.0019 against 0.0023
+    assert rows[0]["G2m"] == "0.0019 ± 0.0004" and rows[0]["G_agree_m"] == "yes"
     t = pt.table(rows, pt.AGAINST).splitlines()
     assert len(t) == 3 and t[0].startswith("| setting | G, first |") and "| yes | " in t[2] and "| no | " in t[2]
 

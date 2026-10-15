@@ -109,8 +109,11 @@
       }
     },
     "rl_first_step_gain": 0.01019743949795761,
+    "rl_first_step_gain_at_longest_usable": 0.006508254112961306,
     "rl_slope_along_direction": 0.2524766829768324,
+    "rl_slope_at_longest_usable": 0.1611367648457146,
     "rl_slope_offtask": 0.10099067319073297,
+    "rl_slope_se_at_longest_usable": 0.022163821288913265,
     "rl_step_length": 0.04038962876779136,
     "sign_direction_responses": {
       "0.483463": {
@@ -242,6 +245,7 @@
       "true_effect_sd": 0.00046894494576365484
     }
   },
+  "level1_offtask": null,
   "rule": {
     "bootstrap_over_prompts": {
       "call_shares": {
@@ -280,6 +284,34 @@
     },
     "offtask_loss_at_target": false,
     "ratio_es_over_rl_rollouts": 12.70269280022401,
+    "rl": {
+      "rollouts": 7531.3023446112975,
+      "steps": 9.806383261212627
+    }
+  },
+  "rule_curve": {
+    "call": "undetermined: net gain unresolved",
+    "es": {
+      "even": 0.018270676691729323,
+      "feasible": true,
+      "net_per_update": 0.026604010025062658,
+      "net_pessimistic": -0.006228327369155923,
+      "odd": 0.008333333333333333,
+      "retained_block_random_loss": {
+        "offtask": -0.01863714868896216
+      },
+      "rollouts": 46188.52567121997,
+      "step_multiple": 2.732455974637327,
+      "updates": 3.758831841733396
+    },
+    "exploratory": "2026-10-15",
+    "lam_max": 16.918838204225533,
+    "lengths_used": [
+      2.707014112676086,
+      6.767535281690213,
+      16.918838204225533
+    ],
+    "ratio_es_over_rl_rollouts": 6.132873646251661,
     "rl": {
       "rollouts": 7531.3023446112975,
       "steps": 9.806383261212627

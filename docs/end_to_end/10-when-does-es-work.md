@@ -342,6 +342,37 @@ the corrected analysis sits beside it as `rule_net`, dated.
    GRPO wins inside the instruct, single-task category); `11` is corrected. The Tulu 8B
    Countdown calibration run (S3d) is deferred: Tulu DPO and Qiu's Llama Instruct are
    different starts, so it would be a transfer experiment, not a calibration anchor.
+10. **The responses are curves, not coefficients** (added 2026-10-15, after the second
+    probe of 3B instruct Countdown and S4a, before the other five settings' records were
+    read). The update's odd response on the validation block is concave in the step from
+    the smallest length scanned: +0.024, +0.032, +0.046 at 3.2, 8.0 and 20 units in the
+    first probe; +0.019, +0.016, +0.023, +0.040, +0.038 at 2.8, 4.5, 6.9, 17 and 35 in
+    the second (another population, 600 prompts). So `G` per unit depends on where it is
+    read: 0.00227 ± 0.00048 at 20 units in the first probe against 0.00110 ± 0.00017 at
+    35 in the second, and 0.00228 ± 0.00036 at 17 in the second. The level-1 response
+    replicates across populations at a matched length; the rule's reading of it at the
+    longest usable length does not, and the quadratic net gain built from it favours
+    large steps where the response has saturated, which S4a's step-3.0 and shrinkage arms
+    contradict. The even response on the validation block stays within two standard
+    errors of zero at 600 prompts and 35 units (−0.023 ± 0.011): one update's cost near
+    the start is small and unresolved, and the cost that matters accumulates (S4a). RL's
+    sign-direction slope at the shortest usable length is noise-dominated (0.231 ± 0.088
+    on 300 prompts, 0.103 ± 0.057 on 600 with the same first 300), the longer length is
+    resolved (0.266 ± 0.029, 0.238 ± 0.021) and agrees with it on this setting; on the
+    base model the two differ (0.186 against 0.093), a concave response along RL's
+    direction too, and GRPO's crossing there (25 to 30 steps) sat between the two
+    readings' predictions (20 and 40). Both slopes are now reported
+    (`rl_slope_at_longest_usable`); the rule keeps the preregistered reading. An
+    exploratory rule from the curves (`rule_curve`: odd and even responses interpolated
+    between the scanned lengths, the step with the fewest updates to the net target, the
+    retained bound from each block's own even response, the call undetermined unless the
+    net gain is positive with both responses at their two-standard-error worst) is
+    written to every prediction record beside `rule_net`, labelled exploratory, and is
+    frozen for S4b only after review. On the six first-probe records (regenerated from
+    the same raw records) it prescribes 2.7 to 7 units on five settings and 21 on 1.5B
+    GSM8K, and calls every setting undetermined: a one-update scan on 300 prompts does
+    not resolve the net gain at that level. The second probe's expectation 1 is read at
+    a matched length (`probe_table --against`, "at the first's length").
 
 ## S3c, the measured RL reference: preregistration (2026-10-13, before any run)
 

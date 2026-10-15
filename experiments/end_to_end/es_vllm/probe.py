@@ -913,6 +913,68 @@ def rule_net(blocks: dict, rl_gain_per_step: float, P: int, N: int, live_share: 
                           "rl_lr": RL_LR, "rl_rollouts_per_step": RL_ROLLOUTS_PER_STEP}}
 
 
+def rule_curve(resp: dict, rl_gain_per_step: float, P: int, N: int) -> dict:
+    """Exploratory (2026-10-15, after the second probe of 3B instruct Countdown and S4a;
+    frozen for S4b only after review): the prescription from the measured response curves
+    rather than from `G` and `C` read at one length. The odd response is concave in the
+    step from the smallest length scanned (3B instruct Countdown: +0.024, +0.032, +0.046
+    at 3, 8 and 20 units), so a per-unit `G` depends on where it is read and a quadratic
+    net gain overstates large steps. Here the odd and even responses of each block are
+    interpolated linearly between the scanned lengths usable on every block (and from
+    zero to the first), the net gain per update at a step is the validation block's odd
+    plus even response there, the step is the one with the fewest updates to the net
+    target among those whose retained blocks' even responses summed over the updates stay
+    within the damage bound, and the call carries the resolution of the net gain at that
+    step: it is undetermined unless the net gain is positive with both responses at their
+    two-standard-error worst. RL's side is `rl_gain_per_step` as given (the preregistered
+    reading, the shortest usable sign length)."""
+    pts = sorted(((v["lam"], v) for v in resp.values() if v["usable_by_block"]), key=lambda x: x[0])
+    if not pts:
+        return {"call": "undetermined: no length usable on every block", "es": None, "rl": None, "ratio_es_over_rl_rollouts": None}
+    blocks = sorted(pts[0][1]["by_block"])
+    lams = np.asarray([0.0] + [lam for lam, _ in pts])
+
+    def curve(block, key, scale=lambda lam: 1.0):
+        return np.asarray([0.0] + [v["by_block"][block][key] * scale(lam) for lam, v in pts])
+
+    at = lambda y, lam: float(np.interp(lam, lams, y))  # noqa: E731
+    odd_v, even_v = curve("validation", "odd"), curve("validation", "even")
+    odd_se_v = curve("validation", "G_se", lambda lam: lam)          # G_se is the odd response's error per unit
+    even_se_v = curve("validation", "C_se", lambda lam: lam ** 2)
+    others = [b for b in blocks if b != "validation"]
+    best = None
+    for lam in np.linspace(lams[1] / 10, lams[-1], 400):
+        net = at(odd_v, lam) + at(even_v, lam)
+        if net <= 0:
+            continue
+        T = G_TARGET / net
+        losses = {b: T * at(curve(b, "even"), lam) for b in others}
+        cand = {"step_multiple": float(lam), "updates": float(T), "rollouts": float(P * N * T), "net_per_update": float(net),
+                "odd": at(odd_v, lam), "even": at(even_v, lam),
+                "net_pessimistic": float(at(odd_v, lam) - 2 * at(odd_se_v, lam) + at(even_v, lam) - 2 * at(even_se_v, lam)),
+                "retained_block_random_loss": losses, "feasible": all(loss >= -DAMAGE for loss in losses.values())}
+        if best is None or (cand["feasible"] and not best["feasible"]) or (cand["feasible"] == best["feasible"] and T < best["updates"]):
+            best = cand
+    rl = {"steps": G_TARGET / rl_gain_per_step, "rollouts": G_TARGET / rl_gain_per_step * RL_ROLLOUTS_PER_STEP} if rl_gain_per_step > 0 else None
+    ratio = best["rollouts"] / rl["rollouts"] if best and rl else None
+    if best is None:
+        call = "fails: no net gain in the scanned range"
+    elif best["net_pessimistic"] <= 0:
+        call = "undetermined: net gain unresolved"
+    elif not best["feasible"]:
+        call = "fails: retained-task loss"
+    elif rl is None:
+        call = "undetermined: RL's gain unresolved"
+    elif ratio <= WORKS:
+        call = "works"
+    elif ratio <= MARGINAL:
+        call = "marginal"
+    else:
+        call = "fails: rollouts"
+    return {"es": best, "rl": rl, "ratio_es_over_rl_rollouts": ratio, "call": call, "lam_max": float(lams[-1]),
+            "lengths_used": [float(lam) for lam, _ in pts], "exploratory": "2026-10-15"}
+
+
 def bootstrap_rule(update: dict, sign: dict, rl_step: float, P: int, N: int, live_share: float, draws=1000) -> dict:
     """The rule's ratio and call under resampling of the scanned prompts within each block:
     `update` holds the plus, minus and start reward arrays and the block labels at the
@@ -1071,8 +1133,14 @@ def predict(out: Path) -> dict:
     sgn = sign_responses(sign, np.asarray(next(p for p in sign if p["sign"] == 0)["rewards"])) if sign else {}
     sgn_used = [L for L, v in sgn.items() if v["usable"]] or list(sgn)
     sgn_near = sgn[min(sgn_used, key=float)] if sgn else None
+    sgn_far = sgn[max(sgn_used, key=float)] if sgn else None
     rl_slope = sgn_near["by_block"]["validation"]["slope_along_rl_direction"] if sgn_near else None
     rl_gain = rl_step * rl_slope if sgn_near else 0.0
+    # the slope at the longest usable sign length, reported beside the shortest (2026-10-15,
+    # corrections item 10): resolved where the shortest is not, and lower where the
+    # response along RL's direction is concave; the rule keeps the shortest
+    rl_slope_far = sgn_far["by_block"]["validation"]["slope_along_rl_direction"] if sgn_far else None
+    rl_gain_far = rl_step * rl_slope_far if sgn_far else 0.0
     level0 = {"live_share": sample["live_share"], "zero_advantage_share": sample["zero_advantage_share"],
               "start_reward_normalized": {b: float(normalized(v["rewards"], v["kinds"]).mean()) for b, v in sample["start"].items()},
               "answers_per_second": sample["answers_per_second"], "mean_sample_len": sample["mean_sample_len"],
@@ -1085,7 +1153,10 @@ def predict(out: Path) -> dict:
               "sign_direction_responses": sgn, "rl_step_length": rl_step,
               "rl_slope_along_direction": rl_slope,
               "rl_slope_offtask": sgn_near["by_block"].get("offtask", {}).get("slope_along_rl_direction") if sgn_near else None,
-              "rl_first_step_gain": rl_gain}
+              "rl_first_step_gain": rl_gain,
+              "rl_slope_at_longest_usable": rl_slope_far, "rl_slope_se_at_longest_usable":
+              sgn_far["by_block"]["validation"].get("slope_se") if sgn_far else None,
+              "rl_first_step_gain_at_longest_usable": rl_gain_far}
 
     # level 1
     start_train = normalized(sample["start"]["train"]["rewards"], sample["start"]["train"]["kinds"])
@@ -1132,6 +1203,7 @@ def predict(out: Path) -> dict:
             net = {"call": "undetermined: no length usable on every block", "es": None, "rl": None,
                    "ratio_es_over_rl_rollouts": None}
         update["rule_net_date"] = "2026-10-13"
+    curve = rule_curve(resp, rl_gain, sample["prompts"], mem["n"]) if update is not None else None
     if update is not None:
         # the responses are keyed by the length's 6-digit form, so match points the same way
         arrays = lambda pts, key, val: {s: next(p for p in pts if f"{p[key]:.6g}" == val and p["sign"] == s)  # noqa: E731
@@ -1147,7 +1219,7 @@ def predict(out: Path) -> dict:
         verdict["bootstrap_over_prompts"] = bootstrap_rule(upd, sgn_arrays, rl_step, sample["prompts"], mem["n"],
                                                            sample["live_share"])
     return {"setting": None, "level0": level0, "level1": lvl1, "level1_offtask": lvl1_off, "update": update,
-            "rule": verdict, "rule_net": net}
+            "rule": verdict, "rule_net": net, "rule_curve": curve}
 
 
 def analyze(out: Path) -> dict:

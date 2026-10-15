@@ -332,3 +332,36 @@ def test_members_offtask_diagnostic_recovers_constructed_effects(tmp_path):
     pred["level1_offtask"] = None
     (tmp_path / "prediction.json").write_text(json.dumps(pred))
     assert probe.analyze(tmp_path)["members_offtask"] is None
+
+
+def test_rule_curve_reads_the_measured_responses():
+    """A saturating odd response (0.05 (1 - exp(-lam/5))) with a quadratic cost: the curve
+    rule picks the step with the fewest updates to the net target from the responses
+    themselves, bounds the retained block from its own even response, and leaves the call
+    undetermined when the responses are noisy."""
+    def resp(odd_se, even_se):
+        out = {}
+        for lam in (2.0, 5.0, 12.0, 30.0):
+            odd, even, even_off = 0.05 * (1 - np.exp(-lam / 5)), -2e-4 * lam ** 2, -1.2e-4 * lam ** 2
+            out[f"{lam * 3.3:.6g}"] = {"lam": lam, "usable_by_block": True, "by_block": {
+                "validation": {"odd": odd, "even": even, "G": odd / lam, "G_se": odd_se / lam,
+                               "C": even / lam ** 2, "C_se": even_se / lam ** 2},
+                "offtask": {"odd": 0.0, "even": even_off, "G": 0.0, "G_se": odd_se / lam,
+                            "C": even_off / lam ** 2, "C_se": even_se / lam ** 2}}}
+        return out
+    r = probe.rule_curve(resp(0.002, 0.002), rl_gain_per_step=0.0061, P=192, N=64)
+    es = r["es"]
+    assert 4.0 < es["step_multiple"] < 8.0                           # net 0.0266 at 5, negative by 30
+    assert abs(es["net_per_update"] - 0.0266) < 0.002
+    assert abs(es["updates"] * es["net_per_update"] - 0.1) < 1e-6    # the target is net
+    assert es["feasible"] and es["retained_block_random_loss"]["offtask"] >= -0.02
+    assert r["call"] == "works" and abs(r["rl"]["steps"] - 0.1 / 0.0061) < 1e-9 and r["lengths_used"] == [2.0, 5.0, 12.0, 30.0]
+    # noisy responses: the net gain is not positive at its two-standard-error worst anywhere
+    noisy = probe.rule_curve(resp(0.02, 0.02), 0.0061, 192, 64)
+    assert noisy["call"] == "undetermined: net gain unresolved" and noisy["es"]["net_pessimistic"] <= 0
+    # a retained block that loses more than the bound at every step: infeasible, named
+    bad = resp(0.002, 0.002)
+    for v in bad.values():
+        v["by_block"]["offtask"]["even"] = -0.05 * v["lam"]
+    assert probe.rule_curve(bad, 0.0061, 192, 64)["call"] == "fails: retained-task loss"
+    assert probe.rule_curve({}, 0.0061, 192, 64)["call"].startswith("undetermined: no length")
