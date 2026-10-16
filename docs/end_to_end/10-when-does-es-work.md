@@ -717,9 +717,31 @@ interval 0.07 to 0.94 straddling the cutoff; P3 +0.097 over five anchored update
 the S4a shrinkage arm's +0.082 sits inside; P4 none, the slope unresolved at 600
 prompts); 3B base Countdown learns and collapses (ratio 5.7 to 18.4; P4 21 steps, GRPO
 crossed at 25 to 30); 0.5B GSM8K falls back to a 3.2-unit step and is undetermined.
-C's `Task` branch is the constructed Quotation setting above (2026-10-16). Then the
-probes (A twice, C, D) in one pod session with their records committed, then the ES and
-GRPO arms in a second session.
+C's `Task` branch is the constructed Quotation setting above (2026-10-16). The probes
+(A twice, C, D) ran on 2026-10-16 in one pod session (5.1 hours, about $27;
+`runs/s4b-probe/README.md`); their prescription records are the frozen predictions for
+the run session:
+
+| setting | step | P1 learns | P2 collapses | P3: validation after 5 anchored updates | P4: GRPO step to +0.10 |
+|---|---|---|---|---|---|
+| A, 1.5B instruct Countdown (population 1) | 3.0 | learns | no call | +0.071 (band +0.018 to +0.071) | 23 (11.5 to 46) |
+| C, 3B instruct Quotation | 6.85 | learns | no call | +0.048 (+0.012 to +0.048) | 9.7 (4.8 to 19.4) |
+| D, 3B instruct MATH alone | 3.1, the fallback | undetermined | no call | +0.032, reported | none (RL's slope unresolved) |
+
+Three things the probes showed before any run. A's two populations disagree in kind:
+population 1's update helps only at small steps (its validation odd response peaks at 3
+units and turns negative by 37) while population 0's helps up to 35 units (+0.031 at 15,
+resolved at ten standard errors), so their prescriptions would be 3.0 and 15.8 units;
+the second probe's replication at a matched length fails on this setting, the level-1
+response being a property of the population there. The design's prescription
+(population 1's) stands, and the seed-0 anchored arm, which runs population 0's members
+at population 1's step, reports by its pace against P3 whether that step was too small
+for it. P2 abstained on all three settings: the instruct checkpoints' off-task blocks
+barely move under a random rank-1 direction of a member's length (spreads at or below
+the sampling noise), so the exploratory predictor's coverage on this batch is zero, a
+result about the predictor at this probe size. C's start already scores 0.90 on its
+train block and 0.93 on validation, so its +0.05 threshold sits near the ceiling; the
+prediction stands as written. Then the ES and GRPO arms in a second session.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
