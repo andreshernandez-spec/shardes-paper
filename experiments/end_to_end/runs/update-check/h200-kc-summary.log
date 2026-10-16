@@ -1,0 +1,30 @@
+200 repeats in 2s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct)
+finished p1 exit 0
+200 repeats in 2s: draw 0 differ (1 distinct); contract 1 differ (2 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct)
+finished p2 exit 0
+200 repeats in 2s: draw 0 differ (1 distinct); contract 1 differ (2 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct)
+finished p3 exit 0
+200 repeats in 2s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct)
+finished p4 exit 0
+200 repeats in 2s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct)
+finished p5 exit 0
+200 repeats in 2s: draw 0 differ (1 distinct); contract 1 differ (2 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct)
+finished p6 exit 0
+kc-done
+=== variants
+1000 repeats in 28s: draw 0 differ (1 distinct); contract 11 differ (12 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+finished p1 exit 0
+1000 repeats in 28s: draw 0 differ (1 distinct); contract 5 differ (6 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+finished p2 exit 0
+1000 repeats in 28s: draw 0 differ (1 distinct); contract 3 differ (4 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+finished p3 exit 0
+1000 repeats in 27s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+finished p4 exit 0
+1000 repeats in 28s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+finished p5 exit 0
+1000 repeats in 27s: draw 0 differ (1 distinct); contract 5 differ (6 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+finished p6 exit 0
+kc2-done
+1000 repeats in 28s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+1000 repeats in 30s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)
+1000 repeats in 30s: draw 0 differ (1 distinct); contract 0 differ (1 distinct); update 0 differ (1 distinct); control 0 differ (1 distinct); contract_unrolled 0 differ (1 distinct); contract_loop 0 differ (1 distinct)

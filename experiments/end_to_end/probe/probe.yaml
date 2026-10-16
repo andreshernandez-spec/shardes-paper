@@ -1,0 +1,48 @@
+# Throughput probe for the ES-vs-RL paper (docs/end_to_end/00-plan.md, "Throughput
+# probe"). Committed before any run; the same file runs once on an A100-SXM4-80GB and
+# once on an H100 80GB SXM, one GPU each, and the driver records which.
+#
+# What it measures, per GPU type: generated tokens per second when vLLM decodes one ES
+# member's batch greedily from the start checkpoint, with the real prompts, template,
+# stop strings and response cap; the greedy response-length distribution (cap hits
+# included, since a looping sequence stalls a full-rank member); prefill tokens; and
+# the time to rewrite all weights in place once, which a full-rank member pays.
+#
+# Members are one after another on a GPU, as full-rank ES requires (each member is a
+# different weight tensor), so prefix caching is off: KV computed under one member's
+# weights is wrong for the next. Each member batch takes a different slice of prompts
+# so the length distribution covers more of the data; greedy outputs from the start
+# checkpoint stand in for all members, since sigma=1e-3 barely moves lengths.
+#
+# gpu_memory_utilization 0.85 leaves room for shardes' share on an 8-GPU run (master
+# shard, noise, workspace); 0.55 is the single-GPU case with the whole f32 master
+# (29 GB at 7B) beside the engine.
+
+vllm_seed: 0
+warmup: {prompts: 4, max_tokens: 16}
+
+settings:
+  olmo3_if:
+    model: OLMO3_BASE             # releases.py name; repo and commit come from there
+    prompts: olmo3_if_stream      # data/olmo3_if: the run's own prompts, in step order
+    template: OLMO_THINKER        # templates.py
+    add_bos: false                # the run's logged add_bos
+    stop: ["</answer>"]           # the run's logged stop_strings
+    max_tokens: 16384             # the run's response_length
+    max_model_len: 18432          # the run's pack_length: prompt 2048 + response 16384
+    cells:
+      - {gpu_memory_utilization: 0.85, prompts_per_member: 32, members: 4}
+      - {gpu_memory_utilization: 0.85, prompts_per_member: 128, members: 2}
+      - {gpu_memory_utilization: 0.55, prompts_per_member: 32, members: 2}
+  tulu31:
+    model: TULU31_START
+    prompts: tulu31_sample        # seeded sample of the RLVR mixed set
+    prompt_seed: 0
+    template: TULU                # no bos: the card's command has no --add_bos
+    add_bos: false
+    stop: []                      # the command's --stop_token eos: vLLM stops on eos
+    max_tokens: 2048              # --response_length
+    max_model_len: 4096           # --max_prompt_token_length 2048 + response
+    cells:
+      - {gpu_memory_utilization: 0.85, prompts_per_member: 48, members: 4}
+      - {gpu_memory_utilization: 0.85, prompts_per_member: 192, members: 2}

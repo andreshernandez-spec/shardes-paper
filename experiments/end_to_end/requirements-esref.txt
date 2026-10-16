@@ -1,0 +1,17 @@
+# es-at-scale's own environment: the reference side of T2
+# (docs/end_to_end/06-countdown-check.md). Its setup.py pins vllm and transformers; its
+# trainer imports ray without declaring it. Install:
+#
+#     python -m venv .venv-esref
+#     .venv-esref/bin/pip install -r experiments/end_to_end/requirements-esref.txt
+#     .venv-esref/bin/pip install --no-deps -e <es-at-scale clone at releases.ES_AT_SCALE>
+#
+# --no-deps because its setup.py also asks for black, flake8 and the Python 2 `futures`
+# backport, which nothing imports. countdown_ref.py records `pip freeze` with each run.
+vllm==0.11.0
+transformers==4.57.6
+ray
+datasets
+accelerate
+psutil
+pyyaml

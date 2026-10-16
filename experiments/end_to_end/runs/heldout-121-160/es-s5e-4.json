@@ -1,0 +1,58 @@
+{
+  "by_source": {
+    "MATH": {
+      "n": 447,
+      "reward": 4.586129753914989
+    },
+    "gsm8k": {
+      "n": 517,
+      "reward": 8.278529980657641
+    },
+    "ifeval": {
+      "n": 956,
+      "reward": 4.2573221757322175
+    }
+  },
+  "capped": 20,
+  "date": "2026-09-27T06:09:11+00:00",
+  "env": {
+    "commit": "dc9625a29672ccb9d982e1ec962c82c3849ebbba",
+    "dirty_worktree": true,
+    "hostname": "948803e57909",
+    "packages": {
+      "jax": "0.11.2",
+      "torch": "2.13.0",
+      "transformers": "5.17.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-137-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "mean_len": 296.6067708333333,
+  "model": {
+    "config": "es_vllm/tulu-pilot-s5e-4.yaml",
+    "kind": "es",
+    "name": "es-s5e-4",
+    "run": "runs/tulu-pilot-s5e-4"
+  },
+  "prompts": 1920,
+  "reward": 5.416666666666667,
+  "reward_se": 0.11374158860353456,
+  "seconds": 146.07232829276472,
+  "source": {
+    "check": true,
+    "digest": "ecaf43105a1b286bfe097d0b297f38c28e2fe87d3cdbf0a9462437c0ab1d2389",
+    "iterations": 30,
+    "run": "runs/tulu-pilot-s5e-4"
+  },
+  "stream_steps": [
+    120,
+    160
+  ]
+}
