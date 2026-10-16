@@ -100,3 +100,24 @@ def test_offtask_table_puts_the_members_beside_the_scan(tmp_path):
     assert rows[1]["per_gain"] is None and rows[1]["G_direct"] == "0.0023 ± 0.0004"
     t = pt.table(rows, pt.OFFTASK).splitlines()
     assert len(t) == 4 and t[0].startswith("| setting | block |")
+
+
+def test_prescriptions_table_and_direct_comparison(tmp_path):
+    for name, step in (("a-x", 3.0), ("b-y", 6.85)):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "prediction.json").write_text(json.dumps(full_prediction(0.002, 0.0004, -4.7e-5, 1.5e-5, 0.23, 0.06, "works")))
+        (tmp_path / name / "prescription.json").write_text(json.dumps({
+            "method": "anchored", "step_multiple": step, "shrink": 0.1, "fallback": step < 5, "first_displacement_multiple": 0.9 * step,
+            "response_at_first_displacement": {"odd": 0.0126, "odd_se": 0.0037, "even": 0.0088, "even_se": 0.0049, "within_scan": True},
+            "P1_learns": "learns", "P2_collapses": "no call",
+            "P2_spread_ratio": {"ratio": 0.65, "interval_90": [0.38, 2.3], "unresolved": False},
+            "P3_pace": {"predicted_validation_change_after_5": 0.0708, "band": [0.0177, 0.0708]},
+            "P4_rl_pace": {"predicted_step_to_target": 23.0, "band": [11.5, 46.0]} if step < 5 else None}))
+    rows = pt.prescriptions(tmp_path)
+    assert [r["setting"] for r in rows] == ["a-x", "b-y"] and rows[0]["fallback"] == "yes" and rows[1]["fallback"] == "no"
+    assert rows[0]["odd"] == "+0.0126 ± 0.0037" and rows[0]["ratio"] == "0.65, 0.38 to 2.3" and rows[0]["P4"] == "23.0" and rows[1]["P4"] is None
+    t = pt.table(rows, pt.PRESCRIPTIONS).splitlines()
+    assert len(t) == 4 and t[0].startswith("| setting | step")
+    # two setting directories compare directly, whatever their names
+    rows = pt.against(tmp_path / "b-y", tmp_path / "a-x")
+    assert len(rows) == 1 and rows[0]["setting"] == "b-y" and rows[0]["G_agree"] == "yes"

@@ -5,6 +5,7 @@
     python -m es_vllm.probe_table runs/probe --json     # the same rows as JSON
     python -m es_vllm.probe_table runs/probe2 --against runs/probe   # the second probe beside the first
     python -m es_vllm.probe_table runs/probe2 --offtask              # the members' off-task diagnostic
+    python -m es_vllm.probe_table runs/s4b-probe --prescriptions     # S4b's prescriptions and predictions
 
 Level 0 first, then level 1, then the rule. Rewards are normalized to [0, 1]; `G` is
 the update's odd response per unit update and `C` its even response per unit squared
@@ -136,10 +137,12 @@ def against(root: Path, other: Path) -> list:
     """Each setting probed in both roots (`other` first, `root` second): the measured
     inputs side by side with their standard errors, and whether each pair agrees within
     two standard errors of the difference (docs/end_to_end/10, the second probe's
-    expectation 1)."""
+    expectation 1). Two setting directories (each holding a prediction.json) compare
+    directly, whatever their names (the two populations of one S4b setting)."""
     out = []
-    for p in sorted(root.glob("*/prediction.json")):
-        q = other / p.parent.name / "prediction.json"
+    pairs = ([(root / "prediction.json", other / "prediction.json")] if (root / "prediction.json").exists()
+             else [(p, other / p.parent.name / "prediction.json") for p in sorted(root.glob("*/prediction.json"))])
+    for p, q in pairs:
         if not q.exists():
             continue
         a, b = measured(json.loads(q.read_text())), measured(json.loads(p.read_text()))
@@ -163,6 +166,32 @@ def against(root: Path, other: Path) -> list:
         out.append({"setting": p.parent.name, "G1": g1, "G2": g2, "G_agree": ga, "G2m": g2m, "G_agree_m": gam,
                     "C1": c1, "C2": c2, "C_agree": ca,
                     "rl1": r1, "rl2": r2, "rl_agree": ra, "lam2": b["lam"], "call1": a["call"], "call2": b["call"]})
+    return out
+
+
+PRESCRIPTIONS = (("setting", "setting"), ("step", "step (units of the update)"), ("first", "first displacement"),
+                 ("fallback", "fallback"), ("odd", "odd response there"), ("even", "even response there"),
+                 ("P1", "P1 learns"), ("P2", "P2 collapses"), ("ratio", "spread ratio, 90%"),
+                 ("P3", "P3: validation after 5"), ("P4", "P4: GRPO step to +0.10"))
+
+
+def prescriptions(root: Path) -> list:
+    """One row per setting with a prescription record (S4b): the step, the responses at
+    the applied step's first displacement, and the four predictions."""
+    out = []
+    for q in sorted(root.glob("*/prescription.json")):
+        d = json.loads(q.read_text())
+        v, r = d.get("response_at_first_displacement") or {}, d.get("P2_spread_ratio") or {}
+        p3, p4 = d.get("P3_pace"), d.get("P4_rl_pace")
+        out.append({"setting": q.parent.name, "step": d["step_multiple"], "first": d["first_displacement_multiple"],
+                    "fallback": "yes" if d["fallback"] else "no",
+                    "odd": f"{v['odd']:+.4f} ± {v['odd_se']:.4f}" if v else None,
+                    "even": f"{v['even']:+.4f} ± {v['even_se']:.4f}" if v else None,
+                    "P1": d["P1_learns"], "P2": d["P2_collapses"],
+                    "ratio": (f"{fmt(r['ratio'])}, {fmt(r['interval_90'][0])} to {fmt(r['interval_90'][1])}"
+                              + (" (unresolved)" if r.get("unresolved") else "")) if r and r.get("interval_90") else None,
+                    "P3": f"{p3['predicted_validation_change_after_5']:+.3f}" if p3 else None,
+                    "P4": f"{p4['predicted_step_to_target']:.1f}" if p4 else None})
     return out
 
 
@@ -211,6 +240,7 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--against", type=Path, metavar="FIRST", help="the earlier probe's root: the measured inputs side by side")
     ap.add_argument("--offtask", action="store_true", help="the members' off-task diagnostic, one row per block")
+    ap.add_argument("--prescriptions", action="store_true", help="S4b: each setting's prescription and predictions")
     args = ap.parse_args(argv)
     root = args.root if args.root.is_absolute() else E2E / args.root
     if args.against:
@@ -219,6 +249,9 @@ def main(argv=None) -> int:
         return 0
     if args.offtask:
         print(table(offtask(root), OFFTASK))
+        return 0
+    if args.prescriptions:
+        print(table(prescriptions(root), PRESCRIPTIONS))
         return 0
     rs = rows(root)
     print(json.dumps({"rows": rs, **level0_vs_level1(rs)}, indent=1) if args.json else table(rs))
