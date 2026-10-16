@@ -19,7 +19,8 @@ in env.json). Rewards stay in the task's units in the records and are normalized
 Level 0, nothing ranked:
 Tasks: `countdown` (es-at-scale's problems, off-task GSM8K), `gsm8k` (the Tulu stream's
 GSM8K rows, off-task MATH and IFEval), `math` (its MATH rows, off-task GSM8K and IFEval;
-S4b), `tulu` (the stream itself).
+S4b), `quotation` (one IFEval constraint type attached to the stream's IFEval base
+prompts, off-task GSM8K and MATH; S4b, see `quotation_rows`), `tulu` (the stream itself).
 
 - `sample`: 16 answers per train prompt at temperature 1.0 from the start, scored. The
   live share (prompts whose answers do not all score alike) and its complement, Cho and
@@ -159,6 +160,52 @@ def digest(rows) -> str:
     return hashlib.sha256("".join(json.dumps(r, sort_keys=True, default=str) + "\n" for r in rows).encode()).hexdigest()
 
 
+QUOTATION_TYPE = "Quotation"
+
+
+def quotation_rows(ifeval_rows: list) -> list:
+    """The single-constraint IFEval setting of S4b (docs/end_to_end/10, "S4b, fresh
+    settings for the verdict: design", choice 3). A third of the stream's IFEval rows carry
+    their constraint's canonical sentence verbatim, appended (816 of 4,768 in the first
+    200 steps) or prepended (791); the rest word it differently and are not used. From the
+    appended rows the base prompt is the text before the sentence, kept with its own
+    separator, and the Quotation sentence (whose verifier record has no per-row
+    parameter) is appended to it. Rows are built in the stream's order of first
+    appearance of the base prompt, one per base prompt. Where the stream itself has the
+    base prompt with the Quotation sentence appended, the constructed row reproduces it
+    byte for byte (`quotation_reproduces` checks)."""
+    q = [r for r in ifeval_rows if r["constraint_type"] == QUOTATION_TYPE]
+    sentences = {r["constraint"].strip() for r in q}
+    truths = {r["ground_truth"] for r in q}
+    if len(sentences) != 1 or len(truths) != 1:
+        raise SystemExit(f"the {QUOTATION_TYPE} rows carry {len(sentences)} sentences and {len(truths)} verifier records")
+    sentence, truth = sentences.pop(), truths.pop()
+    out, seen = [], set()
+    for r in ifeval_rows:
+        if len(r["messages"]) != 1:
+            continue
+        text, c = r["messages"][0]["content"], r["constraint"].strip()
+        if text.count(c) != 1 or not text.rstrip().endswith(c):
+            continue
+        base = text[: text.rfind(c)]                  # the separator the source row used stays
+        if not base.strip() or base.strip() in seen:
+            continue
+        seen.add(base.strip())
+        out.append({"dataset": "ifeval", "constraint_type": QUOTATION_TYPE, "constraint": sentence, "ground_truth": truth,
+                    "messages": [{"role": "user", "content": base + sentence}]})
+    return out
+
+
+def quotation_reproduces(ifeval_rows: list, built: list) -> dict:
+    """How many of the stream's own Quotation rows (with the sentence appended) the built
+    rows reproduce byte for byte, and how many they miss."""
+    want = {r["messages"][0]["content"] for r in ifeval_rows
+            if r["constraint_type"] == QUOTATION_TYPE and len(r["messages"]) == 1
+            and r["messages"][0]["content"].rstrip().endswith(r["constraint"].strip())}
+    have = {r["messages"][0]["content"] for r in built}
+    return {"stream_quotation_rows": len(want), "reproduced": len(want & have), "missed": len(want - have)}
+
+
 class Task:
     """Prompts in blocks, a renderer and a scorer for one task. `block` is the size of
     the validation and off-task blocks (BLOCK by default); a larger block keeps the
@@ -203,6 +250,16 @@ class Task:
                            "test": math[t0:t0 + n_test],
                            "offtask": gsm[:n_test // 2] + ifeval[:n_test // 2]
                            + gsm[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2]}
+        elif name == "quotation":              # one IFEval constraint type, constructed (S4b setting C)
+            pool = heldout_rows(0, 600)        # one pass over the training set; 400 steps give 1,091 rows
+            rows_q = quotation_rows([r for r in pool if r["dataset"] == "ifeval"])
+            gsm = [r for r in pool if r["dataset"] == "gsm8k"]
+            math = [r for r in pool if r["dataset"] == "MATH"]
+            v0, t0 = n_train, n_train + n_test
+            self.blocks = {"train": rows_q[:n_train], "validation": rows_q[v0:t0] + rows_q[t0 + n_test:t0 + n_test + extra],
+                           "test": rows_q[t0:t0 + n_test],
+                           "offtask": gsm[:n_test // 2] + math[:n_test // 2]
+                           + gsm[n_test // 2:n_val // 2] + math[n_test // 2:n_val // 2]}
         elif name == "tulu":
             self.blocks = {"train": load_prompts(E2E / "data" / "tulu31", 1, P_TRAIN)[0][:n_train],
                            "validation": heldout_rows(120, 160)[:n_val],

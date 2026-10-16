@@ -649,7 +649,22 @@ what one type has (192, 300 and 150: 642 rows, within one of the largest type's 
 or the setting changed to IFEval with every type (the family, as the GSM8K settings were
 a family), which no longer raises the sharedness the setting was for. Which of these,
 or none for this batch, is a decision for the review; D needs no such choice (MATH alone
-has 2,343 unique rows in the first 200 steps, and its `Task` branch exists). Deferred until their
+has 2,343 unique rows in the first 200 steps, and its `Task` branch exists).
+**Decided 2026-10-16: construct it** (`quotation_rows` in `probe.py`, setting
+`qwen3b/quotation`). A third of the stream's IFEval rows carry their constraint's
+canonical sentence verbatim, appended (816 of 4,768 in the first 200 steps) or
+prepended (791); the rest word the constraint differently and are not used. From the
+appended rows the base prompt is the text before the sentence, kept with the separator
+that row used, and the Quotation sentence ("Wrap your entire response with double
+quotation marks.", whose verifier record has no per-row parameter) is appended; one row
+per base prompt in the stream's order of first appearance, 1,376 rows from one pass over
+the training set (600 steps; 400 give 1,091, one short). Where the stream itself has the
+base prompt with the Quotation sentence appended, the constructed row reproduces it
+byte for byte: 332 of 332. Off-task blocks GSM8K and MATH. The setting therefore tests
+ES on a constructed single-constraint task, not on a slice of the stream, and its
+records say so; the type was chosen before any learning signal was inspected, by the
+rule that its verifier takes no per-row parameter and that it has the most stream rows
+among such types. Deferred until their
 feasibility is specified: B (7B instruct Countdown: the GRPO driver's f32 policy, its
 gradients and Adam states, the bf16 reference and vLLM's share do not fit one H200, so
 it needs a memory plan, such as a bf16 policy with an f32 master off the GPU or 8-bit
@@ -702,9 +717,9 @@ interval 0.07 to 0.94 straddling the cutoff; P3 +0.097 over five anchored update
 the S4a shrinkage arm's +0.082 sits inside; P4 none, the slope unresolved at 600
 prompts); 3B base Countdown learns and collapses (ratio 5.7 to 18.4; P4 21 steps, GRPO
 crossed at 25 to 30); 0.5B GSM8K falls back to a 3.2-unit step and is undetermined.
-C's `Task` branch waits on the decision above. Then the probes (A twice, D, and C if
-chosen) in one pod session with their records committed, then the ES and GRPO arms in a
-second session.
+C's `Task` branch is the constructed Quotation setting above (2026-10-16). Then the
+probes (A twice, C, D) in one pod session with their records committed, then the ES and
+GRPO arms in a second session.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 

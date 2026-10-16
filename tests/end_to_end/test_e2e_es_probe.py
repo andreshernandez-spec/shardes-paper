@@ -236,14 +236,39 @@ def test_unusable_lengths_fall_back_to_the_shortest():
     assert max(used, key=float) == "2"
 
 
+QUOTE = "Wrap your entire response with double quotation marks."
+
+
 def stub_data(monkeypatch, tmp_path):
     """Synthetic prompt pools in place of the data modules: Countdown's eval split and
     the Tulu stream's held-out rows, in the stream's order."""
     import types
 
     def heldout_rows(first, last):
-        return [{"dataset": ("gsm8k", "MATH", "ifeval")[i % 3], "messages": [{"role": "user", "content": f"q{i}"}],
-                 "ground_truth": str(i)} for i in range(first * 48, last * 48)]
+        rows = []
+        for i in range(first * 48, last * 48):
+            ds = ("gsm8k", "MATH", "ifeval")[i % 3]
+            if ds != "ifeval":
+                rows.append({"dataset": ds, "messages": [{"role": "user", "content": f"q{i}"}], "ground_truth": str(i)})
+                continue
+            # IFEval rows as the stream has them: a base prompt with a constraint sentence
+            # appended (two in three), prepended, or reworded; the Quotation type has one
+            # verifier record
+            j = i // 3                                             # the IFEval row's own index
+            k = j % 9
+            ctype, sentence = (("Quotation", QUOTE), ("No Commas", "Do not use commas."), ("Postscript", "End with a postscript."))[j % 3]
+            truth = json.dumps({"func_name": {"Quotation": "validate_quotation", "No Commas": "validate_no_commas",
+                                              "Postscript": "validate_postscript"}[ctype], "N": None})
+            base = f"base prompt {j // 9}"                         # several constraints share a base
+            if k < 6:
+                text = f"{base}{(': ', chr(10) + ' ')[k % 2]}{sentence}"
+            elif k < 8:
+                text = f"{sentence} {base}"
+            else:
+                text = f"{base}. please {sentence.lower()}"          # reworded: skipped by the builder
+            rows.append({"dataset": "ifeval", "constraint_type": ctype, "constraint": sentence, "ground_truth": truth,
+                         "messages": [{"role": "user", "content": text}]})
+        return rows
 
     tulu = types.ModuleType("es_vllm.run_tulu")
     tulu.heldout_rows = heldout_rows
@@ -255,7 +280,7 @@ def stub_data(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "es_vllm.run_countdown", cd)
 
 
-@pytest.mark.parametrize("task", ["countdown", "gsm8k", "math", "tulu"])
+@pytest.mark.parametrize("task", ["countdown", "gsm8k", "math", "quotation", "tulu"])
 def test_larger_blocks_keep_the_default_block_first_and_the_test_block_fixed(task, monkeypatch, tmp_path):
     stub_data(monkeypatch, tmp_path)
     base = probe.Task(task, "chat", False, tmp_path)
@@ -273,11 +298,12 @@ def test_larger_blocks_keep_the_default_block_first_and_the_test_block_fixed(tas
     # the added rows are new: none of them is in any default block
     seen = {probe.digest([r]) for rows in base.blocks.values() for r in rows}
     assert not any(probe.digest([r]) in seen for b in ("validation", "offtask") for r in big.blocks[b][300:])
-    if task in ("gsm8k", "math"):                         # the off-task mix is kept, half and half
+    if task in ("gsm8k", "math", "quotation"):            # the off-task mix is kept, half and half
         kinds = [r["dataset"] for r in big.blocks["offtask"]]
-        other = "MATH" if task == "gsm8k" else "gsm8k"
-        assert kinds.count(other) == 300 and kinds.count("ifeval") == 300
-        assert all(r["dataset"] == ("gsm8k" if task == "gsm8k" else "MATH") for b in ("train", "validation", "test") for r in big.blocks[b])
+        own = {"gsm8k": "gsm8k", "math": "MATH", "quotation": "ifeval"}[task]
+        others = sorted({"gsm8k", "MATH", "ifeval"} - {own})
+        assert all(kinds.count(o) == 300 for o in others)
+        assert all(r["dataset"] == own for b in ("train", "validation", "test") for r in big.blocks[b])
     with pytest.raises(SystemExit):
         probe.Task(task, "chat", False, tmp_path, block=100)
     smoke = probe.Task(task, "chat", True, tmp_path)
@@ -422,3 +448,25 @@ def test_prescription_reads_the_responses_at_the_first_displacement():
                         ({"ratio": 0.2, "interval_90": [0.1, 0.3], "unresolved": True}, "no call")):
         assert probe.prescribe({**pred, "level1_offtask": {"spread_ratio": ratio}}, {"unit_norm": 3.3, "member_length": 26.4})["P2_collapses"] == call
     assert probe.response_at({}, 1.0, "validation") == {}
+
+
+def test_quotation_rows_are_the_streams_construction(monkeypatch, tmp_path):
+    """The constructed single-constraint rows: one per base prompt in stream order, the
+    source row's separator kept, the Quotation sentence and its one verifier record, and
+    the stream's own appended Quotation rows reproduced byte for byte; prepended and
+    reworded rows contribute nothing."""
+    stub_data(monkeypatch, tmp_path)
+    import importlib
+    rows = importlib.import_module("es_vllm.run_tulu").heldout_rows(0, 3)
+    ife = [r for r in rows if r["dataset"] == "ifeval"]
+    built = probe.quotation_rows(ife)
+    bases = {r["messages"][0]["content"][: -len(QUOTE)].strip() for r in built}
+    assert len(built) == len(bases) and all(r["messages"][0]["content"].endswith(QUOTE) for r in built)
+    assert all(r["constraint_type"] == "Quotation" and json.loads(r["ground_truth"])["func_name"] == "validate_quotation" for r in built)
+    assert any(chr(10) in r["messages"][0]["content"][-len(QUOTE) - 3:] for r in built)   # a kept newline separator
+    rep = probe.quotation_reproduces(ife, built)
+    assert rep["missed"] == 0 and rep["reproduced"] == rep["stream_quotation_rows"] > 0
+    # a type with two sentences or two verifier records is refused
+    bad = ife + [{**ife[0], "constraint_type": "Quotation", "constraint": "Quote everything.", "ground_truth": ife[0]["ground_truth"]}]
+    with pytest.raises(SystemExit):
+        probe.quotation_rows(bad)
