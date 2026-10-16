@@ -743,6 +743,24 @@ result about the predictor at this probe size. C's start already scores 0.90 on 
 train block and 0.93 on validation, so its +0.05 threshold sits near the ceiling; the
 prediction stands as written. Then the ES and GRPO arms in a second session.
 
+#### The run session, first three arms (2026-10-16, `runs/s4b/README.md`)
+
+The three anchored ES arms ran (9.5 hours, about $50); the session was then stopped at
+Andres's request before anything else started, so A's un-anchored control and second
+seed and the three GRPO arms wait for a later session. A (1.5B instruct Countdown at the
+3.0-unit anchored step) learned to +0.148 on the reserved block in 30 updates with GSM8K
+kept within the margin (+0.037 ± 0.018 on the reserved half), and the anchored
+first-order forecast from its prescription tracked the whole curve to within 0.01 (P1
+held; P3 at 1.15 times the forecast, just above the band). C (3B instruct on the
+constructed Quotation task) peaked at +0.037 ± 0.013 and ended at +0.027, under the
++0.05 threshold: P1 missed, near the task's ceiling of 0.063, and the forecast
+overshot from the second evaluation on. D (MATH alone at the fallback step) moved
+nothing, within noise on every block, as its undetermined call allowed; it is not
+scored. P2 made no call on any of the three. The retention margin of 0.03 is resolved on
+A's GSM8K (success rate 0.75, standard error 0.018 on 300 prompts) and unresolved on
+C's and D's retained families, whose intervals straddle it. The gated predictions
+stand at P1 one of two with one unscored, P4 without a reading until the GRPO arms run.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
