@@ -470,11 +470,19 @@ def analyze(out: Path) -> dict:
             real = run_["config"].get("ranking", "real") == "real"
             gamma = run_["config"].get("shrink") or 0.0
             eff_g, eff_c = effective_updates(g, gamma)
-            gain = eff_g * step * pred["G"] if real else 0.0
-            row["predicted"] = {"validation_change": gain - eff_c * step ** 2 * -pred["C"],
-                                "gain_first_order": gain, "random_cost": eff_c * step ** 2 * -pred["C"],
-                                "effective_updates": [eff_g, eff_c],
-                                "offtask_change": (eff_g * step * pred["G_offtask"] if real else 0.0) if pred["G_offtask"] is not None else None}
+            v = (pred.get("prescription") or {}).get("response_at_first_displacement")
+            if v:
+                # S4b: the prescription's responses at the applied step's first displacement
+                gain = eff_g * v["odd"] if real else 0.0
+                row["predicted"] = {"validation_change": gain + eff_c * v["even"], "gain_first_order": gain,
+                                    "random_cost": -eff_c * v["even"], "effective_updates": [eff_g, eff_c],
+                                    "offtask_change": None, "from": "prescription"}
+            else:
+                gain = eff_g * step * pred["G"] if real else 0.0
+                row["predicted"] = {"validation_change": gain - eff_c * step ** 2 * -pred["C"],
+                                    "gain_first_order": gain, "random_cost": eff_c * step ** 2 * -pred["C"],
+                                    "effective_updates": [eff_g, eff_c],
+                                    "offtask_change": (eff_g * step * pred["G_offtask"] if real else 0.0) if pred["G_offtask"] is not None else None}
         rows.append(row)
     res = {"setting": run_["config"]["setting"], "seed": run_["config"]["seed"], "step": step, "n": run_["config"]["n"],
            "ranking": run_["config"].get("ranking", "real"), "shrink": run_["config"].get("shrink"),

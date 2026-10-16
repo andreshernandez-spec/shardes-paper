@@ -257,7 +257,18 @@ def test_analysis_splits_the_retained_families_by_half_and_reads_a_prescription(
     (out / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n")
     (out / "log.jsonl").write_text("\n".join(json.dumps({"iteration": g, "fitness": [0.1] * 64, "mean_fitness": 0.1, "sd_fitness": 0.01,
                                                            "rollouts": 64 * 192, "update_norm": 10.0, "seconds": 300.0}) for g in range(5)) + "\n")
+    (tmp_path / "probe" / "prescription.json").write_text(json.dumps({
+        "method": "anchored", "step_multiple": 15.6, "shrink": 0.1, "fallback": False, "unit_norm": 3.3,
+        "response_at_first_displacement": {"odd": 0.0126, "odd_se": 0.0037, "even": 0.0088, "even_se": 0.0049, "within_scan": True},
+        "P1_learns": "learns", "P2_collapses": "no call", "P3_pace": None, "P4_rl_pace": None}))
+    p = pr.prediction_block(tmp_path / "probe")
+    (out / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/gsm8k", "seed": 0, "step": 15.6, "n": 64, "shrink": 0.1},
+                                              "prediction": p}))
     a = pr.analyze(out)
+    # the prediction of a prescribed run comes from the prescription's responses with the anchor's weights
+    eff_g, eff_c = pr.effective_updates(5, 0.1)
+    assert a["eval"][-1]["predicted"]["from"] == "prescription"
+    assert abs(a["eval"][-1]["predicted"]["validation_change"] - (eff_g * 0.0126 + eff_c * 0.0088)) < 1e-9
     fh = a["eval"][-1]["by_family_half"]
     assert set(fh) == {"MATH", "ifeval"} and fh["MATH"]["selection"]["prompts"] == 150 and fh["MATH"]["reserved"]["prompts"] == 150
     assert abs(fh["ifeval"]["selection"]["change"]) < 1e-9 and fh["MATH"]["selection"]["change"] < 0
