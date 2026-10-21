@@ -820,7 +820,12 @@ off-task spread predictor makes a call before that predictor is anything.
 1. Correct and regenerate the analyses (done, item 11) and update the manuscript around
    the completed comparisons: ES's underperformance on Tulu, its learning on Countdown
    with the measured stabilization trade-off, and the compute comparisons, without a
-   universal predictor as a condition for the paper.
+   universal predictor as a condition for the paper. Done the same day:
+   `papers/end_to_end/draft.md` carries the Countdown comparisons as Section 9 (Table 2,
+   the collapse's mechanism, the 1.5B checkpoint with the corrected forecast, the two
+   settings that bound what a one-update measurement says) and the measured compute in
+   Section 8, every number from the READMEs of `probe-run`, `grpo-run`, `s4a`, `s4b` and
+   `probe2`; the title and the abstract's wording are candidates for Andres.
 2. A second GRPO seed on A, and the matched anchored and un-anchored ES pair on A
    extended from 30 to 60 updates with the horizon fixed before any new result is read:
    whether near-parity and the retention trade-off persist. About $20 to 30, more if the

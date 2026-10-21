@@ -45,7 +45,7 @@ unless another path is given; every number in a document comes from one.
 | S4c the published conflict | Qiu et al.'s matched-evaluation comparison replicated on our instrumented 3B instruct Countdown: ES at their settings for 500 iterations against GRPO at matched evaluations (or a fraction with the curve) | **proposed**, only if S4b sustains the rule | | `11-literature-es-vs-rl.md`, `10-when-does-es-work.md` | | $200 to 600 |
 | S3d calibration run | Tulu 8B on Countdown at Qiu et al.'s settings (30 members, σ 1e-3, 200 prompts, 500 iterations) | **deferred** (2026-10-13): Tulu DPO and Qiu's Llama Instruct are different starting checkpoints, so this is a transfer experiment, not a calibration anchor; its useful part (Tulu 8B on Countdown with our own GRPO arm) is in S4b | | `10-when-does-es-work.md` | | $60 to 80 |
 | S3e the rule's verdict | over at least six settings with a run or a published outcome: predicted order right (Spearman ≥ 0.8), the three-way call right in five of six, level 0 predicts level 1 | **open**: the outcome classes and the unfinished-target rule are frozen in `10` before any further setting; the six probed settings, concentrated in two task families, are a pilot; the revised level-0 hypothesis (the update's odd response as the target, Spearman 0.83 on the same six records, exploratory) is tested only on fresh settings | | `10-when-does-es-work.md` ("What counts as the rule being useful", "Corrections of 2026-10-13") | | |
-| P paper | the manuscript | **open**: the Tulu comparison (the draft) is the defensible main result today; the completed comparisons support an empirical account of learning, compute and retention on their own; the predictive account is promoted to the paper's claim only if S4 sustains it | | `papers/end_to_end/draft.md`, `papers/end_to_end/README.md` | | |
+| P paper | the manuscript | **draft complete in markdown** (2026-10-21): the Tulu comparison is the main result and Section 9 adds the Countdown comparisons (learning, the collapse's mechanism, the stabilization trade-off, measured compute); the predictor is reported as a pilot, not a claim; open: the title and abstract wording (candidates offered), the LaTeX build and the number macros | | `papers/end_to_end/draft.md`, `papers/end_to_end/README.md` | | |
 | O Olmo 3 | the second setting of the original plan (7B RL-Zero IF) | **deferred** (2026-09-26): 2,900-token answers at temperature 1 and 16k-token loops under greedy decoding put a matched run at $2k to 6k | | `00-plan.md` | | |
 
 ## The evidence, by experiment
@@ -97,7 +97,8 @@ Decisions for Andres:
 Work in hand or queued (mine):
 
 - Nothing running. The order after S4b (10, "After S4b"): the manuscript around the
-  completed comparisons; then a second GRPO seed on A and the anchored/un-anchored pair
+  completed comparisons (done 2026-10-21, `papers/end_to_end/draft.md` Section 9); then
+  a second GRPO seed on A and the anchored/un-anchored pair
   to 60 updates ($20 to 30); then one fresh non-saturated task with two probe
   populations; S4c deferred as a separate objective.
 - A step schedule or re-measurement as a separately specified method, tuned on validation
