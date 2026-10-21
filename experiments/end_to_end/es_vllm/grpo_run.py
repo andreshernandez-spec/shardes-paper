@@ -121,7 +121,8 @@ def run(args) -> int:
     cfg = probe.setting(args.setting, args.smoke)
     pred = probe_run.prediction_block(E2E / args.prediction) if args.prediction else None
     task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale,
-                      block=pred["blocks"]["validation"] if pred and not args.smoke else None)
+                      block=pred["blocks"]["validation"] if pred and not args.smoke else None,
+                      offtask_test=bool(pred and not args.smoke and "offtask_test" in pred["blocks"]))
     P, K, steps = (8, 4, 2) if args.smoke else (args.prompts, args.samples, args.steps)
     eval_every = 1 if args.smoke else args.eval_every
     out = E2E / args.out
@@ -164,10 +165,11 @@ def run(args) -> int:
     order = []
 
     ev_rows, ev_kinds, ev_block = [], [], []
-    for b in ("validation", "test", "offtask"):
-        ev_rows += task.blocks[b]
-        ev_kinds += [probe.row_kind(r) for r in task.blocks[b]]
-        ev_block += [b] * len(task.blocks[b])
+    for b in ("validation", "test", "offtask", "offtask_test"):
+        for r in task.blocks.get(b, []):
+            ev_rows.append(r)
+            ev_kinds.append(probe.row_kind(r))
+            ev_block.append(b)
     ev_ids = [task.render(tok, r) for r in ev_rows]
 
     def evaluate(g):

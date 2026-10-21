@@ -138,9 +138,11 @@ def run(args) -> int:
 
     cfg = probe.setting(args.setting, args.smoke)
     pred = prediction_block(E2E / args.prediction) if args.prediction else None
-    # the probe's blocks, validation and off-task included (a probe may score larger ones)
+    # the probe's blocks, validation and off-task included (a probe may score larger ones),
+    # and its untouched retained-task test block where it recorded one
     task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale,
-                      block=pred["blocks"]["validation"] if pred and not args.smoke else None)
+                      block=pred["blocks"]["validation"] if pred and not args.smoke else None,
+                      offtask_test=bool(pred and not args.smoke and "offtask_test" in pred["blocks"]))
     if pred is not None and not args.smoke:
         if pred["setting"] != args.setting:
             raise SystemExit(f"the prediction is for {pred['setting']}, the run for {args.setting}")
@@ -206,10 +208,11 @@ def run(args) -> int:
     else:
         batches = stream_batches(task, args.iterations, len(task.blocks["train"]))
     ev_rows, ev_kinds, ev_block = [], [], []
-    for b in ("validation", "test", "offtask"):
-        ev_rows += task.blocks[b]
-        ev_kinds += [probe.row_kind(r) for r in task.blocks[b]]
-        ev_block += [b] * len(task.blocks[b])
+    for b in ("validation", "test", "offtask", "offtask_test"):
+        for r in task.blocks.get(b, []):
+            ev_rows.append(r)
+            ev_kinds.append(probe.row_kind(r))
+            ev_block.append(b)
     ev_ids = [task.render(tok, r) for r in ev_rows]
 
     def evaluate(g):
@@ -331,6 +334,11 @@ def retention(evals: list, margin: float = RETENTION_MARGIN, half: int = RETAINE
         lo, hi = c["change"] - 2 * c["change_se"], c["change"] + 2 * c["change_se"]
         return "within" if lo > -margin else "lost" if hi < -margin else "unresolved"
 
+    def verdict(statuses):
+        if not statuses:
+            return None
+        return "lost" if "lost" in statuses else "within" if all(v == "within" for v in statuses) else "unresolved"
+
     sel, best_val, per_eval = None, None, []
     for r in evals:
         fam = r.get("by_family_half") or {}
@@ -344,14 +352,27 @@ def retention(evals: list, margin: float = RETENTION_MARGIN, half: int = RETAINE
         if ok and (best_val is None or val > best_val):
             sel, best_val = r, val
     if sel is None:
-        return {"class": "fails", "selected_iteration": None, "test_change_at_selected": None, "retained_at_selected": None,
-                "per_evaluation": per_eval, "margin": margin, "selection_half": half, "reserved_half_present": bool(per_eval and per_eval[0]["reserved"])}
+        return {"class": "fails", "task_class": "fails", "retention_verdict": None, "joint": "fails",
+                "selected_iteration": None, "test_change_at_selected": None, "retained_at_selected": None,
+                "per_evaluation": per_eval, "margin": margin, "selection_half": half,
+                "reserved_half_present": bool(per_eval and per_eval[0]["reserved"]), "untouched_block_present": False}
     fam = sel["by_family_half"]
-    reserved = {f: {**c["reserved"], "status": status(c["reserved"])} for f, c in fam.items() if c.get("reserved")}
-    return {"class": cls(sel["by_block"].get("test", {}).get("change", 0.0)), "selected_iteration": sel["iteration"],
+    # the final reading: the untouched retained-task test block where the run has one (the
+    # probe never decodes it), else the reserved half of the off-task block (which the
+    # probe's scans and off-task decodes did touch, so it is reserved from checkpoint
+    # selection only; the review of 2026-10-21)
+    final_key = "test" if any(c.get("test") for c in fam.values()) else "reserved"
+    final = {f: {**c[final_key], "status": status(c[final_key])} for f, c in fam.items() if c.get(final_key)}
+    task_class = cls(sel["by_block"].get("test", {}).get("change", 0.0))
+    rv = verdict([v["status"] for v in final.values()])
+    joint = task_class if task_class != "works" else ("works" if rv == "within" else f"works on the task; retention {rv}")
+    return {"class": task_class, "task_class": task_class, "retention_verdict": rv, "joint": joint,
+            "selected_iteration": sel["iteration"],
             "validation_change_at_selected": best_val, "test_change_at_selected": sel["by_block"].get("test", {}).get("change"),
-            "retained_at_selected": reserved, "retained_within_margin": all(v["status"] == "within" for v in reserved.values()) if reserved else None,
-            "per_evaluation": per_eval, "margin": margin, "selection_half": half, "reserved_half_present": bool(reserved)}
+            "retained_at_selected": final, "retained_on": final_key,
+            "retained_within_margin": rv == "within" if final else None,
+            "per_evaluation": per_eval, "margin": margin, "selection_half": half, "reserved_half_present": bool(final),
+            "untouched_block_present": final_key == "test"}
 
 
 def loop_seconds_to(evals: list, log: list, block: str = "test", threshold: float = CLASS_WORKS):
@@ -430,11 +451,26 @@ def effective_updates(g: int, gamma: float) -> tuple:
     """After `g` updates with the weights pulled a fraction `gamma` back toward the start
     after each, the displacement is sum_i (1 - gamma)^(g - i + 1) u_i: the number of
     updates the first-order gain counts, and the number the random part's variance
-    counts. Both are `g` without shrinkage."""
+    counts, for responses measured per unit update (before the pull-back). Both are `g`
+    without shrinkage."""
     if not gamma:
         return float(g), float(g)
     q = 1.0 - gamma
     return q * (1.0 - q ** g) / gamma, q ** 2 * (1.0 - q ** (2 * g)) / (1.0 - q ** 2)
+
+
+def effective_updates_from_first(g: int, gamma: float) -> tuple:
+    """The same counts for responses measured at the applied step's first displacement,
+    (1 - gamma) times the update, which already carries one pull-back: update i then
+    enters with weight (1 - gamma)^(g - i), so the gain counts (1 - q^g) / gamma updates
+    and the variance (1 - q^2g) / (1 - q^2). At one update both are 1, so the forecast is
+    the measured change at the first displacement itself (the review of 2026-10-21: the
+    frozen S4b forecasts used `effective_updates` on these responses and counted the
+    first pull-back twice)."""
+    if not gamma:
+        return float(g), float(g)
+    q = 1.0 - gamma
+    return (1.0 - q ** g) / gamma, (1.0 - q ** (2 * g)) / (1.0 - q ** 2)
 
 
 def analyze(out: Path) -> dict:
@@ -455,14 +491,20 @@ def analyze(out: Path) -> dict:
                                 "change": float(d[blocks == b].mean()), "change_se": se(d[blocks == b])}
                             for b in ("validation", "test", "offtask") if (blocks == b).any()},
                "by_task": {t: {"change": float(d[kinds == t].mean()), "change_se": se(d[kinds == t])} for t in sorted(set(kinds))}}
-        # the retained families on the off-task block's selection and reserved halves (S4b)
+        # the retained families on the off-task block's selection and reserved halves (S4b),
+        # and on the untouched retained-task test block where the run has one (the next
+        # preregistration: a block the probe never decodes)
         off = np.flatnonzero(blocks == "offtask")
         if off.size:
             halves = {"selection": off[:RETAINED_SELECTION], "reserved": off[RETAINED_SELECTION:]}
+            untouched = np.flatnonzero(blocks == "offtask_test")
+            if untouched.size:
+                halves["test"] = untouched
+            fams = sorted(set(kinds[off]) | set(kinds[untouched]))
             row["by_family_half"] = {str(t): {h: {"change": float(d[i[kinds[i] == t]].mean()), "change_se": se(d[i[kinds[i] == t]]),
                                                   "prompts": int((kinds[i] == t).sum())}
                                                for h, i in halves.items() if (kinds[i] == t).any()}
-                                     for t in sorted(set(kinds[off]))}
+                                     for t in fams}
         if pred:
             # a random ranking has the random cost and no gain (docs/end_to_end/10, S4a arm 2);
             # shrinkage after each update weights update i by (1 - gamma)^(g - i + 1), so the
@@ -472,11 +514,20 @@ def analyze(out: Path) -> dict:
             eff_g, eff_c = effective_updates(g, gamma)
             v = (pred.get("prescription") or {}).get("response_at_first_displacement")
             if v:
-                # S4b: the prescription's responses at the applied step's first displacement
+                # S4b: the prescription's responses at the applied step's first displacement.
+                # `predicted` keeps the frozen convention of the S4b prescriptions (the weights
+                # of `effective_updates`, which count the first pull-back twice);
+                # `predicted_corrected` uses the weights from exponent zero.
                 gain = eff_g * v["odd"] if real else 0.0
                 row["predicted"] = {"validation_change": gain + eff_c * v["even"], "gain_first_order": gain,
                                     "random_cost": -eff_c * v["even"], "effective_updates": [eff_g, eff_c],
-                                    "offtask_change": None, "from": "prescription"}
+                                    "offtask_change": None, "from": "prescription",
+                                    "convention": "frozen (S4b): weights from exponent one on responses at the first displacement"}
+                cg, cc = effective_updates_from_first(g, gamma)
+                cgain = cg * v["odd"] if real else 0.0
+                row["predicted_corrected"] = {"validation_change": cgain + cc * v["even"], "gain_first_order": cgain,
+                                              "random_cost": -cc * v["even"], "effective_updates": [cg, cc],
+                                              "convention": "weights from exponent zero (2026-10-21)"}
             else:
                 gain = eff_g * step * pred["G"] if real else 0.0
                 row["predicted"] = {"validation_change": gain - eff_c * step ** 2 * -pred["C"],
@@ -513,7 +564,9 @@ def variant_of(a: dict):
 def curves_table(evals: list, predicted: bool) -> str:
     """Per-evaluation changes by block, the answer length, and the first-order prediction
     where the run carried one: the tables of the results READMEs."""
-    cols = ["after", "validation", "test", "off-task", "answer length"] + ["predicted validation"] * predicted
+    corrected = predicted and "predicted_corrected" in evals[0]
+    cols = ["after", "validation", "test", "off-task", "answer length"] + ["predicted validation"] * predicted \
+        + ["forecast, corrected weights"] * corrected
     rows = []
     for r in evals:
         b = r["by_block"]
@@ -521,6 +574,8 @@ def curves_table(evals: list, predicted: bool) -> str:
         row = [str(r["iteration"]), f("validation"), f("test"), f("offtask"), f"{r['mean_len']:.0f}"]
         if predicted:
             row.append(f"{r['predicted']['validation_change']:+.3f}")
+        if corrected:
+            row.append(f"{r['predicted_corrected']['validation_change']:+.3f}")
         rows.append("| " + " | ".join(row) + " |")
     return "\n".join(["| " + " | ".join(cols) + " |", "|" + "|".join("---" for _ in cols) + "|", *rows])
 

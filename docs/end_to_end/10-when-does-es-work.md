@@ -373,6 +373,27 @@ the corrected analysis sits beside it as `rule_net`, dated.
     GSM8K, and calls every setting undetermined: a one-update scan on 300 prompts does
     not resolve the net gain at that level. The second probe's expectation 1 is read at
     a matched length (`probe_table --against`, "at the first's length").
+11. **Three corrections after S4b** (2026-10-21, from Andres's review of the stage; no
+    record changed). The anchored forecast counted the first pull-back twice: the
+    prescription reads the responses at the applied step's first displacement, 0.9 of the
+    step, and `effective_updates` then weighted them from exponent one; for responses at
+    that displacement the weights start at exponent zero (`effective_updates_from_first`:
+    4.095 and 3.428 at five updates instead of 3.686 and 2.777; at one update the
+    forecast is the measured change at the first displacement itself, the CPU check), and
+    the review had mixed the two conventions in its own earlier advice. The frozen S4b
+    prescriptions and the P3 bands scored against them are kept; the analysis reports the
+    corrected forecast beside them, and new prescriptions use the corrected weights. The
+    reserved half of the off-task block is reserved from checkpoint selection only: the
+    probe's scans and off-task decodes use the whole block and the curve rule's retained
+    bound reads its even response, so it is not an untouched final test; and the class
+    admitted checkpoints with unresolved retention and called them "works" from the task
+    alone, so the task class and the retention verdict are now separate fields and
+    "works" alone means both. The next experiment reserves retained-task test prompts
+    that neither the probe nor the selection touches (`Task(..., offtask_test=True)`).
+    And the S4b write-up had said both of C's targets exceeded its headroom: with a start
+    of 0.937 the +0.10 RL target was impossible and the +0.05 learning target was
+    possible at about 79% of the remaining errors; corrected in `runs/s4b/README.md` and
+    the results above.
 
 ## S3c, the measured RL reference: preregistration (2026-10-13, before any run)
 
@@ -759,30 +780,58 @@ the 21st), 16.8 pod hours, about $93 including a pod lost to slow downloads.
 | P2 collapses | no call; GSM8K +0.025, +0.025, −0.025 | no call | no call |
 | compute to +0.10, ES over GRPO | 1.1 to 1.2 in loop seconds, 6.4 in rollouts | neither reached it | neither reached it |
 
-A is the clean case: three ES arms learned at the 3.0-unit anchored step, and the
-anchored first-order forecast from one update's responses at the applied step's first
-displacement reproduced both seeds' 30-update curves to within 0.015 at every
-evaluation, where the un-anchored forecast overshot the control from update 10 on; the
-anchor cost about 0.03 of task gain against the control and kept GSM8K (+0.025 against
-the control's −0.025 at 30, within noise either way); GRPO crossed the target where the
-sign slope said. C is the ceiling case: the start scores 0.937, the probe's +0.023
-response at the first displacement (3.3 standard errors) did not continue for either
-method, and both gated predictions miss there by thresholds set before the start reward
-was known. D is the no-signal case: an undetermined call, no RL prediction, and neither
-method moved the task. The gated predictions stand at P1 one of two settings with a call
-and P4 one of two settings with a prediction, both misses on C. The retention margin of
-0.03 is resolved on A's seed-0 GSM8K and unresolved elsewhere at this block size. The
-quadratic rule's calls on the same records were wrong on A ("fails: no odd response",
-population 1) and C ("works"), right on D; the exploratory curve rule prescribed the
-steps that worked on A and called C undetermined.
+A is the clean case for the method: three ES arms learned at the 3.0-unit anchored
+step, reached the target at 1.1 to 1.2 times GRPO's loop seconds, kept GSM8K within the
+margin on one anchored seed (unresolved on the other and on the control), and GRPO
+crossed the target where the sign slope said; the anchor cost about 0.03 of task gain
+against the control and left GSM8K at +0.025 against the control's −0.025 at 30, within
+noise either way. The forecast on A reads as follows after item 11 (the frozen
+prescriptions counted the first pull-back twice): with the corrected weights the
+forecast from one update's responses matches both seeds through update 10 (+0.082 and
++0.123 against +0.082 to +0.085 and +0.108 to +0.116) and overshoots afterwards, by 0.019
+to 0.026 at 30 (+0.167 against +0.148 and +0.141); the claim written after the first arm,
+agreement within 0.015 at every evaluation, rested on the double-counted pull-back and
+is withdrawn. C is the ceiling case: the start scores 0.937, leaving 0.063 of headroom,
+so the +0.10 RL target was impossible and the +0.05 learning target needed about 79% of
+the remaining errors recovered; the probe's +0.023 response (3.3 standard errors) did not
+continue for either method, and both gated predictions miss there as scored. D is the
+no-signal case: an undetermined call, no RL prediction, and neither method moved the
+task, which is not a successful negative prediction, since GRPO barely improved there
+either. The gated predictions stand at P1 one of two settings with a call and P4 one of
+two settings with a prediction, both misses on C; P2 made no call on any setting, so it
+is untested, not failed. The quadratic rule's calls on the same records were wrong on A
+("fails: no odd response", population 1) and C ("works"); the exploratory curve rule
+prescribed the steps that worked on A and called C undetermined. The prescription itself
+cost about 3,100 s of pod time on A (1,300 s without the off-task decodes that feed P2),
+against GRPO's 1,635 s to the target, a cost reported beside the loop seconds and not
+inside them. A's two populations prescribed 3.0 and 15.8 units; that one probe chooses
+the step reliably is not shown, and it is the more immediate uncertainty.
 
-What this batch says to the rule: a one-update probe read at the step a run will take,
-carried through the anchor's weights, forecasts an anchored ES run on a setting with a
-resolved response (A, both seeds), and says nothing useful where the task is at its
-ceiling (C) or the response is absent (D), which the undetermined call covers on D but
-a threshold in absolute reward did not on C. The next preregistration should state the
-learning targets as fractions of the start's headroom, and the off-task spread
-predictor needs a setting where it makes a call before it is anything.
+What this batch says to the rule: a one-update probe read at the step a run will take
+forecasts the first ten updates of an anchored ES run on a setting with a resolved
+response and overstates the later ones; it says nothing useful where the task is at its
+ceiling (C) or the response is absent (D). The next preregistration states the learning
+targets as fractions of the start's headroom with a minimum detectable effect, reserves
+a retained-task test block the probe never decodes, and needs a setting where the
+off-task spread predictor makes a call before that predictor is anything.
+
+#### After S4b: the order of work (Andres's review, 2026-10-21)
+
+1. Correct and regenerate the analyses (done, item 11) and update the manuscript around
+   the completed comparisons: ES's underperformance on Tulu, its learning on Countdown
+   with the measured stabilization trade-off, and the compute comparisons, without a
+   universal predictor as a condition for the paper.
+2. A second GRPO seed on A, and the matched anchored and un-anchored ES pair on A
+   extended from 30 to 60 updates with the horizon fixed before any new result is read:
+   whether near-parity and the retention trade-off persist. About $20 to 30, more if the
+   answers lengthen. If both arms stay stable the anchor was unnecessary on this
+   setting; if only the anchored one does, the retention mechanism is clearer.
+3. One fresh, non-saturated task with two probe populations and matched ES and GRPO
+   arms: the transfer of the corrected prescription, with the headroom measured before
+   the target is frozen and a minimum detectable effect stated.
+4. S4c's published-recipe replication is a separate objective, deferred; if explaining
+   Qiu et al.'s result becomes the question, a short faithful reproduction of their
+   recipe comes before the full horizon.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 

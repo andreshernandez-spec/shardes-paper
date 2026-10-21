@@ -224,12 +224,23 @@ def test_retention_uses_a_fixed_margin_with_paired_intervals_per_family(tmp_path
     # 15 is ineligible (MATH lost on the selection half); 10 is eligible (unresolved does not
     # disqualify) and has the larger validation change
     assert r["selected_iteration"] == 10 and r["class"] == "works" and r["margin"] == 0.03
+    # the task class and the retention verdict are separate, and "works" alone is joint
+    assert r["task_class"] == "works" and r["retention_verdict"] == "within" and r["joint"] == "works" and r["retained_on"] == "reserved"
     assert r["per_evaluation"][2]["eligible"] is False and r["per_evaluation"][1]["selection"]["MATH"] == "unresolved"
     assert r["retained_at_selected"]["MATH"]["status"] == "within" and r["retained_within_margin"]
     # a gain in one family does not cancel a loss in another
     cancel = {"MATH": (-0.08, 0.01), "ifeval": (0.10, 0.01)}
     r2 = pr.retention([ev(0, 0, 0, 0), fam(5, 0.12, 0.11, cancel, cancel)])
     assert r2["class"] == "fails" and r2["selected_iteration"] is None
+    # unresolved retention does not make a joint "works", and an untouched test block is
+    # read in preference to the reserved half
+    r3 = pr.retention([ev(0, 0, 0, 0), fam(5, 0.12, 0.11, ok, unresolved_math)])
+    assert r3["task_class"] == "works" and r3["retention_verdict"] == "unresolved" and r3["joint"].startswith("works on the task; retention unresolved")
+    row = fam(5, 0.12, 0.11, ok, unresolved_math)
+    for f in row["by_family_half"]:
+        row["by_family_half"][f]["test"] = {"change": -0.06, "change_se": 0.01, "prompts": 150}
+    r4 = pr.retention([ev(0, 0, 0, 0), row])
+    assert r4["retained_on"] == "test" and r4["retention_verdict"] == "lost" and r4["untouched_block_present"]
     # the old rows without family halves give no selection
     assert pr.retention([ev(0, 0, 0, 0), ev(5, 0.12, 0.11, 0.0)])["selected_iteration"] is None
 
@@ -265,10 +276,18 @@ def test_analysis_splits_the_retained_families_by_half_and_reads_a_prescription(
     (out / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/gsm8k", "seed": 0, "step": 15.6, "n": 64, "shrink": 0.1},
                                               "prediction": p}))
     a = pr.analyze(out)
-    # the prediction of a prescribed run comes from the prescription's responses with the anchor's weights
+    # the prediction of a prescribed run comes from the prescription's responses with the anchor's
+    # weights: the frozen convention beside the corrected one, which at one update is the
+    # measured change at the first displacement itself
     eff_g, eff_c = pr.effective_updates(5, 0.1)
     assert a["eval"][-1]["predicted"]["from"] == "prescription"
     assert abs(a["eval"][-1]["predicted"]["validation_change"] - (eff_g * 0.0126 + eff_c * 0.0088)) < 1e-9
+    cg, cc = pr.effective_updates_from_first(5, 0.1)
+    assert abs(a["eval"][-1]["predicted_corrected"]["validation_change"] - (cg * 0.0126 + cc * 0.0088)) < 1e-9
+    one = pr.effective_updates_from_first(1, 0.1)
+    assert abs(one[0] - 1.0) < 1e-12 and abs(one[1] - 1.0) < 1e-12 and pr.effective_updates_from_first(7, 0.0) == (7.0, 7.0)
+    assert abs(cg - 4.0951) < 1e-4 and abs(cc - 3.4280) < 1e-4
+    assert "forecast, corrected weights" in pr.curves(tmp_path).splitlines()[2]
     fh = a["eval"][-1]["by_family_half"]
     assert set(fh) == {"MATH", "ifeval"} and fh["MATH"]["selection"]["prompts"] == 150 and fh["MATH"]["reserved"]["prompts"] == 150
     assert abs(fh["ifeval"]["selection"]["change"]) < 1e-9 and fh["MATH"]["selection"]["change"] < 0

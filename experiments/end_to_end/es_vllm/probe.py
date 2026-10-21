@@ -213,7 +213,7 @@ class Task:
     its records compare with a default probe's and a run against it reserves the same
     test prompts."""
 
-    def __init__(self, name: str, template: str, smoke: bool, es_at_scale: Path, block=None):
+    def __init__(self, name: str, template: str, smoke: bool, es_at_scale: Path, block=None, offtask_test=False):
         from es_vllm.run_tulu import heldout_rows, load_prompts  # noqa: PLC0415
 
         self.name, self.template, self.smoke = name, template, smoke
@@ -222,6 +222,11 @@ class Task:
         if n_val < n_test:
             raise SystemExit(f"block {n_val} is smaller than the test block ({n_test})")
         extra = n_val - n_test                 # rows after the test block, so the test block stays put
+        # `offtask_test`: a retained-task test block of n_test rows after the off-task block's
+        # rows, which the probe never decodes (`scan_rows` leaves it out) and the runs score
+        # for the final retention reading (the review of 2026-10-21)
+        n_ot = n_test if offtask_test else 0
+        h = n_ot // 2
         if name == "countdown":
             from es_vllm.run_countdown import es_at_scale as pin, rows  # noqa: PLC0415
 
@@ -229,7 +234,7 @@ class Task:
             train, ev = rows(self.clone, "train"), rows(self.clone, "eval")
             gsm = [r for r in heldout_rows(0, 80) if r["dataset"] == "gsm8k"]
             self.blocks = {"train": train[:n_train], "validation": ev[:n_test] + ev[2 * n_test:2 * n_test + extra],
-                           "test": ev[n_test:2 * n_test], "offtask": gsm[:n_val]}
+                           "test": ev[n_test:2 * n_test], "offtask": gsm[:n_val], "offtask_test": gsm[n_val:n_val + n_ot]}
         elif name == "gsm8k":
             pool = heldout_rows(0, 160)
             gsm = [r for r in pool if r["dataset"] == "gsm8k"]
@@ -239,7 +244,8 @@ class Task:
             self.blocks = {"train": gsm[:n_train], "validation": gsm[v0:t0] + gsm[t0 + n_test:t0 + n_test + extra],
                            "test": gsm[t0:t0 + n_test],
                            "offtask": math[:n_test // 2] + ifeval[:n_test // 2]
-                           + math[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2]}
+                           + math[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2],
+                           "offtask_test": math[n_val // 2:n_val // 2 + h] + ifeval[n_val // 2:n_val // 2 + h]}
         elif name == "math":                   # MATH alone, from the stream's rows (S4b setting D)
             pool = heldout_rows(0, 200)
             math = [r for r in pool if r["dataset"] == "MATH"]
@@ -249,7 +255,8 @@ class Task:
             self.blocks = {"train": math[:n_train], "validation": math[v0:t0] + math[t0 + n_test:t0 + n_test + extra],
                            "test": math[t0:t0 + n_test],
                            "offtask": gsm[:n_test // 2] + ifeval[:n_test // 2]
-                           + gsm[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2]}
+                           + gsm[n_test // 2:n_val // 2] + ifeval[n_test // 2:n_val // 2],
+                           "offtask_test": gsm[n_val // 2:n_val // 2 + h] + ifeval[n_val // 2:n_val // 2 + h]}
         elif name == "quotation":              # one IFEval constraint type, constructed (S4b setting C)
             pool = heldout_rows(0, 600)        # one pass over the training set; 400 steps give 1,091 rows
             rows_q = quotation_rows([r for r in pool if r["dataset"] == "ifeval"])
@@ -259,16 +266,20 @@ class Task:
             self.blocks = {"train": rows_q[:n_train], "validation": rows_q[v0:t0] + rows_q[t0 + n_test:t0 + n_test + extra],
                            "test": rows_q[t0:t0 + n_test],
                            "offtask": gsm[:n_test // 2] + math[:n_test // 2]
-                           + gsm[n_test // 2:n_val // 2] + math[n_test // 2:n_val // 2]}
+                           + gsm[n_test // 2:n_val // 2] + math[n_test // 2:n_val // 2],
+                           "offtask_test": gsm[n_val // 2:n_val // 2 + h] + math[n_val // 2:n_val // 2 + h]}
         elif name == "tulu":
             self.blocks = {"train": load_prompts(E2E / "data" / "tulu31", 1, P_TRAIN)[0][:n_train],
                            "validation": heldout_rows(120, 160)[:n_val],
-                           "test": heldout_rows(480, 520)[:n_test], "offtask": []}
+                           "test": heldout_rows(480, 520)[:n_test], "offtask": [], "offtask_test": []}
         else:
             raise SystemExit(f"unknown task {name}")
+        if not offtask_test:
+            self.blocks.pop("offtask_test", None)
         self.n_test = n_test
         for b, rows_ in self.blocks.items():
-            want = {"train": n_train, "test": n_test, "offtask": 0 if name == "tulu" else n_val}.get(b, n_val)
+            want = {"train": n_train, "test": n_test, "offtask": 0 if name == "tulu" else n_val,
+                    "offtask_test": 0 if name == "tulu" else n_ot}.get(b, n_val)
             if len(rows_) != want:
                 raise SystemExit(f"{name} {b}: {len(rows_)} rows, wanted {want}")
             if len({digest([r]) for r in rows_}) != len(rows_):
@@ -755,7 +766,7 @@ def prescribe(pred: dict, smeta: dict) -> dict:
     plus 2.78 times the even one at that point, with the band a quarter to once that. P4
     RL's pace: the step at which GRPO reaches +0.10 from the sign-direction slope at the
     shortest usable length, only where that slope is resolved at two standard errors."""
-    from es_vllm.probe_run import effective_updates  # noqa: PLC0415
+    from es_vllm.probe_run import effective_updates_from_first  # noqa: PLC0415
 
     u = pred.get("update") or {}
     unit = smeta.get("unit_norm") or 0.0
@@ -785,10 +796,13 @@ def prescribe(pred: dict, smeta: dict) -> dict:
         p2 = "holds"
     else:
         p2 = "no call"
-    # P3
-    eff_g, eff_c = effective_updates(5, SHRINK)
+    # P3: the responses are at the first displacement, so the weights start at exponent
+    # zero (effective_updates_from_first; the S4b prescriptions of 2026-10-16 used
+    # effective_updates here and counted the first pull-back twice, see 10)
+    eff_g, eff_c = effective_updates_from_first(5, SHRINK)
     p3 = {"predicted_validation_change_after_5": eff_g * v["odd"] + eff_c * v["even"],
-          "band": [0.25 * (eff_g * v["odd"] + eff_c * v["even"]), eff_g * v["odd"] + eff_c * v["even"]]} if v else None
+          "band": [0.25 * (eff_g * v["odd"] + eff_c * v["even"]), eff_g * v["odd"] + eff_c * v["even"]],
+          "convention": "weights from exponent zero (2026-10-21)"} if v else None
     # P4
     l0 = pred.get("level0") or {}
     slope, slope_se = l0.get("rl_slope_along_direction"), None
@@ -805,7 +819,7 @@ def prescribe(pred: dict, smeta: dict) -> dict:
             "first_displacement_multiple": first, "unit_norm": unit, "response_at_first_displacement": v,
             "P1_learns": p1, "P2_collapses": p2, "P2_spread_ratio": ratio or None, "P3_pace": p3, "P4_rl_pace": p4,
             "constants": {"resolved_se": RESOLVED_CALL, "learns_at": CLASS_MARGINAL_TARGET, "anchored_updates_for_P3": [eff_g, eff_c]},
-            "date": "2026-10-15"}
+            "date": "2026-10-21"}
 
 
 def phase_steps(args, cfg, task) -> None:
@@ -1452,6 +1466,8 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=SEED, help="the member population (and the scan's directions)")
     ap.add_argument("--block", type=int, default=None,
                     help=f"validation and off-task prompts (default {BLOCK}; the test block stays at {BLOCK})")
+    ap.add_argument("--offtask-test", action="store_true",
+                    help=f"also reserve a retained-task test block of {BLOCK} prompts the probe never decodes")
     ap.add_argument("--workdir", type=Path, default=Path("/tmp/probe"))
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
@@ -1465,7 +1481,7 @@ def main(argv=None) -> int:
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
     args.workdir.mkdir(parents=True, exist_ok=True)
-    task = Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale, block=args.block)
+    task = Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale, block=args.block, offtask_test=args.offtask_test)
     env = out / "env.json"
     if env.exists():
         prev = json.loads(env.read_text())

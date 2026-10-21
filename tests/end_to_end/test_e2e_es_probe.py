@@ -308,6 +308,18 @@ def test_larger_blocks_keep_the_default_block_first_and_the_test_block_fixed(tas
         probe.Task(task, "chat", False, tmp_path, block=100)
     smoke = probe.Task(task, "chat", True, tmp_path)
     assert len(smoke.blocks["train"]) == 16 and len(smoke.blocks["test"]) == 24
+    # the untouched retained-task test block: after the off-task block's rows, disjoint
+    # from every other block, left out of the scans, absent unless asked for
+    assert "offtask_test" not in big.blocks
+    with_test = probe.Task(task, "chat", False, tmp_path, block=600, offtask_test=True)
+    if task == "tulu":
+        assert with_test.blocks["offtask_test"] == []
+    else:
+        assert len(with_test.blocks["offtask_test"]) == 300
+        others = {probe.digest([r]) for b in ("train", "validation", "test", "offtask") for r in with_test.blocks[b]}
+        assert not any(probe.digest([r]) in others for r in with_test.blocks["offtask_test"])
+        assert {b: with_test.digests()[b] for b in big.blocks} == big.digests()      # the other blocks are unchanged
+        assert set(probe.scan_rows(with_test)[2]) == {"validation", "offtask"}
 
 
 def test_members_offtask_diagnostic_recovers_constructed_effects(tmp_path):
@@ -427,8 +439,10 @@ def test_prescription_reads_the_responses_at_the_first_displacement():
     lam = q["first_displacement_multiple"]
     assert abs(v["odd"] - 0.05 * (1 - np.exp(-lam / 5))) < 0.003 and v["within_scan"]   # piecewise linear
     assert q["P1_learns"] == "learns" and q["P2_collapses"] == "no call"
-    eff_g, eff_c = 0.9 * (1 - 0.9 ** 5) / 0.1, 0.81 * (1 - 0.9 ** 10) / 0.19
+    # the responses are at the first displacement, so the anchor's weights start at exponent zero
+    eff_g, eff_c = (1 - 0.9 ** 5) / 0.1, (1 - 0.9 ** 10) / 0.19
     assert abs(q["P3_pace"]["predicted_validation_change_after_5"] - (eff_g * v["odd"] + eff_c * v["even"])) < 1e-9
+    assert abs(eff_g - 4.0951) < 1e-4 and abs(eff_c - 3.4280) < 1e-4
     assert abs(q["P4_rl_pace"]["predicted_step_to_target"] - 0.1 / 0.0061) < 1e-9
     # an unresolved RL slope gives no P4; a negative, resolved odd response gives "does not learn"
     sgn["0.3"]["by_block"]["validation"]["slope_se"] = 0.2
