@@ -743,23 +743,46 @@ result about the predictor at this probe size. C's start already scores 0.90 on 
 train block and 0.93 on validation, so its +0.05 threshold sits near the ceiling; the
 prediction stands as written. Then the ES and GRPO arms in a second session.
 
-#### The run session, first three arms (2026-10-16, `runs/s4b/README.md`)
+#### The run session (2026-10-16 and 2026-10-21, `runs/s4b/README.md`)
 
-The three anchored ES arms ran (9.5 hours, about $50); the session was then stopped at
-Andres's request before anything else started, so A's un-anchored control and second
-seed and the three GRPO arms wait for a later session. A (1.5B instruct Countdown at the
-3.0-unit anchored step) learned to +0.148 on the reserved block in 30 updates with GSM8K
-kept within the margin (+0.037 ± 0.018 on the reserved half), and the anchored
-first-order forecast from its prescription tracked the whole curve to within 0.01 (P1
-held; P3 at 1.15 times the forecast, just above the band). C (3B instruct on the
-constructed Quotation task) peaked at +0.037 ± 0.013 and ended at +0.027, under the
-+0.05 threshold: P1 missed, near the task's ceiling of 0.063, and the forecast
-overshot from the second evaluation on. D (MATH alone at the fallback step) moved
-nothing, within noise on every block, as its undetermined call allowed; it is not
-scored. P2 made no call on any of the three. The retention margin of 0.03 is resolved on
-A's GSM8K (success rate 0.75, standard error 0.018 on 300 prompts) and unresolved on
-C's and D's retained families, whose intervals straddle it. The gated predictions
-stand at P1 one of two with one unscored, P4 without a reading until the GRPO arms run.
+Eight arms in two parts (the three anchored ES arms on the 16th, then a stop at
+Andres's request; the un-anchored control, the second seed and the three GRPO arms on
+the 21st), 16.8 pod hours, about $93 including a pod lost to slow downloads.
+
+| | A, 1.5B instruct Countdown | C, 3B instruct Quotation (constructed) | D, 3B instruct MATH alone |
+|---|---|---|---|
+| ES anchored, reserved block at 30 | +0.148 and +0.147 (two seeds); the un-anchored control +0.180 | +0.027 (peak +0.037) | +0.017 |
+| GRPO, reserved block at 40 | +0.192, +0.10 between steps 20 and 25 | +0.033 | +0.003 |
+| P1 learns | held (three arms) | missed | unscored |
+| P3 pace | 1.16 and 1.20 of the forecast (just above the band); the control 0.93 of the un-anchored one | below the band | reported |
+| P4 RL's pace | held (step 23 predicted, band 11.5 to 46) | missed (9.7 predicted; never reached) | no prediction |
+| P2 collapses | no call; GSM8K +0.025, +0.025, −0.025 | no call | no call |
+| compute to +0.10, ES over GRPO | 1.1 to 1.2 in loop seconds, 6.4 in rollouts | neither reached it | neither reached it |
+
+A is the clean case: three ES arms learned at the 3.0-unit anchored step, and the
+anchored first-order forecast from one update's responses at the applied step's first
+displacement reproduced both seeds' 30-update curves to within 0.015 at every
+evaluation, where the un-anchored forecast overshot the control from update 10 on; the
+anchor cost about 0.03 of task gain against the control and kept GSM8K (+0.025 against
+the control's −0.025 at 30, within noise either way); GRPO crossed the target where the
+sign slope said. C is the ceiling case: the start scores 0.937, the probe's +0.023
+response at the first displacement (3.3 standard errors) did not continue for either
+method, and both gated predictions miss there by thresholds set before the start reward
+was known. D is the no-signal case: an undetermined call, no RL prediction, and neither
+method moved the task. The gated predictions stand at P1 one of two settings with a call
+and P4 one of two settings with a prediction, both misses on C. The retention margin of
+0.03 is resolved on A's seed-0 GSM8K and unresolved elsewhere at this block size. The
+quadratic rule's calls on the same records were wrong on A ("fails: no odd response",
+population 1) and C ("works"), right on D; the exploratory curve rule prescribed the
+steps that worked on A and called C undetermined.
+
+What this batch says to the rule: a one-update probe read at the step a run will take,
+carried through the anchor's weights, forecasts an anchored ES run on a setting with a
+resolved response (A, both seeds), and says nothing useful where the task is at its
+ceiling (C) or the response is absent (D), which the undetermined call covers on D but
+a threshold in absolute reward did not on C. The next preregistration should state the
+learning targets as fractions of the start's headroom, and the off-task spread
+predictor needs a setting where it makes a call before it is anything.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
