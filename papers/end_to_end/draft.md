@@ -376,34 +376,36 @@ block and on the off-task GSM8K block against the evaluation before training, pa
 over prompts (standard error about 0.02 on 300 prompts; the 1.5B setting's off-task
 block has 600), at the end of the run and at its best and worst evaluations; "to a
 tenth" is the first evaluation at or above a gain of 0.10 on the reserved block, with
-the loop seconds and rollouts spent by then (evaluations every five updates or steps, so
-a crossing bounds the compute from above); the ratio is ES's over GRPO's on the same
-checkpoint. Thirty ES updates of 64 members (192 prompts each) and 40 GRPO steps of 768
-rollouts, one seed unless stated.
+the samples and loop seconds spent by then (evaluations every five updates or steps, so
+a crossing bounds both from above); the ratio is ES's over GRPO's on the same
+checkpoint. Thirty ES updates of 64 members on 192 prompts (368,640 samples) and 40 GRPO
+steps of 768 samples (30,720), one seed unless stated.
 
-| checkpoint | run | step | reserved block at end | peak (at) | GSM8K at end | lowest | to a tenth | loop s, ES/GRPO | rollouts, ES/GRPO |
+| checkpoint | run | step | reserved block at end | peak (at) | GSM8K at end | lowest | to a tenth | samples, ES/GRPO | loop s, ES/GRPO |
 |---|---|---|---|---|---|---|---|---|---|
-| 3B instruct | ES at the prescribed 15.3 units, two seeds | 15.3 | −0.118, −0.055 | +0.135 (15), +0.164 (15) | −0.837, −0.843 | −0.843, −0.843 | update 15, 5 | 3.50, 1.16 | 16, 5.3 |
-| 3B instruct | ES at a fifth of the step | 3.0 | +0.185 | +0.185 (30) | −0.017 | −0.040 | 15 | 3.43 | 16 |
+| 3B instruct | ES at the prescribed 15.3 units, two seeds | 15.3 | −0.118, −0.055 | +0.135 (15), +0.164 (15) | −0.837, −0.843 | −0.843, −0.843 | update 15, 5 | 16, 5.3 | 3.50, 1.16 |
+| 3B instruct | ES at a fifth of the step | 3.0 | +0.185 | +0.185 (30) | −0.017 | −0.040 | 15 | 16 | 3.43 |
 | 3B instruct | ES at 15.3 units, rankings shuffled | 15.3 | −0.124 | none | −0.843 | −0.843 | never | | |
-| 3B instruct | ES at 15.3 units, 256 members, 20 updates | 15.3 | +0.193 | +0.219 (15) | −0.037 | −0.053 | 5 | 4.28 | 21 |
-| 3B instruct | ES at 15.3 units, pulled back a tenth after each update | 15.3 | +0.154 | +0.235 (25) | −0.030 | −0.067 | 5 | 1.15 | 5.3 |
+| 3B instruct | ES at 15.3 units, 256 members, 20 updates | 15.3 | +0.193 | +0.219 (15) | −0.037 | −0.053 | 5 | 21 | 4.28 |
+| 3B instruct | ES at 15.3 units, pulled back a tenth after each update | 15.3 | +0.154 | +0.235 (25) | −0.030 | −0.067 | 5 | 5.3 | 1.15 |
 | 3B instruct | GRPO, two seeds | | +0.135, +0.125 | +0.148 (30), +0.125 (30) | −0.007, −0.007 | −0.020, −0.020 | step 15, 20 | | |
 | 3B instruct | GRPO without the KL term | | +0.191 | +0.191 (40) | −0.020 | −0.020 | 30 | | |
-| 3B base | ES at the prescribed 3.0 units, two seeds | 3.0 | +0.104, +0.169 | +0.104 (30), +0.169 (30) | −0.340, −0.100 | −0.340, −0.100 | 30, 15 | 2.67, 1.40 | 16, 8 |
+| 3B base | ES at the prescribed 3.0 units, two seeds | 3.0 | +0.104, +0.169 | +0.104 (30), +0.169 (30) | −0.340, −0.100 | −0.340, −0.100 | 30, 15 | 16, 8 | 2.67, 1.40 |
 | 3B base | GRPO | | +0.135 | +0.156 (35) | +0.143 | −0.010 | 30 | | |
-| 1.5B instruct | ES at 3.03 units, pulled back a tenth, two seeds | 3.03 | +0.148, +0.147 | +0.149 (20), +0.147 (30) | +0.025, +0.025 | −0.002, +0.003 | 10, 10 | 1.12, 1.10 | 6.4, 6.4 |
-| 1.5B instruct | ES at 3.03 units, no pull-back | 3.03 | +0.180 | +0.183 (15) | −0.025 | −0.025 | 10 | 1.20 | 6.4 |
+| 1.5B instruct | ES at 3.03 units, pulled back a tenth, two seeds | 3.03 | +0.148, +0.147 | +0.149 (20), +0.147 (30) | +0.025, +0.025 | −0.002, +0.003 | 10, 10 | 6.4, 6.4 | 1.12, 1.10 |
+| 1.5B instruct | ES at 3.03 units, no pull-back | 3.03 | +0.180 | +0.183 (15) | −0.025 | −0.025 | 10 | 6.4 | 1.20 |
 | 1.5B instruct | GRPO | | +0.192 | +0.192 (40) | −0.002 | −0.002 | 25 | | |
 
 ### 9.1 Learning, and a late collapse
 
 On the 3B instruct and base checkpoints at the steps the quadratic model prescribed, ES
-learned Countdown on every seed: the reserved block reached a tenth of the range at 5 to
-15 updates on the instruct model and at 15 to 30 on the base model, against GRPO's 15
-and 30 steps. Measured from the loops, ES spent 1.16 and 3.50 times GRPO's seconds
-on the instruct model (seeds 1 and 0) and 1.40 and 2.67 on the base model, and 5.3 to 16
-times its rollouts. Every one of these ES runs then lost its off-task block: GSM8K fell
+learned Countdown on every seed, and GRPO was the more data-efficient on every seed: the
+reserved block reached a tenth of the range after 61,440 to 184,320 ES samples on the
+instruct model (5 to 15 updates) and 184,320 to 368,640 on the base model (15 to 30),
+against 11,520 and 23,040 GRPO samples (15 and 30 steps), 5.3 to 16 times fewer;
+measured from the loops, the seconds ratio was 1.16 and 3.50 on the instruct model
+(seeds 1 and 0) and 1.40 and 2.67 on the base model. Every one of these ES runs then
+lost its off-task block: GSM8K fell
 from 0.84 to 0.00 on the instruct model between updates 15 and 30 and from 0.40 to 0.06
 and 0.30 on the base model after update 20, with the answers lengthening to the
 generation cap, while GRPO's GSM8K
@@ -424,8 +426,8 @@ step GSM8K stayed within 0.040 through 30 and the reserved block ended at +0.185
 the quadratic model's expected validation gain at 30, +0.196, against +0.194 observed;
 and with the weights pulled a tenth of the way back toward the start after each update at
 the full step, GSM8K stayed within 0.067 while the reserved block reached +0.235 at
-update 25, the largest gain measured on this checkpoint, at 1.15 times GRPO's loop
-seconds to a tenth. The collapse is therefore the update's random part accumulated over
+update 25, the largest gain measured on this checkpoint, at 5.3 times GRPO's samples
+to a tenth (1.15 times its loop seconds). The collapse is therefore the update's random part accumulated over
 updates, whose cost on the off-task block grows as the model moves (the one-update even
 response put it at a third of what the shuffled run lost by update 10), and three things
 limit it: the step, the population and a pull toward the start. GRPO without its KL term
@@ -444,8 +446,9 @@ whose summed off-task cost stays within a bound, 3.03 units here, with the pull-
 a tenth after each update. Two seeds learned to +0.148 and +0.147 on the
 reserved block in 30 updates with GSM8K at +0.025 on both (within a margin of 0.03 on the
 reserved half of the off-task block on one seed, unresolved on the other at 300 prompts),
-and reached a tenth at update 10, at 1.12 and 1.10 times GRPO's loop seconds and 6.4
-times its rollouts; GRPO reached it at step 25 (+0.040 at 20) and ended at +0.192. The same
+and reached a tenth at update 10, 122,880 samples, where GRPO reached it at step 25,
+19,200 samples (+0.040 at 20), so GRPO was the more data-efficient here too, by 6.4
+times, with ES's loop seconds at 1.12 and 1.10 times GRPO's; GRPO ended at +0.192. The same
 step without the pull-back gained more, +0.180, and ended with GSM8K at −0.025; on this
 checkpoint the pull-back cost about 0.03 of task gain and moved GSM8K by about 0.05 in
 its favour, within noise either way. Carried through the pull-back's geometric weights,
@@ -472,12 +475,17 @@ characteristic length `alpha sqrt(d / N)` whose even response sets the step. On 
 stream the remainder's cost equals the odd response at 16 members, and with 1,024 members
 the quadratic fit is favourable for one update and fails over eight, most on the
 reasoning tasks. On Countdown the same model's scores carry a shared response an order of
-magnitude larger, and there the same estimator learns on three checkpoints at 1.1 to 3.5
-times GRPO's loop seconds and 5 to 16 times its rollouts, with the remainder's
+magnitude larger, and there the same estimator learns on three checkpoints, at 5 to 16
+times GRPO's samples (1.1 to 3.5 times its loop seconds), with the remainder's
 accumulated cost falling on the task it is not training on and bounded by the step, the
-population or a pull toward the start. What sets a task's shared response, and whether
-a one-update measurement can choose the step and the horizon for a run on a checkpoint
-it has not seen, are open: on the 1.5B checkpoint the measured response curve chose a
+population or a pull toward the start. So at the horizons measured GRPO is the more
+data-efficient on both settings, and the one-update measurement said so in advance: it
+gives each method's early gain per sample, and the ratio favoured GRPO on every setting
+probed. What it cannot give is GRPO's plateau, which is where the published equal-samples
+wins for ES sit, at horizons about a hundred times longer than this paper's GRPO arms.
+What sets a task's shared response, and whether such a measurement can choose the step
+and the horizon for a run on a checkpoint it has not seen, are open: on the 1.5B
+checkpoint the measured response curve chose a
 step that learned and forecast the first ten updates, two populations chose steps five
 times apart, and at a task's ceiling or without a resolved response the measurement
 says nothing.
@@ -507,22 +515,24 @@ subset of members on all prompts and the rest on the live ones, a different devi
 
 ## 12. Conclusion
 
-On the Tulu 3.1 stream, from the same start and with the same generated answers, ES at
-16 members does not learn and the released GRPO checkpoints do, by 2.12 +- 0.11 after the
-data of 480 steps. The update's component along the run's gradient is 12% of the largest
+On the Tulu 3.1 stream, from the same start and the same number of generated samples, ES
+at 16 members does not learn and the released GRPO checkpoints do, by 2.12 +- 0.11 after
+the data of 480 steps. The update's component along the run's gradient is 12% of the largest
 a zeroth-order estimate can have, and the remainder's cost equals its gain at that
 population; more members raise the fitted gain per update in proportion to N, and the
 cost that remains falls on the reasoning tasks first, so the pooled gain over eight
 updates was +0.14 at 512 members and -0.32 at 1,024 with a per-type step. On Countdown,
 where the members' scores share an order of magnitude more, the same estimator learns on
-three checkpoints at 1.1 to 3.5 times GRPO's loop seconds and 5 to 16 times its
-rollouts, and its remainder's accumulated cost takes the off-task block down late unless
-the step is smaller, the population larger, or the weights are pulled toward the start
-after each update (on the 1.5B checkpoint, at about 0.03 of task gain). These are the
-outcomes of the configurations tested, with one or two seeds each, and the measured terms
-behind them;
-whether another step size or estimator does better on the stream is not established
-either way.
+three checkpoints, at 5 to 16 times GRPO's samples (1.1 to 3.5 times its loop seconds),
+and its remainder's accumulated cost takes the off-task block down late unless the step
+is smaller, the population larger, or the weights are pulled toward the start after each
+update (on the 1.5B checkpoint, at about 0.03 of task gain). At the horizons measured,
+then, GRPO is the more data-efficient on both settings, and one update's measurements
+said so before the samples were spent. These are the outcomes of the configurations
+tested, with one or two seeds each, and the measured terms behind them; whether ES
+overtakes at the horizons a hundred times longer where it is reported to, and whether
+another step size or estimator does better on the stream, are not established either
+way.
 
 ## References
 
