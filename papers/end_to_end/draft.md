@@ -63,23 +63,24 @@ Qiu et al. (2025) report ES at 30 members matching or exceeding GRPO on Countdow
 conciseness; EGGROLL (Sarkar et al., 2025) makes populations of thousands affordable with
 low-rank perturbations; Hoy et al. (2026) find ES matching GRPO in single-task accuracy
 with updates of far larger norm, and derive why. We are unaware of a comparison on a mixed
-stream of verifiable tasks from an instruction-tuned start at matched data and rollouts,
+stream of verifiable tasks from an instruction-tuned start at matched data and samples,
 which is where RL is used in practice.
 
-This paper makes that comparison on Tulu 3.1 (Lambert et al., 2024): the same start, the
-same prompts in the same order, the same number of generated answers, scored the same way,
-with the RL side taken from the released intermediate checkpoints so that the baseline is
-somebody else's tuned run. The question is whether ES learns the stream at the matched
-budget and, where it does not, which measured quantities differ from RL's. Table 1 gives
-the outcomes; Sections 5 to 7 measure the terms of the update. Section 9 then takes the
-same estimator and the same measurements to Countdown, the task on which ES is reported
-to match RL, with GRPO trained here as the comparator: there the question is what ES
-costs against GRPO when it does learn, and what it does to a task it is not training on.
+This paper asks when ES can be expected to reach a higher reward than GRPO from the same
+number of generated samples, and whether one update's measurements at the start say so.
+The first case is Tulu 3.1 (Lambert et al., 2024): the same start, the same prompts in
+the same order, the same number of generated samples, scored the same way, with the RL
+side taken from the released intermediate checkpoints so that the baseline is somebody
+else's tuned run. Table 1 gives the outcomes; Sections 5 to 7 measure the terms of the
+update. Section 9 then takes the same estimator and the same measurements to Countdown,
+where Qiu et al. (2025) report ES ahead of GRPO at equal sample evaluations, with GRPO
+trained here as the comparator: there the question is whether ES is the more
+data-efficient where it does learn, and what it does to a task it is not training on.
 
 **Table 1. Outcomes.** Change in reward (0 to 10, the run's verifiers, greedy decoding)
 against the DPO start, paired over prompts, with the prompt block scored.
 
-| run | generated answers | block | pooled change | IFEval | MATH | GSM8K |
+| run | generated samples | block | pooled change | IFEval | MATH | GSM8K |
 |---|---|---|---|---|---|---|
 | released RL, step 120 | 92,160 | RL steps 121 to 160 | +1.26 +- 0.11 | +2.19 | +0.47 | +0.23 |
 | released RL, step 480 | 368,640 | RL steps 481 to 520 | +1.87 +- 0.11 | | | |
@@ -92,8 +93,10 @@ against the DPO start, paired over prompts, with the prompt block scored.
 The scope is one model and one stream for Sections 4 to 7, one seed per configuration,
 greedy decoding with the run's verifiers as the measure, and an inference engine holding
 bf16 weights; Section 9 adds three Qwen2.5 checkpoints on Countdown with one or two
-seeds per configuration and GRPO trained here. Section 2 states it once; caveats travel
-with the numbers they bound.
+seeds per configuration and GRPO trained here, over 30 ES updates against 40 GRPO steps,
+so its GRPO arms stop at a twelfth of the ES arms' samples and the longer horizons are
+outside this paper's measurements. Section 2 states it once; caveats travel with the
+numbers they bound.
 
 ## 2. Setup
 
