@@ -838,6 +838,174 @@ off-task spread predictor makes a call before that predictor is anything.
    Qiu et al.'s result becomes the question, a short faithful reproduction of their
    recipe comes before the full horizon.
 
+Superseded in part the same day: with the paper's goal restated as the rule itself
+(S5 below), items 2 and 3 fold into S5's case set.
+
+## S5, the rule as a checklist on more cases: design for review (2026-10-21, nothing run)
+
+Andres, 2026-10-21, after the manuscript update: the paper's goal is a rough rule, a
+checklist, for deciding before the compute is spent when ES is more data-efficient than
+GRPO; the title and the paper follow from it, not from the Tulu comparison alone. The
+rule cannot be tested exhaustively, but it has to be tested on more than two cases, with
+both outcomes represented, not one setting where ES does well and one where GRPO does.
+This section inventories what the records support today, states the checklist to freeze,
+proposes the cases, the gates and the cost, and lists the decisions. Nothing here is run.
+
+### What the records support today
+
+Cases with both methods measured, in the protocol of S3b to S4b (64 mirrored rank-1
+members at sigma 5e-4, 192 prompts repeated, 30 updates; GRPO with the Tulu 3.1 recipe
+at 5e-7, 40 steps of 768 rollouts; the target +0.10 on the reserved block), plus the
+Tulu stream in its own protocol:
+
+| case | ES | GRPO | rollouts, ES/GRPO | loop s, ES/GRPO | the rule's call before the run | right? |
+|---|---|---|---|---|---|---|
+| Tulu 8B DPO on the Tulu 3.1 stream (16 dense members; released GRPO) | fails (−0.25 after RL's data; +0.14 pooled at 512 low-rank members over 8 updates at 32 times RL's rollouts) | +1.87 | about 100 (retrodiction) | about 15 GPU-s per unit gain at 512 | fails (retrodiction, `10` "The rule") | yes, in kind |
+| Qwen2.5-3B-Instruct Countdown | learns at 5 to 15 updates; GSM8K lost late unless anchored | learns at 15 to 20 steps, GSM8K kept | 5.3 and 16 | 1.16 and 3.50 (anchored 1.15) | works (ES/RL rollouts 2.8) | in kind; size off 2 to 6 |
+| Qwen2.5-3B base Countdown | learns at 15 to 30; GSM8K lost late | learns at 30, GSM8K +0.14 | 8 and 16 | 1.40 and 2.67 | marginal (17) | in kind |
+| Qwen2.5-1.5B-Instruct Countdown (anchored) | learns at 10, GSM8K kept | learns at 25 | 6.4 | 1.10 to 1.20 | learns (curve rule, population 1; the quadratic rule said "fails: no odd response", population 0's curve rule prescribed 15.8 units) | yes (curve rule); no (quadratic) |
+| Qwen2.5-3B-Instruct Quotation (start 0.937) | +0.027 | +0.033 | neither reached the target | | learns (curve rule), works (quadratic) | no (a ceiling the targets ignored) |
+| Qwen2.5-3B-Instruct MATH alone | +0.017 | +0.003 | neither | | undetermined (curve rule), fails (quadratic) | no call, or consistent |
+| Qwen2.5-0.5B-Instruct GSM8K | fails (two seeds: train +0.09, held-out within noise) | not run | | | fails: rollouts (50); second probe: no odd response | yes on the ES side; the GRPO side unmeasured |
+
+Three facts follow, and they set the design:
+
+1. **ES was never more data-efficient than GRPO.** On every case where both learned, GRPO
+   reached the target in 5 to 16 times fewer rollouts, and in fewer loop seconds too
+   (the best ES ratio is 1.10). "Positive for ES" in the record means ES learns the task
+   at 1.1 to 3.5 times GRPO's compute, with retention only when anchored; it has never
+   meant fewer rollouts or less compute. A rule for "when ES is more data-efficient" has
+   no positive instance to learn from; a rule for "when ES is competitive" (within a
+   stated factor of GRPO's compute, with the off-task block kept) has three, all on
+   Countdown.
+2. **No case in the shared protocol has GRPO learning where ES does not.** The one
+   GRPO-only case is the Tulu stream, at 8B, with 16 dense members and a non-repeating
+   stream, against released checkpoints. The two nulls (C, D) separate nothing. The
+   0.5B GSM8K case is GRPO-only if GRPO learns it, which costs one arm to find out.
+3. **The calls that held came from the response curve read at the applied step**, not
+   from the quadratic model: the curve rule's "learns" was right on A and its abstention
+   on D was consistent; the quadratic rule was wrong on A and C. The curve rule's miss
+   on C is a target stated in absolute reward where 0.063 of headroom remained.
+
+### The checklist to freeze
+
+Read in order; each line names its measurement, its threshold and the case that set it.
+Thresholds are frozen here and changed only in a dated correction before the next case.
+
+0. **Headroom and signal.** The start's validation reward leaves at least 0.20 of the
+   range (C had 0.063 and neither method reached a target) and the live share is at
+   least 0.1 (`LIVE_MIN`). Targets are fractions of the headroom: the learning target
+   is a quarter of it, the comparison target (where both methods are timed) the same,
+   and a target below 2.5 standard errors of the reserved block (about 0.05 at 300
+   prompts) makes the case "not measurable at this block size" rather than a call.
+1. **ES learns at this population** if the one-update measurement (the update of 64
+   mirrored rank-1 members scanned over lengths on the 600-prompt validation and off-task
+   blocks, as `probe.py` does) has a step at which the validation block's net response,
+   odd plus even, is positive at its two-standard-error worst (`rule_curve`'s resolution).
+   The prescription is that step with the pull-back of 0.1 after each update, and the
+   forecast carries the corrected weights (`effective_updates_from_first`). No such step:
+   "ES does not learn at 64 members" (0.5B GSM8K, D, and the second probe's GSM8K
+   settings). The ranking's reliability is reported beside the call (0.14 to 0.52 where
+   ES learned, 0.19 or less where it did not), as a covariate and not a gate.
+2. **GRPO's pace** from the sign-direction slope at the shortest usable length, resolved
+   at two standard errors: steps to the target as in P4 (held on A, on 3B instruct and on
+   the base model within a factor of two). Unresolved: "GRPO's pace unknown", and the
+   case contributes a measured GRPO arm without a prediction.
+3. **The comparison**, in two currencies, both reported and one chosen for the class
+   (decision 1 below): rollouts, the prescription's updates times 12,288 over GRPO's
+   steps times 768; and GPU-seconds, the same counts at the measured costs per answer
+   (ES 0.015 to 0.027 and GRPO 0.083 to 0.116 on an H200 at 1.5B to 3B, so an ES
+   answer costs 0.15 to 0.25 of a GRPO answer). Classes: in compute, "competitive" at a
+   ratio of 2 or less, "marginal" to 5, "GRPO dominates" above 5; in rollouts, the
+   frozen `WORKS` 5 and `MARGINAL` 25. Where two seeds exist the class is assigned from
+   their mean. On the record, every case where ES learned is "marginal" in rollouts
+   (5.3 to 16) and "competitive" or "marginal" in compute (1.1 to 3.5).
+4. **Retention** is part of the prescription, not of the call: the pull-back of 0.1
+   after each update, read on the untouched `offtask_test` block with the 0.03 margin
+   and paired intervals (`probe_run.retention`). The off-task spread ratio (P2) stays
+   exploratory and is reported with its coverage; the base model's 11.8 is the one
+   "collapses" call it has made, and an anchored run on that checkpoint tests it.
+5. **Pace.** The forecast with the corrected weights is scored at 5 and 10 updates
+   (where it has matched on A) with the band of a quarter to once; the class is read at
+   the end of the horizon (30 updates, 40 steps).
+
+### The cases
+
+Seven fresh cases in the shared protocol, chosen before any probe by the outcome the
+record or the literature leads one to expect, so that both outcomes are represented at
+least twice. Each case gets the probe at 600 prompts with the `offtask_test` block,
+two member populations where the call is "learns" (A's two populations disagreed by a
+factor of five in the step; the designated population is the first, the second's
+prescription is recorded and not run), the anchored ES arm at the prescription, and a
+GRPO arm; two ES seeds where ES is expected to learn, one where it is not. Costs are by
+uptime at $5.29/h with a fifth added for setup and gaps.
+
+| case | expected | why | what to run | cost |
+|---|---|---|---|---|
+| Qwen2.5-0.5B-Instruct GSM8K | GRPO only | ES failed on two seeds (S3b); the second probe found no odd response; the start leaves 0.45 of the range | one GRPO arm | $4 |
+| Qwen2.5-1.5B-Instruct GSM8K | GRPO only | the second probe's record: no odd response at 64 members, reliability 0; Cho and Han report progress at 1.5B under ES at larger populations, so the call is at this population | the probe's prescription (the fallback), one anchored ES seed, one GRPO arm | $18 |
+| Llama-3.2-1B-Instruct Countdown | GRPO only | Abdi et al. at matched rollouts: ES 15.2 against GRPO 37.6, their one large gap; the same task as A on a different checkpoint | a new pin, probe, two ES seeds, GRPO | $24 |
+| Qwen2.5-3B-Instruct Countdown, anchored at the curve rule's 17 units | ES competitive | the S4a anchored arm at 15.3 units was the program's best run; the second probe's population prescribes 17; the GRPO reference exists | one anchored ES arm | $16 |
+| Qwen2.5-3B base Countdown, anchored at 17 units | ES learns; P2 says the off-task block collapses | the fragile checkpoint: a random direction of a member's length moves GSM8K 11.8 times as much as the task; the GRPO reference exists | one anchored ES arm | $13 |
+| Qwen2.5-1.5B-Instruct on a string task with a generator (reasoning-gym `word_sorting` or `spell_backward`) | ES competitive | shared structure like Countdown's (a format the whole population shares), on a task family with no published ES result; the generator removes the 200-problem limit that deferred E | probe, two ES seeds, GRPO | $30 |
+| Qwen2.5-1.5B-Instruct on an arithmetic or puzzle task with a generator (reasoning-gym `chain_sum` or `puzzle24`) | open | between GSM8K (no odd response) and Countdown (shared) in the structure the members share; the case the checklist is least sure of | probe, two ES seeds, GRPO | $30 |
+
+About $135 by uptime, $160 with the fifth. Order: the cheapest discriminating cases
+first (the 0.5B GRPO arm, the two anchored 3B arms, Llama 1B), then the generator tasks,
+then 1.5B GSM8K. Priority 2 of "After S4b" (a second GRPO seed on A and the A pair to 60
+updates, about $22 more) folds in at the end if the budget allows; it tests the
+horizon, not the rule.
+
+reasoning-gym (Apache-2.0, 112 procedural generators with verifiers, on PyPI) is the
+proposed prompt source for the two generator cases: one task per kind, chosen by its
+structure before any probe and named in the preregistration. Not in this stage: 7B
+(GRPO in f32 does not fit one H200), the Tulu 8B stream in the 64-member protocol
+(expensive, and its GRPO side is the released run), and S4c.
+
+Implementation before the pod, no GPU: a `Task` branch backed by a generator (a fixed
+seeded block of 192 train problems, repeated, for protocol parity; the validation,
+reserved, off-task and `offtask_test` blocks from the same generator at other seeds;
+the verifier through reasoning-gym's `score_answer`), the Llama-3.2-1B-Instruct pin with
+the chat template and a smoke of the rank-1 adapters on its module names, headroom-
+relative targets in `prescribe()`, and the checklist's class in the prescription record
+beside the exploratory curve rule. One to two days.
+
+### What counts as the rule being useful on this batch
+
+- The class (ES competitive / marginal / GRPO dominates / neither / not measurable) is
+  right on at least five of the cases that get a call, with both outcomes among the
+  right ones at least twice each.
+- The pace forecast is inside its band at 5 and 10 updates on every case where ES
+  learns.
+- The compute ratio measured from the loops is within a factor of two of the forecast
+  on every case where both methods reach the target.
+- The anchored arms keep the untouched off-task block within the margin wherever the
+  checklist said "learns", or the trade-off is measured and reported as such.
+
+Falsified by a case where ES reaches the target with the checklist saying "does not
+learn at 64 members", or where GRPO reaches it at less than a fifth of ES's compute with
+the checklist saying "competitive". Two such cases end the rule as a claim; the paper
+then reports the measurement and its failures, which is the fallback Andres accepted on
+2026-10-21 ("a universal predictor is not a condition for the paper").
+
+### Decisions for Andres
+
+1. **The currency.** "More data-efficient" in rollouts has no positive case in the record
+   and the checklist's rollout class would call every Countdown case "marginal"; in
+   compute, three cases are "competitive" or "marginal". Recommended: compute (loop
+   GPU-seconds) sets the class, rollouts are reported beside it, and the paper says so
+   in its first paragraph.
+2. **The case set** as proposed, or a subset; whether reasoning-gym is acceptable as a
+   source (a dependency of the experiment, pinned by version, not of the library).
+3. **The thresholds**: competitive at 2, marginal at 5 in compute; a quarter of the
+   headroom as the target.
+4. **Seeds**: two where ES is expected to learn, one where it is not.
+5. **Budget and order**: about $160 for the seven cases, stopping after any case; the
+   order above.
+6. **The paper's frame**: the title and the abstract's question follow the rule
+   (candidates in the manuscript's header), and the Tulu and Countdown results become
+   the first cases of its test rather than the paper's claim.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
