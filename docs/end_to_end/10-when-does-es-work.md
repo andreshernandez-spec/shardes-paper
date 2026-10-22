@@ -990,11 +990,9 @@ then reports the measurement and its failures, which is the fallback Andres acce
 
 ### Decisions for Andres
 
-1. **The currency.** "More data-efficient" in rollouts has no positive case in the record
-   and the checklist's rollout class would call every Countdown case "marginal"; in
-   compute, three cases are "competitive" or "marginal". Recommended: compute (loop
-   GPU-seconds) sets the class, rollouts are reported beside it, and the paper says so
-   in its first paragraph.
+1. **The currency.** Decided by Andres on 2026-10-22: samples seen. See the correction
+   below, which supersedes the compute-based class proposed here and the comparison
+   protocol of the cases above.
 2. **The case set** as proposed, or a subset; whether reasoning-gym is acceptable as a
    source (a dependency of the experiment, pinned by version, not of the library).
 3. **The thresholds**: competitive at 2, marginal at 5 in compute; a quarter of the
@@ -1005,6 +1003,94 @@ then reports the measurement and its failures, which is the fallback Andres acce
 6. **The paper's frame**: the title and the abstract's question follow the rule
    (candidates in the manuscript's header), and the Tulu and Countdown results become
    the first cases of its test rather than the paper's claim.
+
+#### Correction of 2026-10-22: the currency is samples seen, and what that changes
+
+Andres, 2026-10-22: data efficiency means the reward reached for the same number of
+samples seen, one sample being one generated answer to one prompt, whichever method
+generated it. Qiu et al.'s Countdown result ("higher final accuracy at equal sample
+evaluations") is a data-efficiency claim in exactly this sense. Wall-clock matters as
+much but depends on the implementation, so it is reported and not the criterion. The
+paper's question is, and has been since 2026-10-12: when can ES be expected to have a
+higher data efficiency than GRPO?
+
+**What the record says at equal samples.** The one comparison at equal samples over a
+long horizon is the Tulu stream: after 368,640 samples each, ES at 16 dense members is
+0.25 below its start and the released GRPO checkpoint 1.87 above it, and the RL branch
+is ahead at every intermediate milestone (`runs/tulu-long-README.md`). On Countdown the
+GRPO arms stop at 30,720 samples (40 steps of 768), a twelfth of the ES arms' 368,640
+(30 updates of 64 members on 192 prompts), so every Countdown comparison so far is at
+ES's early horizon: the "rollouts to +0.10" ratios of 5.3 to 16 are the only
+equal-samples readings, and they all favour GRPO. At GRPO's 30,720 samples no ES arm has
+been scored (the first evaluation is at 61,440); at twice GRPO's samples the ES arms are
+below GRPO's 40-step value on every setting (3B instruct: ES +0.03 to +0.11 against GRPO
++0.13 to +0.21; 1.5B: +0.05 to +0.09 against +0.19; the base model: +0.04 to +0.06
+against +0.14, reserved block). Whether ES overtakes later, as Qiu et al. report at 3
+million samples, is untested here: our GRPO arms were still rising at 40 steps.
+
+**What the literature says at equal samples.** Four papers compare at matched samples or
+FLOPs on LLM tasks (`11`): Qiu et al. find ES ahead on all seven Countdown models; Abdi
+et al. find GRPO ahead on 7 of 8 cells; Hoy et al. find ES matching GRPO only at about
+15 times the generations; Ba et al. find GRPO ahead on Pass@1 at matched FLOPs. On the
+same model and task, Qwen2.5-1.5B-Instruct on Countdown, Qiu's GRPO baselines reach
+14.8 to 31.0 and their ES 37.3, while Abdi's GRPO reaches 56.4 and their ES 53.0
+(evaluation sets may differ between the papers). The published positive case therefore
+rests on GRPO baselines that another group's GRPO beats by a wide margin on the same
+setting, and the question for this paper is whether ES overtakes a GRPO run that is at
+least as strong as ours at a horizon long enough to tell.
+
+**The protocol that answers the question.** Both methods on the same setting to the
+same sample budget `B`, scored on the untouched test block and the off-task block at
+common sample milestones (every 61,440 samples, five ES updates or 80 GRPO steps, with
+GRPO's finer grid every 20 steps kept), the difference paired over prompts with its
+standard error. "ES more data-efficient at `B`" if ES's reward at `B` exceeds GRPO's by
+more than two paired standard errors on the test block; the whole curve is reported, and
+the sample count at which either method reaches a headroom-relative target beside it.
+The GRPO side runs the published recipe at the better of its two learning rates on the
+40-step arms (1e-6 on 3B instruct, +0.213 at 40 against +0.135 at 5e-7; the 1e-6 arm is
+to be run on the other settings, about $4 each), stated as the comparator's tuning. The
+ES side runs two arms: ours, anchored at the prescription (the existing 30-update arms
+resume from their logs), and the published recipe (Qiu et al.: 30 dense members, sigma
+1e-3, alpha 5e-4, 200 prompts, greedy decoding, no anchor), so that a miss cannot be
+attributed to our estimator.
+
+**Cost by sample budget**, at the measured rates (GRPO 89 s per step on 3B instruct, 87
+on the base model, 64 on 1.5B; ES 300, 234 and 199 s per update), $5.29/h:
+
+| budget `B` | GRPO steps | GRPO, 3B instruct | GRPO, 1.5B | our ES to `B`, 3B / 1.5B | note |
+|---|---|---|---|---|---|
+| 368,640 (the existing ES arms' count) | 480 | 12 h, $63 | 8.5 h, $45 | done | equal-samples curves on the existing ES arms at six milestones |
+| 1,000,000 | 1,302 | 32 h, $171 | 23 h, $123 | +51 updates: 4.3 h, $23 / 2.8 h, $15 | a third of Qiu's horizon |
+| 3,000,000 (Qiu's) | 3,906 | 97 h, $510 | 69 h, $367 | +193 updates: $85 / $57 | GRPO's training step (71 of 89 s) would need a cheaper implementation, which changes the comparator's numerics |
+
+The published-recipe ES arm at 3 million samples is S4c's estimate, $200 to 600 with
+its dense members at 3B; its rate is to be measured on a short run before it is costed.
+The base model is costed as 3B instruct.
+
+**The rule's part.** The one-update measurement gives each method's early gain per
+sample (ES's net gain per update over 12,288; GRPO's first-step gain over 768) and their
+ratio, which on every probe so far said GRPO, and the runs confirmed it within a factor
+of two to six. It cannot see GRPO's plateau, and a crossing at a long horizon is a
+statement about the plateau. The prediction written before each long run is therefore
+the early ratio's direction and the claim that it persists to `B`; the paper's rule is
+"ES is more data-efficient where the early ratio favours it" if no case overtakes, and
+otherwise has to name what the overtaking cases share. Falsified by a case where ES
+overtakes GRPO by two standard errors at `B` with the early ratio above two.
+
+**The cases**, in place of the table above: the three published Countdown checkpoints
+whose outcomes conflict across papers, Qwen2.5-3B-Instruct, Qwen2.5-1.5B-Instruct and
+Llama-3.2-1B-Instruct (a new pin; Qiu 16.8 against 14.9, Abdi 15.2 against 37.6), as the
+cases where ES might be more data-efficient; the GSM8K-family cases (the 0.5B GRPO arm,
+1.5B GSM8K) and the Tulu stream as the cases where it is not; the base model's existing
+arms extended if the budget allows. The generator tasks are dropped from this stage.
+
+**Decisions for Andres, revised.** (1) The sample budget: 368,640 first on 3B instruct
+and 1.5B ($108, plus the 1e-6 GRPO arm on 1.5B), then 1 million (about $330 more for
+both), with Qiu's 3 million only if a cheaper GRPO step is accepted. (2) Whether the
+published-recipe ES arm runs beside ours. (3) Llama-3.2-1B-Instruct as the third
+Countdown case (about $40 at `B` = 368,640 including its probe and GRPO). (4) The
+comparator's tuning policy: the better of two learning rates at 40 steps. (5) The
+manuscript's question sentence, through the loop.
 
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
