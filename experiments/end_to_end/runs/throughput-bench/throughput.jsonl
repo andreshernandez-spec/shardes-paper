@@ -1,0 +1,9 @@
+{"part": "plain", "seqs": 512, "seconds": 200.063242578879, "sequences": 6144, "tokens": 2112550, "tokens_per_s": 10559.410978091511, "sequences_per_s": 30.710289010624244}
+{"part": "plain", "seqs": 1024, "seconds": 199.06873050704598, "sequences": 6144, "tokens": 2133344, "tokens_per_s": 10716.620307801133, "sequences_per_s": 30.863712167906424}
+{"part": "lora-engine-base", "seqs": 512, "seconds": 201.62808943493292, "sequences": 6144, "tokens": 2115818, "tokens_per_s": 10493.666859263636, "sequences_per_s": 30.47194474350619}
+{"part": "lora-members", "seqs": 512, "seconds": 296.4947296739556, "sequences": 6144, "tokens": 2065425, "tokens_per_s": 6966.144060203945, "sequences_per_s": 20.722122132681186}
+{"part": "lora-engine-base", "seqs": 1024, "seconds": 199.24093355005607, "sequences": 6144, "tokens": 2115007, "tokens_per_s": 10615.323680305075, "sequences_per_s": 30.837036800253795}
+{"part": "lora-members", "seqs": 1024, "seconds": 290.8120561600663, "sequences": 6144, "tokens": 2072180, "tokens_per_s": 7125.495508547447, "sequences_per_s": 21.12704707337949}
+{"part": "train", "micro_batch": 2, "forward_backward": {"micro_batches": 94, "tokens": 146993, "seconds": 32.9196099084802, "tokens_per_s": 4465.210870015022}, "forward_no_grad": {"micro_batches": 94, "tokens": 146993, "seconds": 8.961602811235934, "tokens_per_s": 16402.53457960692}, "peak_memory_gb": 33.260747264}
+{"part": "lora-members", "seqs": 1024, "copies": 64, "chunk": 64, "seconds": 587.9419462652877, "sequences": 12288, "tokens": 4154634, "tokens_per_s": 7066.401753423068, "sequences_per_s": 20.900022660494923}
+{"part": "lora-members", "seqs": 1024, "copies": 128, "chunk": 128, "seconds": 1495.9074676879682, "sequences": 24576, "tokens": 8356269, "tokens_per_s": 5586.08682722549, "sequences_per_s": 16.428823661121207}

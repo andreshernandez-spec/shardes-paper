@@ -1,0 +1,49 @@
+{
+  "config": {
+    "alpha": 0.0005,
+    "check_members": [
+      0
+    ],
+    "eval_every": 5,
+    "gpu_memory_utilization": 0.5,
+    "grader_timeout": 10,
+    "iterations": 100,
+    "max_model_len": 2048,
+    "max_tokens": 512,
+    "model": "QWEN25_05B",
+    "population": 30,
+    "seed": 1,
+    "sigma": 0.001
+  },
+  "config_file": "es_vllm/countdown-s1.yaml",
+  "env": {
+    "commit": "9bf6b964a12a4244e78f3dad2cd5439e655276c6",
+    "dirty_worktree": false,
+    "hostname": "0ce4cba53c6f",
+    "packages": {
+      "jax": "0.11.2",
+      "jaxlib": "0.11.2",
+      "numpy": "2.3.5",
+      "torch": "2.13.0",
+      "transformers": "5.18.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.14.0-37-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "es_at_scale": "574a9d134da1ffce2a8bb812019899e5c96b588a",
+  "eval_prompts": 2000,
+  "model": {
+    "repo": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775"
+  },
+  "smoke": false,
+  "started": "2026-10-06T15:05:07.827874+00:00",
+  "train_prompts": 200
+}
