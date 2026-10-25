@@ -870,14 +870,20 @@ Tulu stream in its own protocol:
 
 Three facts follow, and they set the design:
 
-1. **ES was never more data-efficient than GRPO.** On every case where both learned, GRPO
-   reached the target in 5 to 16 times fewer rollouts, and in fewer loop seconds too
-   (the best ES ratio is 1.10). "Positive for ES" in the record means ES learns the task
-   at 1.1 to 3.5 times GRPO's compute, with retention only when anchored; it has never
-   meant fewer rollouts or less compute. A rule for "when ES is more data-efficient" has
-   no positive instance to learn from; a rule for "when ES is competitive" (within a
-   stated factor of GRPO's compute, with the off-task block kept) has three, all on
-   Countdown.
+1. **In our own records, ES was never more data-efficient than GRPO.** On every case
+   where both learned, GRPO reached the target in 5 to 16 times fewer samples, and in
+   fewer loop seconds too (the best ES ratio is 1.10); on the Tulu stream, at equal
+   samples, GRPO is ahead at every milestone. "Positive for ES" in our records means ES
+   learns the task at 1.1 to 3.5 times GRPO's compute, with retention only when anchored;
+   it has never meant fewer samples or less compute. The published record is different:
+   Qiu et al. (2025) report ES ahead of GRPO on Countdown on all seven models at equal
+   sample evaluations, which is a data-efficiency win in the paper's definition (the
+   correction of 2026-10-22 below has the numbers and the comparator question);
+   EGGROLL's Countdown win is at equal wall-clock with about 11 times the generations,
+   so it is not one. Our records contain no positive instance of the paper's question
+   for a rule to learn from; the published one is the case the next stage has to test
+   against a comparator at least as strong as ours, over a horizon long enough to see
+   it.
 2. **No case in the shared protocol has GRPO learning where ES does not.** The one
    GRPO-only case is the Tulu stream, at 8B, with 16 dense members and a non-repeating
    stream, against released checkpoints. The two nulls (C, D) separate nothing. The
