@@ -21,6 +21,12 @@ the rule's ratios have estimated from the Tulu 8B bench until now.
 Not implemented from the recipe: DeepSpeed, several actors, the evaluation dataset; the
 optimizer's betas (0.9, 0.95), eps 1e-8, no weight decay and a gradient norm clip of 1.0
 are this driver's choices, recorded in run.json.
+
+Long runs (S5, 2026-10-25): `--checkpoint-every N` saves the policy in f32, the optimizer
+state and the sampler's state under `--workdir` (never under runs/) every N steps and at
+the end; `--resume` continues from that checkpoint, with `--steps` allowed to exceed the
+original so a finished run can be extended to a longer sample budget. The records at or
+after the checkpoint's step are dropped and recomputed; run.json lists every resume.
 """
 
 import os
@@ -59,6 +65,49 @@ def lines(path: Path) -> list:
 def append(path: Path, rec: dict) -> None:
     with path.open("a") as f:
         f.write(json.dumps(rec) + "\n")
+
+
+def checkpoint_path(workdir: Path, out: Path) -> Path:
+    return workdir / out.name / "checkpoint.pt"
+
+
+def save_checkpoint(path: Path, step: int, model, opt, rng, order, conf: dict) -> float:
+    """The state after `step` completed steps, written via a temp file; returns the seconds."""
+    import torch  # noqa: PLC0415
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    t0 = time.perf_counter()
+    tmp = path.with_suffix(".tmp")
+    torch.save({"step": step, "model": model.state_dict(), "opt": opt.state_dict(),
+                "rng": rng.bit_generator.state, "order": list(order), "config": conf}, tmp)
+    os.replace(tmp, path)
+    return time.perf_counter() - t0
+
+
+def load_checkpoint(path: Path) -> dict:
+    import torch  # noqa: PLC0415
+
+    return torch.load(path, map_location="cpu", weights_only=False)
+
+
+RESUME_FREE = ("steps", "eval_every", "smoke")   # a resume may change these; everything else must match
+
+
+def incompatible(saved: dict, conf: dict) -> list:
+    """The config keys on which a checkpoint and a resuming run disagree."""
+    return sorted(k for k in set(saved) | set(conf) if k not in RESUME_FREE and saved.get(k) != conf.get(k))
+
+
+def truncate_records(path: Path, step: int) -> int:
+    """Drop the records with iteration at or after `step` (a resume recomputes them);
+    returns how many were dropped. Written via a temp file."""
+    recs = lines(path)
+    kept = [r for r in recs if r["iteration"] < step]
+    if len(kept) != len(recs):
+        tmp = path.with_suffix(".jsonl.tmp")
+        tmp.write_text("".join(json.dumps(r) + "\n" for r in kept))
+        os.replace(tmp, path)
+    return len(recs) - len(kept)
 
 
 def advantages(rewards) -> np.ndarray:
@@ -123,11 +172,20 @@ def run(args) -> int:
     task = probe.Task(cfg["task"], cfg["template"], args.smoke, args.es_at_scale,
                       block=pred["blocks"]["validation"] if pred and not args.smoke else None,
                       offtask_test=bool(pred and not args.smoke and "offtask_test" in pred["blocks"]))
-    P, K, steps = (8, 4, 2) if args.smoke else (args.prompts, args.samples, args.steps)
+    P, K = (8, 4) if args.smoke else (args.prompts, args.samples)
+    steps = (2 if args.steps == STEPS else args.steps) if args.smoke else args.steps   # a smoke's --steps tests an extension
     eval_every = 1 if args.smoke else args.eval_every
     out = E2E / args.out
+    ckpt = checkpoint_path(args.workdir, out)
+    saved = None
     if (out / "log.jsonl").exists():
-        raise SystemExit(f"{out} holds a run; this driver does not resume")
+        if not args.resume:
+            raise SystemExit(f"{out} holds a run; pass --resume to continue it from its checkpoint")
+        if not ckpt.exists():
+            raise SystemExit(f"{out} holds a run but there is no checkpoint at {ckpt}")
+        saved = load_checkpoint(ckpt)
+    elif args.resume:
+        raise SystemExit(f"{out} holds no run to resume")
     out.mkdir(parents=True, exist_ok=True)
     conf = {"setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "seed": args.seed,
             "prompts_per_step": P, "samples_per_prompt": K, "minibatches": MINIBATCHES, "micro": MICRO,
@@ -136,12 +194,28 @@ def run(args) -> int:
             "temperature": 1.0, "smoke": args.smoke}
     if pred is not None and not args.smoke and pred["block_digests"] != task.digests():
         raise SystemExit("the blocks are not the probe's")
-    harness.write_atomic(out / "run.json", {
-        "config": conf, "prediction": pred, "blocks": {b: len(v) for b, v in task.blocks.items()},
-        "block_digests": task.digests(),
-        "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "env": env_block(E2E, ["runs"], ("vllm", "torch", "transformers"))})
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    env = env_block(E2E, ["runs"], ("vllm", "torch", "transformers"))
+    if saved is None:
+        run_ = {"config": conf, "prediction": pred, "blocks": {b: len(v) for b, v in task.blocks.items()},
+                "block_digests": task.digests(), "started": now, "env": env}
+    else:
+        bad = incompatible(saved["config"], conf)
+        if bad:
+            raise SystemExit(f"the checkpoint's configuration differs on {bad}")
+        if saved["step"] > steps:
+            raise SystemExit(f"the checkpoint holds {saved['step']} steps; --steps {steps} is fewer")
+        run_ = json.loads((out / "run.json").read_text())
+        run_.setdefault("resumed", []).append({"at_step": saved["step"], "steps_before": run_["config"]["steps"],
+                                               "steps": steps, "eval_every": eval_every, "time": now, "env": env})
+        run_["config"]["steps"], run_["config"]["eval_every"] = steps, eval_every
+    harness.write_atomic(out / "run.json", run_)
     log, e_log = out / "log.jsonl", out / "eval.jsonl"
+
+    def note_checkpoint(step, secs):
+        run_.setdefault("checkpoints", []).append({"step": step, "seconds": round(secs, 1)})
+        harness.write_atomic(out / "run.json", run_)
+        print(f"checkpoint at {step} steps ({secs:.0f} s)", flush=True)
 
     scorer = task.scorer()                                   # before CUDA: the Countdown grader forks
     for k_, fn in worker_methods().items():
@@ -163,6 +237,7 @@ def run(args) -> int:
     rng = np.random.default_rng(args.seed)
     train = task.blocks["train"]
     order = []
+    start = 0
 
     ev_rows, ev_kinds, ev_block = [], [], []
     for b in ("validation", "test", "offtask", "offtask_test"):
@@ -194,7 +269,20 @@ def run(args) -> int:
         torch.cuda.synchronize()
         return n
 
-    for g in range(steps):
+    if saved is not None:
+        # the state after `start` steps; the records from there on are recomputed, and the
+        # engine gets the policy's weights before it generates anything
+        model.load_state_dict(saved["model"])
+        opt.load_state_dict(saved["opt"])
+        rng.bit_generator.state = saved["rng"]
+        order, start = list(saved["order"]), int(saved["step"])
+        del saved
+        dropped = truncate_records(log, start), truncate_records(e_log, start)
+        n_loaded = sync()
+        print(f"resumed at {start} steps (dropped {dropped[0]} log and {dropped[1]} eval records, "
+              f"{n_loaded} weights loaded)", flush=True)
+
+    for g in range(start, steps):
         evaluate(g)
         t = {}
         t0 = time.perf_counter()
@@ -269,7 +357,11 @@ def run(args) -> int:
                      "seconds": t, "prompt_digest": probe_run.digest(rows)})
         print(f"[{g}] reward {rewards.mean():.4f} live {int((rewards.std(axis=1) > 0).sum())}/{P} loss {losses[-1]:+.4f} "
               f"kl {kls[-1]:.2e} |g| {gnorms[-1]:.3f} " + " ".join(f"{k} {v:.0f}s" for k, v in t.items()), flush=True)
+        if args.checkpoint_every and (g + 1) % args.checkpoint_every == 0 and g + 1 < steps:
+            note_checkpoint(g + 1, save_checkpoint(ckpt, g + 1, model, opt, rng, order, conf))
     evaluate(steps)
+    if args.checkpoint_every:                              # the end state, so the run can be extended
+        note_checkpoint(steps, save_checkpoint(ckpt, steps, model, opt, rng, order, conf))
     scorer.close()
     return 0
 
@@ -380,6 +472,12 @@ def main(argv=None) -> int:
     ap.add_argument("--prompts", type=int, default=PROMPTS)
     ap.add_argument("--samples", type=int, default=SAMPLES)
     ap.add_argument("--eval-every", type=int, default=EVAL_EVERY)
+    ap.add_argument("--workdir", type=Path, default=Path("/tmp/grpo-run"),
+                    help="scratch for the checkpoint (the policy in f32 and the optimizer state), never under runs/")
+    ap.add_argument("--checkpoint-every", type=int, default=0,
+                    help="save the policy, optimizer and sampler state every this many steps and at the end (0: never)")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue the run in --out from its checkpoint; --steps may exceed the original (an extension)")
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     args = ap.parse_args(argv)
     if args.table:

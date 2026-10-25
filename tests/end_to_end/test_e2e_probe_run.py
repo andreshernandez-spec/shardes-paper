@@ -292,3 +292,54 @@ def test_analysis_splits_the_retained_families_by_half_and_reads_a_prescription(
     assert set(fh) == {"MATH", "ifeval"} and fh["MATH"]["selection"]["prompts"] == 150 and fh["MATH"]["reserved"]["prompts"] == 150
     assert abs(fh["ifeval"]["selection"]["change"]) < 1e-9 and fh["MATH"]["selection"]["change"] < 0
     assert a["retention"]["margin"] == 0.03 and a["retention"]["reserved_half_present"]
+
+
+def test_samples_compare_pairs_evaluations_at_equal_samples_seen(tmp_path):
+    """Data efficiency (S5): an ES evaluation pairs with the GRPO evaluation at the same
+    samples seen, the difference is paired over the test block's prompts, and runs that
+    score other blocks are refused."""
+    P = 600
+    kinds = ["countdown"] * P + ["gsm8k"] * (P // 2)
+    block = ["validation"] * (P // 2) + ["test"] * (P // 2) + ["offtask"] * (P // 2)
+    digests = {"train": "a", "validation": "b", "test": "c", "offtask": "d"}
+
+    def evals(iters, solved_at):            # solved_at(g): the share of each block's prompts solved
+        rows = []
+        for g in iters:
+            n = round(solved_at(g) * (P // 2))
+            on = [1.1 if i % (P // 2) < n else 0.0 for i in range(P)]
+            off = [10.0 if i < 0.8 * (P // 2) else 0.0 for i in range(P // 2)]
+            rows.append({"iteration": g, "rewards": on + off, "kinds": kinds, "block": block, "mean_len": 300.0})
+        return rows
+
+    def write(d, run, ev, log):
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps(run))
+        (d / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in ev) + "\n")
+        (d / "log.jsonl").write_text("\n".join(json.dumps(r) for r in log) + "\n")
+
+    # ES: 12,288 samples per update, scored every 5 updates; GRPO: 768 per step, scored every 10
+    es_log = [{"iteration": g, "rollouts": 12288, "seconds": 300.0, "mean_fitness": 0.1, "sd_fitness": 0.01, "update_norm": 10.0}
+              for g in range(10)]
+    write(tmp_path / "es" / "qwen3b-countdown-s0", {"config": {"setting": "qwen3b/countdown", "seed": 0, "step": 3.0, "n": 64},
+                                                     "block_digests": digests}, evals((0, 5, 10), lambda g: 0.14 + 0.01 * g), es_log)
+    write(tmp_path / "es" / "qwen3b-base-countdown-s0", {"config": {"setting": "qwen3b-base/countdown", "seed": 0, "step": 3.0, "n": 64},
+                                                          "block_digests": digests}, evals((0, 5, 10), lambda g: 0.1), es_log)
+    grpo_log = [{"iteration": g, "rollouts": 768, "seconds": {"generate": 20.0, "train": 70.0}} for g in range(160)]
+    write(tmp_path / "grpo", {"config": {"setting": "qwen3b/countdown", "seed": 0, "lr": 1e-6, "beta": 0.01}, "block_digests": digests},
+          evals(range(0, 161, 10), lambda g: 0.14 + 0.002 * g), grpo_log)
+    rows = pr.samples_compare(tmp_path / "grpo", [tmp_path / "es"])
+    assert [r["run"] for r in rows] == ["qwen3b-countdown-s0"] * 2          # the base-model run is another setting
+    assert [(r["samples"], r["es_iteration"], r["grpo_step"]) for r in rows] == [(61440, 5, 80), (122880, 10, 160)]
+    # at 61,440 samples ES solved 19% of the test block and GRPO 30%: GRPO ahead by 0.11 of 1.1-scaled reward
+    r = rows[0]
+    assert abs(r["es_test"] - 0.05) < 1e-9 and abs(r["grpo_test"] - 0.16) < 1e-9
+    assert abs(r["diff_test"] + 0.11) < 1e-9 and r["diff_test_se"] > 0 and r["lead"] == "GRPO"
+    assert abs(r["es_offtask"]) < 1e-9 and abs(r["grpo_offtask"]) < 1e-9
+    t = pr.samples_table(rows).splitlines()
+    assert t[0].startswith("| ES run | samples seen | ES update | GRPO step |") and "| 61,440 | 5 | 80 |" in t[2]
+    # other blocks are refused, not silently paired
+    write(tmp_path / "other" / "qwen3b-countdown-s9", {"config": {"setting": "qwen3b/countdown", "seed": 9, "step": 3.0, "n": 64},
+                                                        "block_digests": {**digests, "test": "z"}}, evals((0, 5), lambda g: 0.14), es_log)
+    with pytest.raises(SystemExit):
+        pr.samples_compare(tmp_path / "grpo", [tmp_path / "other"])

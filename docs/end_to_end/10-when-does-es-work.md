@@ -1098,6 +1098,65 @@ Countdown case (about $40 at `B` = 368,640 including its probe and GRPO). (4) Th
 comparator's tuning policy: the better of two learning rates at 40 steps. (5) The
 manuscript's question sentence, through the loop.
 
+#### S5 stage 1: preregistration (2026-10-25, before any run)
+
+Andres approved stage 1 on 2026-10-25 ("start on step 1"): GRPO run to the existing ES
+arms' sample count on the two settings where the published Countdown claims sit, so
+that the comparison is at equal samples seen over six milestones. Budget about $135.
+The two candidate explanations of Qiu et al.'s result (their comparator is weak; a
+long-horizon effect) are written down here so that the outcome is read against them.
+
+**What runs.** On Qwen2.5-3B-Instruct Countdown, GRPO at 1e-6 (the better of the two
+40-step arms on the validation block, +0.159 against +0.138) for 480 steps, 368,640
+samples, the Tulu recipe otherwise unchanged, scored every 10 steps on the first
+probe's blocks (`runs/probe/qwen3b-countdown`, the blocks every ES arm on this setting
+used): `runs/s5/qwen3b-countdown-grpo-lr1e-6-s0`. On Qwen2.5-1.5B-Instruct Countdown,
+first a 40-step arm at 1e-6 (`runs/grpo-run/qwen1.5b-countdown-lr1e-6-s0`), then 480
+steps at the better of 5e-7 and 1e-6 on the validation block at step 40 (a tie goes to
+the recipe's 5e-7), on the S4b probe's blocks (`runs/s4b-probe/qwen1.5b-countdown`):
+`runs/s5/qwen1.5b-countdown-grpo-lr<chosen>-s0`. The driver saves a checkpoint (the
+policy in f32, the optimizer and the sampler state) every 40 steps and at the end, on a
+network volume, so a pod failure resumes and stage 2 continues the same run rather than
+starting over; a resume is recorded in `run.json`. Two Secure H200 pods in US-NC-1 at
+$5.29/h, about 12.5 and 10 hours.
+
+**What is compared.** `probe_run --samples <grpo run> runs/probe-run runs/s4a` (and
+`runs/s4b` for 1.5B): at every ES evaluation whose sample count a GRPO evaluation
+matches (ES update 5m is 61,440m samples, GRPO step 80m; the 256-member arm's update 5
+is 245,760, step 320), each method's change on the reserved test block and the
+ES-minus-GRPO difference paired over the block's prompts, with the off-task block
+beside. Both runs score the same prompts, checked by digest.
+
+**Predictions.**
+
+1. *The early ratio persists.* At every common milestone on both settings GRPO's test
+   change exceeds every ES arm's, and at 368,640 samples by more than two paired standard
+   errors against each of them (3B instruct: the two prescribed-step seeds, the step-3
+   arm, the anchored arm, the shuffled-ranking arm, and the 256-member arm at 245,760;
+   1.5B: the two anchored seeds and the un-anchored control).
+2. *GRPO passes the best ES anywhere.* GRPO's test change at 480 steps exceeds the
+   setting's best ES peak at any evaluation: +0.235 on 3B instruct (the anchored arm at
+   update 25), +0.183 on 1.5B (the un-anchored arm at update 15).
+3. *No decline.* GRPO's test change at 480 steps is not below its change at 240 steps by
+   more than two standard errors. A decline, or a plateau below an ES arm, is the
+   signature of the long-horizon candidate.
+4. *Retention.* GSM8K stays within 0.03 of its start at every evaluation of both long
+   arms (it did to 40 steps; the KL term is on).
+5. *The comparator's tuning.* 1e-6 beats 5e-7 on the 1.5B validation block at step 40, as
+   it did on 3B.
+
+**What the outcomes mean.** 1 to 3 holding on both settings is the weak-comparator
+candidate strengthened and the stop rule met: stage 2 (1 million samples, Qiu's recipe
+as a second ES arm) runs on 3B instruct only. ES ahead at any milestone, or 3 failing,
+keeps the long-horizon candidate alive and stage 2 runs on both settings. Prediction 2
+failing while 1 holds means GRPO is the more data-efficient at every matched point but
+the anchored ES arm's peak stands above GRPO's 480-step value, which is reported as
+such. Prediction 4 failing is a retention finding about GRPO over a long horizon and
+changes nothing in the stop rule.
+
+**Not changed by this stage.** The ES arms (no new ES run); the frozen prescriptions;
+the thresholds of S4b's classes; the Tulu case.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):

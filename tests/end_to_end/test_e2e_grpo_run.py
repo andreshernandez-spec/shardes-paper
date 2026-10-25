@@ -1,5 +1,6 @@
 """es_vllm/grpo_run.py: the advantages, the kl3 term and the analysis, no GPU."""
 
+import cProfile  # noqa: F401  (torch.save imports it; experiments/phase2/profile.py shadows the stdlib module once a phase-2 test is on sys.path)
 import json
 import pathlib
 import sys
@@ -65,3 +66,40 @@ def test_analysis_reports_curves_cost_and_class(tmp_path):
     c = gr.curves(tmp_path).splitlines()
     assert c[0] == "**arm** (lr 5e-07, beta 0.01, seed 0, 10 steps, 7,680 rollouts, 0.3 h in the loop)"
     assert c[2] == "| after | validation | test | off-task | answer length |" and len(c) == 7
+
+
+def test_resume_helpers_truncate_records_and_check_the_config(tmp_path):
+    p = tmp_path / "log.jsonl"
+    p.write_text("".join(json.dumps({"iteration": g, "x": g}) + "\n" for g in range(6)))
+    assert gr.truncate_records(p, 4) == 2
+    assert [r["iteration"] for r in gr.lines(p)] == [0, 1, 2, 3]
+    assert gr.truncate_records(p, 4) == 0                     # idempotent
+    saved = {"setting": "qwen3b/countdown", "lr": 1e-6, "beta": 0.01, "steps": 40, "eval_every": 5, "seed": 0}
+    assert gr.incompatible(saved, {**saved, "steps": 480, "eval_every": 10}) == []   # an extension
+    assert gr.incompatible(saved, {**saved, "lr": 5e-7, "seed": 1}) == ["lr", "seed"]
+    assert gr.checkpoint_path(pathlib.Path("/scratch"), pathlib.Path("runs/s5/arm")) == pathlib.Path("/scratch/arm/checkpoint.pt")
+
+
+def test_checkpoint_round_trip_restores_model_optimizer_and_sampler(tmp_path):
+    torch = pytest.importorskip("torch")
+    model = torch.nn.Linear(3, 2)
+    opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    rng = np.random.default_rng(0)
+    loss = model(torch.ones(1, 3)).sum()
+    loss.backward()
+    opt.step()
+    rng.permutation(5)
+    path = tmp_path / "w" / "checkpoint.pt"
+    secs = gr.save_checkpoint(path, 7, model, opt, rng, [3, 1, 2], {"lr": 1e-3})
+    assert path.exists() and not path.with_suffix(".tmp").exists() and secs >= 0
+    saved = gr.load_checkpoint(path)
+    assert saved["step"] == 7 and saved["order"] == [3, 1, 2] and saved["config"] == {"lr": 1e-3}
+    model2 = torch.nn.Linear(3, 2)
+    model2.load_state_dict(saved["model"])
+    assert all(torch.equal(a, b) for a, b in zip(model.state_dict().values(), model2.state_dict().values()))
+    opt2 = torch.optim.AdamW(model2.parameters(), lr=1e-3)
+    opt2.load_state_dict(saved["opt"])
+    assert opt2.state_dict()["state"][0]["step"] == opt.state_dict()["state"][0]["step"]
+    rng2 = np.random.default_rng(1)
+    rng2.bit_generator.state = saved["rng"]
+    assert (rng2.permutation(10) == rng.permutation(10)).all()  # the same next draw

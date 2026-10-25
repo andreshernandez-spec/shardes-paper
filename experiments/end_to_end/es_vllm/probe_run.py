@@ -447,6 +447,73 @@ def compare_table(rows: list) -> str:
     return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
 
 
+def samples_seen(out: Path) -> list:
+    """Each evaluation of a run with the samples generated before it (the rollouts of the
+    iterations before, from the log) and its normalized per-prompt rewards."""
+    ev = sorted(lines(out / "eval.jsonl"), key=lambda r: r["iteration"])
+    rolls = {r["iteration"]: r["rollouts"] for r in lines(out / "log.jsonl")}
+    return [{"iteration": r["iteration"], "samples": int(sum(v for i, v in rolls.items() if i < r["iteration"])),
+             "normalized": probe.normalized(r["rewards"], r["kinds"]), "block": np.asarray(r["block"])} for r in ev]
+
+
+def samples_compare(grpo_dir: Path, es_roots: list, tolerance: float = 0.02) -> list:
+    """Data efficiency as the reward reached at equal samples seen (docs/end_to_end/10, S5):
+    every ES run of the GRPO run's setting under `es_roots`, at each of its evaluations
+    whose sample count a GRPO evaluation matches within `tolerance`, with each method's
+    change on the test, validation and off-task blocks and the ES-minus-GRPO difference
+    paired over prompts (the two runs score the same blocks, checked by digest), and who
+    leads at two paired standard errors on the test block."""
+    g_run = json.loads((grpo_dir / "run.json").read_text())
+    g_ev = samples_seen(grpo_dir)
+    rows = []
+    for root in es_roots:
+        for d in sorted(root.iterdir()):
+            if not (d / "eval.jsonl").exists():
+                continue
+            run_ = json.loads((d / "run.json").read_text())
+            if run_["config"]["setting"] != g_run["config"]["setting"]:
+                continue
+            if run_["block_digests"] != g_run["block_digests"]:
+                raise SystemExit(f"{d.name} and {grpo_dir.name} score different blocks")
+            e_ev = samples_seen(d)
+            for e in e_ev[1:]:
+                near = min(g_ev[1:], key=lambda x: abs(x["samples"] - e["samples"]))
+                if abs(near["samples"] - e["samples"]) > tolerance * e["samples"]:
+                    continue
+                row = {"run": d.name, "samples": e["samples"], "es_iteration": e["iteration"],
+                       "grpo_step": near["iteration"], "grpo_samples": near["samples"]}
+                for b in ("test", "validation", "offtask"):
+                    m = e["block"] == b
+                    if not m.any():
+                        continue
+                    de = e["normalized"][m] - e_ev[0]["normalized"][m]
+                    dg = near["normalized"][m] - g_ev[0]["normalized"][m]
+                    diff = de - dg
+                    row[f"es_{b}"], row[f"grpo_{b}"] = float(de.mean()), float(dg.mean())
+                    row[f"diff_{b}"], row[f"diff_{b}_se"] = float(diff.mean()), float(diff.std(ddof=1) / np.sqrt(diff.size))
+                se = row["diff_test_se"]
+                row["lead"] = "ES" if row["diff_test"] > 2 * se else "GRPO" if row["diff_test"] < -2 * se else "within 2 SE"
+                rows.append(row)
+    return rows
+
+
+def samples_table(rows: list) -> str:
+    cols = (("run", "ES run"), ("samples", "samples seen"), ("es_iteration", "ES update"), ("grpo_step", "GRPO step"),
+            ("es_test", "ES test"), ("grpo_test", "GRPO test"), ("diff_test", "ES minus GRPO"), ("diff_test_se", "paired SE"),
+            ("lead", "ahead"), ("es_offtask", "ES off-task"), ("grpo_offtask", "GRPO off-task"))
+
+    def fmt(x):
+        if x is None:
+            return "-"
+        if isinstance(x, float):
+            return f"{x:+.3f}"
+        return f"{x:,}" if isinstance(x, int) and x >= 1000 else str(x)
+
+    head = "| " + " | ".join(n for _, n in cols) + " |"
+    sep = "|" + "|".join("---" for _ in cols) + "|"
+    return "\n".join([head, sep, *("| " + " | ".join(fmt(r.get(k)) for k, _ in cols) + " |" for r in rows)])
+
+
 def effective_updates(g: int, gamma: float) -> tuple:
     """After `g` updates with the weights pulled a fraction `gamma` back toward the start
     after each, the displacement is sum_i (1 - gamma)^(g - i + 1) u_i: the number of
@@ -645,6 +712,8 @@ def main(argv=None) -> int:
     ap.add_argument("--curves", type=Path, help="the runs directory: each run's per-evaluation table")
     ap.add_argument("--compare", nargs=2, type=Path, metavar=("ES_RUNS", "GRPO_RUNS"),
                     help="each ES run against its setting's GRPO arm: loop seconds and rollouts to +0.10 on the test block")
+    ap.add_argument("--samples", nargs="+", type=Path, metavar="DIR",
+                    help="a GRPO run, then directories of ES runs: each ES run of its setting against it at equal samples seen")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
     ap.add_argument("--prediction", type=Path, help="the setting's probe record (step and the numbers to hold the run against)")
     ap.add_argument("--out", type=Path)
@@ -667,6 +736,12 @@ def main(argv=None) -> int:
     if args.compare:
         es, gr = (p if p.is_absolute() else E2E / p for p in args.compare)
         print(compare_table(compare(es, gr)))
+        return 0
+    if args.samples:
+        if len(args.samples) < 2:
+            ap.error("--samples needs the GRPO run and at least one directory of ES runs")
+        gr, *es = (p if p.is_absolute() else E2E / p for p in args.samples)
+        print(samples_table(samples_compare(gr, es)))
         return 0
     if args.table:
         print(table(summary(args.table if args.table.is_absolute() else E2E / args.table)))
