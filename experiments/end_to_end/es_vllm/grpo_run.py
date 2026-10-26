@@ -71,16 +71,22 @@ def checkpoint_path(workdir: Path, out: Path) -> Path:
     return workdir / out.name / "checkpoint.pt"
 
 
-def save_checkpoint(path: Path, step: int, model, opt, rng, order, conf: dict) -> float:
-    """The state after `step` completed steps, written via a temp file; returns the seconds."""
+def save_checkpoint(path: Path, step: int, model, opt, rng, order, conf: dict):
+    """The state after `step` completed steps, written via a temp file; returns the
+    seconds, or the error as a string when the write failed (the previous checkpoint
+    stays; a full volume must not end the run: S5 stage 1 lost four hours to that)."""
     import torch  # noqa: PLC0415
 
     path.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.perf_counter()
     tmp = path.with_suffix(".tmp")
-    torch.save({"step": step, "model": model.state_dict(), "opt": opt.state_dict(),
-                "rng": rng.bit_generator.state, "order": list(order), "config": conf}, tmp)
-    os.replace(tmp, path)
+    try:
+        torch.save({"step": step, "model": model.state_dict(), "opt": opt.state_dict(),
+                    "rng": rng.bit_generator.state, "order": list(order), "config": conf}, tmp)
+        os.replace(tmp, path)
+    except Exception as e:  # noqa: BLE001
+        tmp.unlink(missing_ok=True)
+        return f"{type(e).__name__}: {e}"[:300]
     return time.perf_counter() - t0
 
 
@@ -212,12 +218,34 @@ def run(args) -> int:
     harness.write_atomic(out / "run.json", run_)
     log, e_log = out / "log.jsonl", out / "eval.jsonl"
 
-    def note_checkpoint(step, secs):
-        run_.setdefault("checkpoints", []).append({"step": step, "seconds": round(secs, 1)})
+    def note_checkpoint(step, result):
+        if isinstance(result, str):
+            run_.setdefault("checkpoints", []).append({"step": step, "failed": result})
+            print(f"checkpoint at {step} steps FAILED: {result}", flush=True)
+        else:
+            run_.setdefault("checkpoints", []).append({"step": step, "seconds": round(result, 1)})
+            print(f"checkpoint at {step} steps ({result:.0f} s)", flush=True)
         harness.write_atomic(out / "run.json", run_)
-        print(f"checkpoint at {step} steps ({secs:.0f} s)", flush=True)
 
     scorer = task.scorer()                                   # before CUDA: the Countdown grader forks
+    try:
+        return train(args, cfg, task, scorer, saved, conf, run_, out, ckpt, log, e_log, note_checkpoint, P, K, steps, eval_every)
+    except BaseException:  # noqa: BLE001
+        import traceback  # noqa: PLC0415
+
+        traceback.print_exc()
+        sys.stdout.flush(); sys.stderr.flush()
+        scorer.close()
+        os._exit(1)                                          # the pool's workers would otherwise keep the process alive
+
+
+def train(args, cfg, task, scorer, saved, conf, run_, out, ckpt, log, e_log, note_checkpoint, P, K, steps, eval_every) -> int:
+    import torch  # noqa: PLC0415
+    from transformers import AutoModelForCausalLM  # noqa: PLC0415
+
+    from es_vllm import worker as W  # noqa: PLC0415
+    from es_vllm.worker import ESWorker  # noqa: PLC0415
+
     for k_, fn in worker_methods().items():
         setattr(ESWorker, k_, fn)
     llm = probe.engine(cfg, 0.35, worker_extension_cls="es_vllm.worker.ESWorker")   # first: it profiles the GPU
