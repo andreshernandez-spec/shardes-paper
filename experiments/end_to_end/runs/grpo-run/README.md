@@ -124,3 +124,9 @@ rate on a 3B model, and 40 steps where the published Countdown runs use hundreds
 reference's KL floor is 6e-4 nats per token from the f32-under-autocast policy against
 the bf16 reference, recorded in the smoke; the prompts are the same 192 the ES runs
 used, so neither method saw a fresh prompt during training.
+
+## The 1.5B rate arm (2026-10-25, S5 stage 1)
+
+`qwen1.5b-countdown-lr1e-6-s0`: the Tulu recipe at 1e-6 for 40 steps on the S4b probe's
+blocks, run to choose the long arm's learning rate (`runs/s5/README.md`): validation
++0.207 at 40 against +0.181 for the 5e-7 arm, test +0.208 against +0.192, GSM8K +0.008.

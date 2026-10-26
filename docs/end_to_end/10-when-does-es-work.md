@@ -1157,6 +1157,37 @@ changes nothing in the stop rule.
 **Not changed by this stage.** The ES arms (no new ES run); the frozen prescriptions;
 the thresholds of S4b's classes; the Tulu case.
 
+#### S5 stage 1 results (2026-10-26, `runs/s5/README.md`)
+
+Both arms ran to 480 steps (368,640 samples) at 1e-6, the better learning rate on both
+settings (prediction 5 held on 1.5B: +0.207 against +0.181 on validation at 40 steps).
+About $169 by uptime, of which about $48 was idle time after both first attempts died at
+their second checkpoint write on a full 80 GB volume and the grader's worker pool kept the
+dead processes alive; both resumed from their step-40 checkpoints on the enlarged volume,
+and a subagent checked progress every 30 minutes from then on.
+
+At equal samples seen, GRPO is ahead of every ES arm at every one of the six common
+milestones on both settings (`probe_run --samples`): on 3B instruct by 0.18 to 0.55 of
+the range (6 to 20 paired standard errors), on 1.5B by 0.06 to 0.18 (2.2 to 7.5). At the
+ES arms' full sample count GRPO's reserved block is +0.430 on 3B (peak +0.466 at 270
+steps, 207,360 samples) against the best ES arm's +0.185 at that count and +0.235 at any
+point, and +0.250 on 1.5B against +0.180 and +0.183. Predictions 1 to 3 held on both
+settings; prediction 4 (GSM8K within 0.03 at every evaluation) held on 1.5B and at 48 of
+49 evaluations on 3B (−0.033 at step 360, −0.017 at the end). GRPO's 1.5B curve
+plateaus at about +0.25 from 46,080 samples on; its 3B curve is still at its plateau
+level of +0.41 to +0.47 from 240 steps on.
+
+**Reading.** The weak-comparator candidate is the one the data support: our GRPO on 3B,
+with an untuned post-training recipe and a KL anchor, reaches in a fourteenth of Qiu et
+al.'s sample budget a reserved-block accuracy (0.601 at the peak, 0.565 at the end)
+above their reported ES end point (58.7 ± 1.5) and far above their RL's (44.4 ± 1.9),
+with test sets of different size from the same source. On 1.5B our GRPO's plateau
+(0.324) sits between their two RL variants and below their ES (37.7 ± 1.1), so that
+setting is the one where a long-horizon ES overtaking is not excluded; whether the
+plateau is the task's or the KL anchor's is the open question there (a beta-0 arm, about
+$45). The stop rule is met: stage 2 (to 1 million samples, with Qiu's recipe as a second
+ES arm) runs on 3B instruct only, and the 1.5B beta-0 arm is proposed beside it.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
