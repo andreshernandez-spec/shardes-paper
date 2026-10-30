@@ -496,10 +496,15 @@ def compare_table(rows: list) -> str:
 
 def samples_seen(out: Path) -> list:
     """Each evaluation of a run with the samples generated before it (the rollouts of the
-    iterations before, from the log) and its normalized per-prompt rewards."""
+    iterations before, from the log), the loop seconds they took (an ES update's, a GRPO
+    step's phases; no evaluation or setup) and its normalized per-prompt rewards."""
     ev = sorted(lines(out / "eval.jsonl"), key=lambda r: r["iteration"])
-    rolls = {r["iteration"]: r["rollouts"] for r in lines(out / "log.jsonl")}
+    log = lines(out / "log.jsonl")
+    rolls = {r["iteration"]: r["rollouts"] for r in log}
+    secs = {r["iteration"]: sum(r["seconds"].values()) if isinstance(r["seconds"], dict) else r["seconds"]
+            for r in log if "seconds" in r}
     return [{"iteration": r["iteration"], "samples": int(sum(v for i, v in rolls.items() if i < r["iteration"])),
+             "seconds": float(sum(v for i, v in secs.items() if i < r["iteration"])),
              "normalized": probe.normalized(r["rewards"], r["kinds"]), "block": np.asarray(r["block"])} for r in ev]
 
 
@@ -563,8 +568,9 @@ def samples_table(rows: list) -> str:
 
 def history(runs: list, upto=None) -> list:
     """Every evaluation of the runs (GRPO or ES, the same blocks, checked by digest) on one
-    axis of samples seen, up to `upto`: each block's change against the run's own
-    evaluation at zero and the test change's standard error over prompts. `samples_compare`
+    axis of samples seen, up to `upto`, with the loop seconds before each: each block's
+    change against the run's own evaluation at zero and the test change's standard error
+    over prompts. `samples_compare`
     pairs only evaluations at equal counts; this keeps every point of each curve."""
     rows, digests = [], None
     for d in runs:
@@ -577,7 +583,7 @@ def history(runs: list, upto=None) -> list:
         for e in ev:
             if upto is not None and e["samples"] > upto:
                 continue
-            row = {"samples": e["samples"], "run": d.name, "at": e["iteration"]}
+            row = {"samples": e["samples"], "loop_seconds": round(e["seconds"]), "run": d.name, "at": e["iteration"]}
             for b in ("test", "validation", "offtask"):
                 m = e["block"] == b
                 change = e["normalized"][m] - ev[0]["normalized"][m]
@@ -589,7 +595,7 @@ def history(runs: list, upto=None) -> list:
 
 
 def history_table(rows: list) -> str:
-    cols = (("samples", "samples seen"), ("run", "run"), ("at", "update or step"), ("test", "test"),
+    cols = (("samples", "samples seen"), ("loop_seconds", "loop seconds"), ("run", "run"), ("at", "update or step"), ("test", "test"),
             ("test_se", "SE"), ("validation", "validation"), ("offtask", "off-task"))
 
     def fmt(x):

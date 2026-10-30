@@ -388,22 +388,24 @@ def test_history_puts_every_evaluation_on_one_axis_of_samples(tmp_path):
     block = ["validation"] * (P // 2) + ["test"] * (P // 2) + ["offtask"] * (P // 2)
     digests = {"train": "a", "validation": "b", "test": "c", "offtask": "d"}
 
-    def write(d, iters, solved, per, dig=digests):
+    def write(d, iters, solved, per, secs=1.0, dig=digests):
         d.mkdir(parents=True)
         (d / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/countdown"}, "block_digests": dig}))
         ev = [{"iteration": g, "rewards": [1.1 if i % (P // 2) < solved(g) else 0.0 for i in range(P)] + [10.0] * (P // 2),
                "kinds": kinds, "block": block, "mean_len": 300.0} for g in iters]
         (d / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in ev) + "\n")
-        (d / "log.jsonl").write_text("\n".join(json.dumps({"iteration": g, "rollouts": per}) for g in range(max(iters))) + "\n")
+        (d / "log.jsonl").write_text("\n".join(json.dumps({"iteration": g, "rollouts": per, "seconds": secs})
+                                               for g in range(max(iters))) + "\n")
 
-    write(tmp_path / "grpo", range(0, 31, 10), lambda g: 40 + g, 768)
-    write(tmp_path / "es", range(0, 5), lambda g: 40 + 3 * g, 5760)
+    write(tmp_path / "grpo", range(0, 31, 10), lambda g: 40 + g, 768, {"generate": 10.0, "train": 75.0})
+    write(tmp_path / "es", range(0, 5), lambda g: 40 + 3 * g, 5760, 104.0)
     rows = pr.history([tmp_path / "grpo", tmp_path / "es"], upto=20000)
     assert [(r["samples"], r["run"], r["at"]) for r in rows] == [
         (0, "es", 0), (0, "grpo", 0), (5760, "es", 1), (7680, "grpo", 10), (11520, "es", 2), (15360, "grpo", 20), (17280, "es", 3)]
     assert abs(rows[2]["test"] - 3 / 300) < 1e-9 and rows[2]["test_se"] > 0 and rows[0]["test_se"] == 0.0
     assert abs(rows[3]["offtask"]) < 1e-9
-    assert "| 7,680 | grpo | 10 | +0.033 |" in pr.history_table(rows)
-    write(tmp_path / "other", range(0, 2), lambda g: 40, 5760, {**digests, "test": "z"})
+    assert [r["loop_seconds"] for r in rows[2:5]] == [104, 850, 208]       # GRPO's phases summed
+    assert "| 7,680 | 850 | grpo | 10 | +0.033 |" in pr.history_table(rows)
+    write(tmp_path / "other", range(0, 2), lambda g: 40, 5760, dig={**digests, "test": "z"})
     with pytest.raises(SystemExit):
         pr.history([tmp_path / "grpo", tmp_path / "other"])

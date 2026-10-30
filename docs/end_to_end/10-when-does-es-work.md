@@ -1241,6 +1241,24 @@ first level within 115,200 samples but later than GRPO does.
 
 **Not changed by this run.** The GRPO arm, the stage 1 ES arms, the blocks.
 
+#### S5, the early history: results (2026-10-30, `runs/s5-early/README.md`)
+
+The run went to 20 updates on one Secure H200, about $4.50 by uptime, every bit-for-bit
+check passing. Prediction 1 held: GRPO is ahead at all five milestones by 0.14 to 0.29
+of the range (5.3 to 10.1 paired standard errors). Prediction 2 failed by 0.0003: ES's
+test change touched +0.1135 once, at update 19 (109,440 samples), against GRPO's +0.1132
+at 7,680, and was +0.087 at the next evaluation. ES was at +0.021 after its first 5,760
+samples. At equal loop seconds GRPO is also ahead (its +0.113 after 855 s; ES +0.059 at
+841 s), although ES's decodes cost a sixth of GRPO's step per sample. GSM8K sat 0.02 to
+0.04 below its start at 12 of 20 evaluations under ES, against 0 to 0.02 under GRPO.
+
+**Reading.** No early window on 3B instruct Countdown: with the published recipe in our
+code and the same problems, ES is behind GRPO from the first evaluation and needs 14
+times GRPO's samples to reach GRPO's first level. Qiu et al.'s lead throughout training
+comes from their RL baseline, not from the regime, and an ES-then-GRPO schedule has
+nothing to gain here. One seed and 20 of their 500 iterations; a later overtaking is
+not tested.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
