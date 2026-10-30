@@ -114,8 +114,17 @@ QWEN25_7B = Repo("Qwen/Qwen2.5-7B-Instruct", "model", "a09a35458c702b33eeacc393d
 QWEN25_3B_BASE = Repo("Qwen/Qwen2.5-3B", "model", "3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
                       "the base model of QWEN25_3B, for Palleti and Singh's collapse")
 
+# ---------------------------------------------------------------- es-at-scale's released ES model
+
+# Hayes et al. 2026 (arXiv 2608.12679): Qwen2.5-Math-7B after 500 iterations of
+# es-at-scale on MATH levels 3 to 5, released 2026-08-12; its base at main (2024-09-23).
+QWEN25_MATH_7B = Repo("Qwen/Qwen2.5-Math-7B", "model", "b101308fe89651ea5ce025f25317fea6fc07e96e")
+ES_MATH_7B = Repo("conorfhayes/Qwen2.5-Math-7B-ES-MATH", "model", "a02186ed96942767fafe0b12069be4dc7e62c36a",
+                  "the paper's ES model; settings on its model card")
+
 ALL_REPOS = (
     OLMO3_BASE, OLMO3_IF_RL, OLMO3_IF_SOURCE, OLMO3_IF_DOLCI, OLMO3_INSTRUCT,
     TULU31_START, TULU31_RL, TULU31_DATA, QWEN25_05B,
     QWEN25_15B, QWEN25_3B, QWEN25_7B, QWEN25_3B_BASE,
+    QWEN25_MATH_7B, ES_MATH_7B,
 )

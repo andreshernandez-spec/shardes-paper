@@ -1,0 +1,404 @@
+{
+  "base": {
+    "commit": "b101308fe89651ea5ce025f25317fea6fc07e96e",
+    "kind": "model",
+    "note": "",
+    "repo": "Qwen/Qwen2.5-Math-7B"
+  },
+  "by_binade": {
+    "trips_0": [
+      {
+        "binade": -14,
+        "changed": 0.9999017857142857,
+        "count": 112000,
+        "mean_steps": 3305.4075265165056,
+        "rms": 0.0019779805063599573,
+        "rms_over_exact": 0.9997884817149567
+      },
+      {
+        "binade": -13,
+        "changed": 0.99975,
+        "count": 112000,
+        "mean_steps": 1652.9887803780691,
+        "rms": 0.001978723104462564,
+        "rms_over_exact": 1.000163834771846
+      },
+      {
+        "binade": -12,
+        "changed": 0.999625,
+        "count": 112000,
+        "mean_steps": 827.5545924159459,
+        "rms": 0.001978313646187298,
+        "rms_over_exact": 0.9999568703118639
+      },
+      {
+        "binade": -11,
+        "changed": 0.999375,
+        "count": 112000,
+        "mean_steps": 413.57635150146484,
+        "rms": 0.001976639785189081,
+        "rms_over_exact": 0.9991108018391827
+      },
+      {
+        "binade": -10,
+        "changed": 0.9985267857142858,
+        "count": 112000,
+        "mean_steps": 206.928736668178,
+        "rms": 0.001980296819368235,
+        "rms_over_exact": 1.0009592834788146
+      },
+      {
+        "binade": -9,
+        "changed": 0.9967142857142857,
+        "count": 112000,
+        "mean_steps": 103.63191338239398,
+        "rms": 0.0019814744061166668,
+        "rms_over_exact": 1.0015545055568464
+      },
+      {
+        "binade": -8,
+        "changed": 0.9943125,
+        "count": 112000,
+        "mean_steps": 52.054882359095984,
+        "rms": 0.001991673361150913,
+        "rms_over_exact": 1.0067096614019022
+      },
+      {
+        "binade": -7,
+        "changed": 0.9882053571428572,
+        "count": 112000,
+        "mean_steps": 26.291427455357145,
+        "rms": 0.002015642145110534,
+        "rms_over_exact": 1.0188249042197617
+      },
+      {
+        "binade": -6,
+        "changed": 0.9773303571428571,
+        "count": 112000,
+        "mean_steps": 13.833214285714286,
+        "rms": 0.002115487782699618,
+        "rms_over_exact": 1.06929280220464
+      },
+      {
+        "binade": -5,
+        "changed": 0.9568839285714286,
+        "count": 112000,
+        "mean_steps": 7.303294642857143,
+        "rms": 0.002234543369572855,
+        "rms_over_exact": 1.1294705461495114
+      },
+      {
+        "binade": -4,
+        "changed": 0.7592645473889774,
+        "count": 108559,
+        "mean_steps": 1.417441207085548,
+        "rms": 0.0009603566818209283,
+        "rms_over_exact": 0.48542113824443767
+      },
+      {
+        "binade": -3,
+        "changed": 0.017748788378831388,
+        "count": 76963,
+        "mean_steps": 0.014773332640359653,
+        "rms": 0.00012300333348211196,
+        "rms_over_exact": 0.06217316886215032
+      },
+      {
+        "binade": -2,
+        "changed": 0.0,
+        "count": 8667,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      },
+      {
+        "binade": -1,
+        "changed": 0.03765060240963856,
+        "count": 5312,
+        "mean_steps": 0.015707670924175215,
+        "rms": 0.0004033081174511856,
+        "rms_over_exact": 0.20385580601695724
+      },
+      {
+        "binade": 0,
+        "changed": 0.0,
+        "count": 24,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      },
+      {
+        "binade": 1,
+        "changed": 0.0,
+        "count": 1,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      }
+    ],
+    "trips_4": [
+      {
+        "binade": -14,
+        "changed": 0.9999285714285714,
+        "count": 112000,
+        "mean_steps": 3278.508030581338,
+        "rms": 0.0019630759151540865,
+        "rms_over_exact": 0.9922548186862333
+      },
+      {
+        "binade": -13,
+        "changed": 0.99975,
+        "count": 112000,
+        "mean_steps": 1638.7086251918247,
+        "rms": 0.0019623470178837094,
+        "rms_over_exact": 0.9918863908413009
+      },
+      {
+        "binade": -12,
+        "changed": 0.9996517857142857,
+        "count": 112000,
+        "mean_steps": 819.7554486955916,
+        "rms": 0.0019596607850088554,
+        "rms_over_exact": 0.9905286096706334
+      },
+      {
+        "binade": -11,
+        "changed": 0.9992946428571429,
+        "count": 112000,
+        "mean_steps": 410.5340925827026,
+        "rms": 0.001965556447970719,
+        "rms_over_exact": 0.9935086268661476
+      },
+      {
+        "binade": -10,
+        "changed": 0.9984642857142857,
+        "count": 112000,
+        "mean_steps": 206.04882808685304,
+        "rms": 0.0019738738884170245,
+        "rms_over_exact": 0.9977127538172618
+      },
+      {
+        "binade": -9,
+        "changed": 0.9970535714285714,
+        "count": 112000,
+        "mean_steps": 103.85444349888392,
+        "rms": 0.0019840726961825044,
+        "rms_over_exact": 1.002867835223962
+      },
+      {
+        "binade": -8,
+        "changed": 0.9940267857142857,
+        "count": 112000,
+        "mean_steps": 52.437976440429686,
+        "rms": 0.0020085513381134334,
+        "rms_over_exact": 1.0152407904537413
+      },
+      {
+        "binade": -7,
+        "changed": 0.9886875,
+        "count": 112000,
+        "mean_steps": 27.077570452008928,
+        "rms": 0.0020720656294859643,
+        "rms_over_exact": 1.047344674558951
+      },
+      {
+        "binade": -6,
+        "changed": 0.9781964285714285,
+        "count": 112000,
+        "mean_steps": 14.715013392857143,
+        "rms": 0.002250733329899621,
+        "rms_over_exact": 1.1376539108500618
+      },
+      {
+        "binade": -5,
+        "changed": 0.9626428571428571,
+        "count": 112000,
+        "mean_steps": 8.292950892857142,
+        "rms": 0.002525343063904663,
+        "rms_over_exact": 1.2764579324985368
+      },
+      {
+        "binade": -4,
+        "changed": 0.809182103740823,
+        "count": 108559,
+        "mean_steps": 2.0563702687018117,
+        "rms": 0.0014301651378638488,
+        "rms_over_exact": 0.7228901534615779
+      },
+      {
+        "binade": -3,
+        "changed": 0.5193144757870665,
+        "count": 76963,
+        "mean_steps": 0.6514299078778114,
+        "rms": 0.0010537786707643915,
+        "rms_over_exact": 0.5326421438025072
+      },
+      {
+        "binade": -2,
+        "changed": 0.5065189800392292,
+        "count": 8667,
+        "mean_steps": 0.5564785969770394,
+        "rms": 0.001612764700559659,
+        "rms_over_exact": 0.8151867857905905
+      },
+      {
+        "binade": -1,
+        "changed": 0.4158509036144578,
+        "count": 5312,
+        "mean_steps": 0.3948056324418769,
+        "rms": 0.0024499603457201016,
+        "rms_over_exact": 1.2383550426475214
+      },
+      {
+        "binade": 0,
+        "changed": 0.0,
+        "count": 24,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      },
+      {
+        "binade": 1,
+        "changed": 0.0,
+        "count": 1,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      }
+    ]
+  },
+  "constants": {
+    "alpha": 0.0005,
+    "corr_sample": 40000,
+    "exact_rms": 0.001978398973918052,
+    "members": 32,
+    "per_binade": 4000,
+    "round_trips": 4,
+    "sigma": 0.001,
+    "updates": 501
+  },
+  "date": "2026-10-30T11:54:30+00:00",
+  "env": {
+    "commit": "9bfb969efe7f0db46a2311aa3f1702d1de626a60",
+    "dirty_worktree": true,
+    "hostname": "KX-AH-22848-L",
+    "packages": {
+      "huggingface_hub": "1.27.0",
+      "numpy": "2.5.1",
+      "safetensors": "0.8.0",
+      "torch": "2.13.0+cu130"
+    },
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "python": "3.13.14",
+    "shardes": {
+      "commit": "fcd30affaa5bf3b0b3764173e509d1c4adc09bed",
+      "dirty": false,
+      "source": "checkout",
+      "version": "0.2.0.dev0"
+    }
+  },
+  "es_at_scale": "574a9d134da1ffce2a8bb812019899e5c96b588a",
+  "gates": {
+    "head": "the embedding and the output head's changes correlate at least 0.3",
+    "rounding": "in every binade holding at least 1e5 weights of the layer matrices, the measured rms change is within a factor 1.5 of the simulated one and the measured share of weights changed within 0.15 of it",
+    "shared_draw": "for every matrix type, the measured correlation of the update between layers 13 and 14 is at least 0.3 and at least half the simulated one (independent draws per layer would give |r| < 0.01)"
+  },
+  "norms": {
+    "abs_weight_median": [
+      0.51171875,
+      0.6328125,
+      0.53125,
+      2.890625
+    ],
+    "changed": [
+      0.3989955484867096,
+      0.4207589328289032,
+      0.3677455484867096,
+      0.0
+    ],
+    "corr_input_13_14": 0.4123623041771644,
+    "corr_input_post_13": 0.30515374939748474,
+    "rms": [
+      0.0018350172322243452,
+      0.0021921349689364433,
+      0.0017892473842948675,
+      0.0
+    ],
+    "rows": [
+      "layers.13.input_layernorm",
+      "layers.13.post_attention_layernorm",
+      "layers.14.input_layernorm",
+      "norm"
+    ]
+  },
+  "relative_change": {
+    "down_proj.0": 0.1021683724959619,
+    "down_proj.18": 0.08604633570252368,
+    "down_proj.27": 0.08725298496657218,
+    "down_proj.9": 0.09251081315154741,
+    "gate_proj.0": 0.09988894779019451,
+    "gate_proj.18": 0.08827484753177482,
+    "gate_proj.27": 0.0864841499730569,
+    "gate_proj.9": 0.08058812062536029,
+    "k_proj.0": 0.05982055023289343,
+    "k_proj.18": 0.09411000951753798,
+    "k_proj.27": 0.11340790812052821,
+    "k_proj.9": 0.08684231690358277,
+    "o_proj.0": 0.10949885914730392,
+    "o_proj.18": 0.083249103844364,
+    "o_proj.27": 0.07838156491808614,
+    "o_proj.9": 0.08479256780326264,
+    "q_proj.0": 0.07789231100985856,
+    "q_proj.18": 0.09167769678337508,
+    "q_proj.27": 0.09227080601943329,
+    "q_proj.9": 0.08902290116553746,
+    "up_proj.0": 0.11046931001429693,
+    "up_proj.18": 0.08488749499422288,
+    "up_proj.27": 0.08301043088767913,
+    "up_proj.9": 0.09200852511245297,
+    "v_proj.0": 0.13377373786415883,
+    "v_proj.18": 0.07530243335728873,
+    "v_proj.27": 0.062391716186431405,
+    "v_proj.9": 0.07977405867818489
+  },
+  "shared_draw": {
+    "down_proj": {
+      "0-27": 0.776739366698212,
+      "13-14": 0.7540117462776261
+    },
+    "embed-head": 0.8359352468259429,
+    "gate_proj": {
+      "0-27": 0.7746615348187199,
+      "13-14": 0.7541529013547741
+    },
+    "k_proj": {
+      "0-27": 0.7285030491670338,
+      "13-14": 0.7602004866450307
+    },
+    "k_proj.bias": {
+      "13-14": 0.10115293639689772
+    },
+    "o_proj": {
+      "0-27": 0.7731693547609214,
+      "13-14": 0.7662087481607345
+    },
+    "q_proj": {
+      "0-27": 0.7572582500400425,
+      "13-14": 0.7650311867653161
+    },
+    "q_proj.bias": {
+      "13-14": 0.0938521304572901
+    },
+    "up_proj": {
+      "0-27": 0.7742131409444502,
+      "13-14": 0.7547188067665206
+    },
+    "v_proj": {
+      "0-27": 0.7427571796976298,
+      "13-14": 0.7639464597742692
+    },
+    "v_proj.bias": {
+      "13-14": 0.6901753305333694
+    }
+  }
+}
