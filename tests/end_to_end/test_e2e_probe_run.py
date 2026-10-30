@@ -378,3 +378,32 @@ def test_a_full_rank_run_reads_without_the_rank1_prediction(tmp_path):
           evals(range(0, 61, 10)), [{"iteration": g, "rollouts": 768, "seconds": {"generate": 20.0}} for g in range(60)])
     rows = pr.samples_compare(tmp_path / "grpo", [tmp_path / "es"])
     assert [(r["samples"], r["es_iteration"], r["grpo_step"]) for r in rows] == [(23040, 4, 30), (46080, 8, 60)]
+
+
+def test_history_puts_every_evaluation_on_one_axis_of_samples(tmp_path):
+    """--history: each run's evaluations, its own start as the baseline, sorted by samples
+    seen and cut at --upto; runs on other blocks are refused."""
+    P = 600
+    kinds = ["countdown"] * P + ["gsm8k"] * (P // 2)
+    block = ["validation"] * (P // 2) + ["test"] * (P // 2) + ["offtask"] * (P // 2)
+    digests = {"train": "a", "validation": "b", "test": "c", "offtask": "d"}
+
+    def write(d, iters, solved, per, dig=digests):
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps({"config": {"setting": "qwen3b/countdown"}, "block_digests": dig}))
+        ev = [{"iteration": g, "rewards": [1.1 if i % (P // 2) < solved(g) else 0.0 for i in range(P)] + [10.0] * (P // 2),
+               "kinds": kinds, "block": block, "mean_len": 300.0} for g in iters]
+        (d / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in ev) + "\n")
+        (d / "log.jsonl").write_text("\n".join(json.dumps({"iteration": g, "rollouts": per}) for g in range(max(iters))) + "\n")
+
+    write(tmp_path / "grpo", range(0, 31, 10), lambda g: 40 + g, 768)
+    write(tmp_path / "es", range(0, 5), lambda g: 40 + 3 * g, 5760)
+    rows = pr.history([tmp_path / "grpo", tmp_path / "es"], upto=20000)
+    assert [(r["samples"], r["run"], r["at"]) for r in rows] == [
+        (0, "es", 0), (0, "grpo", 0), (5760, "es", 1), (7680, "grpo", 10), (11520, "es", 2), (15360, "grpo", 20), (17280, "es", 3)]
+    assert abs(rows[2]["test"] - 3 / 300) < 1e-9 and rows[2]["test_se"] > 0 and rows[0]["test_se"] == 0.0
+    assert abs(rows[3]["offtask"]) < 1e-9
+    assert "| 7,680 | grpo | 10 | +0.033 |" in pr.history_table(rows)
+    write(tmp_path / "other", range(0, 2), lambda g: 40, 5760, {**digests, "test": "z"})
+    with pytest.raises(SystemExit):
+        pr.history([tmp_path / "grpo", tmp_path / "other"])

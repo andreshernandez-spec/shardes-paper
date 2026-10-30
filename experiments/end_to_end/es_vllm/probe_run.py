@@ -561,6 +561,47 @@ def samples_table(rows: list) -> str:
     return "\n".join([head, sep, *("| " + " | ".join(fmt(r.get(k)) for k, _ in cols) + " |" for r in rows)])
 
 
+def history(runs: list, upto=None) -> list:
+    """Every evaluation of the runs (GRPO or ES, the same blocks, checked by digest) on one
+    axis of samples seen, up to `upto`: each block's change against the run's own
+    evaluation at zero and the test change's standard error over prompts. `samples_compare`
+    pairs only evaluations at equal counts; this keeps every point of each curve."""
+    rows, digests = [], None
+    for d in runs:
+        run_ = json.loads((d / "run.json").read_text())
+        if digests is None:
+            digests = run_["block_digests"]
+        elif run_["block_digests"] != digests:
+            raise SystemExit(f"{d.name} scores other blocks than {runs[0].name}")
+        ev = samples_seen(d)
+        for e in ev:
+            if upto is not None and e["samples"] > upto:
+                continue
+            row = {"samples": e["samples"], "run": d.name, "at": e["iteration"]}
+            for b in ("test", "validation", "offtask"):
+                m = e["block"] == b
+                change = e["normalized"][m] - ev[0]["normalized"][m]
+                row[b] = float(change.mean())
+                if b == "test":
+                    row["test_se"] = float(change.std(ddof=1) / np.sqrt(change.size)) if e["iteration"] else 0.0
+            rows.append(row)
+    return sorted(rows, key=lambda r: (r["samples"], r["run"]))
+
+
+def history_table(rows: list) -> str:
+    cols = (("samples", "samples seen"), ("run", "run"), ("at", "update or step"), ("test", "test"),
+            ("test_se", "SE"), ("validation", "validation"), ("offtask", "off-task"))
+
+    def fmt(x):
+        if isinstance(x, float):
+            return f"{x:+.3f}" if x else "0"
+        return f"{x:,}" if isinstance(x, int) and x >= 1000 else str(x)
+
+    head = "| " + " | ".join(n for _, n in cols) + " |"
+    sep = "|" + "|".join("---" for _ in cols) + "|"
+    return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
+
+
 def effective_updates(g: int, gamma: float) -> tuple:
     """After `g` updates with the weights pulled a fraction `gamma` back toward the start
     after each, the displacement is sum_i (1 - gamma)^(g - i + 1) u_i: the number of
@@ -761,6 +802,9 @@ def main(argv=None) -> int:
     ap.add_argument("--curves", type=Path, help="the runs directory: each run's per-evaluation table")
     ap.add_argument("--compare", nargs=2, type=Path, metavar=("ES_RUNS", "GRPO_RUNS"),
                     help="each ES run against its setting's GRPO arm: loop seconds and rollouts to +0.10 on the test block")
+    ap.add_argument("--history", nargs="+", type=Path, metavar="DIR",
+                    help="runs on the same blocks: every evaluation of each on one axis of samples seen")
+    ap.add_argument("--upto", type=int, help="with --history, the last sample count shown")
     ap.add_argument("--samples", nargs="+", type=Path, metavar="DIR",
                     help="a GRPO run, then directories of ES runs: each ES run of its setting against it at equal samples seen")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
@@ -787,6 +831,9 @@ def main(argv=None) -> int:
     if args.compare:
         es, gr = (p if p.is_absolute() else E2E / p for p in args.compare)
         print(compare_table(compare(es, gr)))
+        return 0
+    if args.history:
+        print(history_table(history([p if p.is_absolute() else E2E / p for p in args.history], args.upto)))
         return 0
     if args.samples:
         if len(args.samples) < 2:
