@@ -77,6 +77,11 @@ GATES = {
 }
 
 
+def pin(rel: R.Repo) -> dict:
+    # A hub revision, not a `commit` key: the provenance audit reads those as git commits.
+    return {"repo": rel.repo, "kind": rel.kind, "revision": rel.commit, "note": rel.note}
+
+
 def matrix(kind: str, layer: int) -> str:
     part = "self_attn" if kind in MATRICES[:4] else "mlp"
     return f"model.layers.{layer}.{part}.{kind}.weight"
@@ -108,17 +113,15 @@ class Checkpoint:
                                           allow_patterns=["*.json", "*.safetensors"]))
         index = json.loads((self.dir / "model.safetensors.index.json").read_text())
         self.where = index["weight_map"]
-        self._open = {}
 
     def names(self):
         return sorted(self.where)
 
     def get(self, name: str):
         from safetensors import safe_open  # noqa: PLC0415
-        f = self.where[name]
-        if f not in self._open:
-            self._open[f] = safe_open(str(self.dir / f), framework="pt")
-        t = self._open[f].get_tensor(name)
+        # Copied out and closed: a file kept open leaves every page read mapped, and counted in RSS.
+        with safe_open(str(self.dir / self.where[name]), framework="pt") as f:
+            t = f.get_tensor(name).clone()
         if str(t.dtype) != "torch.bfloat16":
             raise SystemExit(f"{self.rel.repo} {name} is {t.dtype}")
         return t
@@ -238,7 +241,7 @@ def predict(args) -> int:
     by_binade = {}
     for trips in (TRIPS, 0):
         acc = {}
-        add_stats(acc, binade_stats(simulate(w, trips=trips, seed=2), w))
+        add_stats(acc, binade_stats(simulate(w, args.updates, trips, seed=2), w))
         by_binade[f"trips_{trips}"] = summarize(acc)
         print(f"simulated {w.shape[1]} weights, {trips} round trips per update", flush=True)
 
@@ -253,7 +256,7 @@ def predict(args) -> int:
     def pair_corr(wa, wb):
         idx = torch.randint(0, wa.numel(), (CORR_SAMPLE,), generator=g)
         rows = torch.stack([wa.flatten()[idx], wb.flatten()[idx]])
-        d = simulate(rows, seed=3)
+        d = simulate(rows, args.updates, seed=3)
         return corr(d[0], d[1])
 
     shared = {}
@@ -270,7 +273,7 @@ def predict(args) -> int:
                          base.get("model.layers.13.post_attention_layernorm.weight"),
                          base.get("model.layers.14.input_layernorm.weight"),
                          base.get("model.norm.weight")])
-    d = simulate(norms, seed=4)
+    d = simulate(norms, args.updates, seed=4)
     norm_pred = {"changed": [float((d[i] != 0).float().mean()) for i in range(4)],
                  "rms": [float(d[i].pow(2).mean().sqrt()) for i in range(4)],
                  "abs_weight_median": [float(norms[i].float().abs().median()) for i in range(4)],
@@ -284,8 +287,8 @@ def predict(args) -> int:
     harness.write_atomic(out, {
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "env": env_block(E2E, ["runs"], PACKAGES),
-        "base": R.QWEN25_MATH_7B._asdict(), "es_at_scale": R.ES_AT_SCALE,
-        "constants": {"members": N, "sigma": SIGMA, "alpha": ALPHA, "updates": UPDATES, "round_trips": TRIPS,
+        "base": pin(R.QWEN25_MATH_7B), "es_at_scale": R.ES_AT_SCALE,
+        "constants": {"members": N, "sigma": SIGMA, "alpha": ALPHA, "updates": args.updates, "round_trips": TRIPS,
                       "exact_rms": EXACT_RMS, "per_binade": PER_BINADE, "corr_sample": CORR_SAMPLE},
         "gates": GATES, "by_binade": by_binade, "relative_change": rel, "shared_draw": shared,
         "norms": norm_pred})
@@ -353,7 +356,7 @@ def measure(args) -> int:
     harness.write_atomic(out, {
         "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "env": env_block(E2E, ["runs"], PACKAGES),
-        "base": R.QWEN25_MATH_7B._asdict(), "es": R.ES_MATH_7B._asdict(), "hashes": hashes,
+        "base": pin(R.QWEN25_MATH_7B), "es": pin(R.ES_MATH_7B), "hashes": hashes,
         "exact_rms": EXACT_RMS, "tensors": tensors,
         "by_binade": {g_: summarize(acc) for g_, acc in groups.items()}, "shared_draw": shared})
     print(f"wrote {out}", flush=True)
@@ -362,9 +365,10 @@ def measure(args) -> int:
 
 def table(args) -> int:
     d = E2E / args.table
-    p = json.loads((d / "prediction.json").read_text())
+    p = json.loads((d / args.prediction).read_text())
     m = json.loads((d / "measured.json").read_text())
-    print(f"exact-arithmetic rms change per weight after {UPDATES} updates: {EXACT_RMS:.3g}\n")
+    print(f"prediction {args.prediction}, {p['constants']['updates']} updates simulated; exact-arithmetic rms change"
+          f" per weight after {UPDATES} updates: {EXACT_RMS:.3g}\n")
     print("layer matrices by |w| binade: share changed and rms change (simulated / measured)")
     sim = {r["binade"]: r for r in p["by_binade"][f"trips_{TRIPS}"]}
     sim0 = {r["binade"]: r for r in p["by_binade"]["trips_0"]}
@@ -414,6 +418,8 @@ def main(argv=None) -> int:
     mode.add_argument("--measure", action="store_true")
     mode.add_argument("--table", type=Path)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--updates", type=int, default=UPDATES, help="--predict: updates to simulate")
+    ap.add_argument("--prediction", default="prediction.json", help="--table: prediction file in the directory")
     args = ap.parse_args(argv)
     import torch  # noqa: PLC0415
     torch.set_num_threads(6)             # the laptop is shared

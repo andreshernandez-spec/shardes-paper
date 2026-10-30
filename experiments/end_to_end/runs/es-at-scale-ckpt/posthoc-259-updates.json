@@ -1,0 +1,404 @@
+{
+  "base": {
+    "revision": "b101308fe89651ea5ce025f25317fea6fc07e96e",
+    "kind": "model",
+    "note": "",
+    "repo": "Qwen/Qwen2.5-Math-7B"
+  },
+  "by_binade": {
+    "trips_0": [
+      {
+        "binade": -14,
+        "changed": 0.9998392857142857,
+        "count": 112000,
+        "mean_steps": 2380.9654676197597,
+        "rms": 0.0014234776724278311,
+        "rms_over_exact": 0.7195099124059663
+      },
+      {
+        "binade": -13,
+        "changed": 0.9998214285714285,
+        "count": 112000,
+        "mean_steps": 1188.4169949079242,
+        "rms": 0.001419997648881116,
+        "rms_over_exact": 0.7177509024223414
+      },
+      {
+        "binade": -12,
+        "changed": 0.9993928571428572,
+        "count": 112000,
+        "mean_steps": 594.5764126674108,
+        "rms": 0.001420926513493688,
+        "rms_over_exact": 0.7182204056038622
+      },
+      {
+        "binade": -11,
+        "changed": 0.9987767857142857,
+        "count": 112000,
+        "mean_steps": 297.4670985281808,
+        "rms": 0.0014206947042909087,
+        "rms_over_exact": 0.718103235505295
+      },
+      {
+        "binade": -10,
+        "changed": 0.9979107142857143,
+        "count": 112000,
+        "mean_steps": 149.0674368373326,
+        "rms": 0.0014256848130709875,
+        "rms_over_exact": 0.720625531991426
+      },
+      {
+        "binade": -9,
+        "changed": 0.9954196428571429,
+        "count": 112000,
+        "mean_steps": 74.512333871024,
+        "rms": 0.0014237964497920202,
+        "rms_over_exact": 0.7196710413634676
+      },
+      {
+        "binade": -8,
+        "changed": 0.9916875,
+        "count": 112000,
+        "mean_steps": 37.405854352678574,
+        "rms": 0.0014319282389492908,
+        "rms_over_exact": 0.7237813291590411
+      },
+      {
+        "binade": -7,
+        "changed": 0.9825625,
+        "count": 112000,
+        "mean_steps": 18.98332142857143,
+        "rms": 0.0014564863168088447,
+        "rms_over_exact": 0.7361944360112544
+      },
+      {
+        "binade": -6,
+        "changed": 0.9677589285714285,
+        "count": 112000,
+        "mean_steps": 9.96521875,
+        "rms": 0.001525870350405003,
+        "rms_over_exact": 0.7712652354358767
+      },
+      {
+        "binade": -5,
+        "changed": 0.9410535714285714,
+        "count": 112000,
+        "mean_steps": 5.249723214285714,
+        "rms": 0.001607198584154303,
+        "rms_over_exact": 0.8123733409401149
+      },
+      {
+        "binade": -4,
+        "changed": 0.6374782376403615,
+        "count": 108559,
+        "mean_steps": 0.9456654906548513,
+        "rms": 0.0006715925912455351,
+        "rms_over_exact": 0.33946266658008967
+      },
+      {
+        "binade": -3,
+        "changed": 0.013318087912373478,
+        "count": 76963,
+        "mean_steps": 0.009088782921663657,
+        "rms": 8.446485146049832e-05,
+        "rms_over_exact": 0.04269353784248221
+      },
+      {
+        "binade": -2,
+        "changed": 0.0,
+        "count": 8667,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      },
+      {
+        "binade": -1,
+        "changed": 0.03765060240963856,
+        "count": 5312,
+        "mean_steps": 0.012207789593432323,
+        "rms": 0.0003125563637525439,
+        "rms_over_exact": 0.15798449547997515
+      },
+      {
+        "binade": 0,
+        "changed": 0.0,
+        "count": 24,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      },
+      {
+        "binade": 1,
+        "changed": 0.0,
+        "count": 1,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      }
+    ],
+    "trips_4": [
+      {
+        "binade": -14,
+        "changed": 0.9999196428571429,
+        "count": 112000,
+        "mean_steps": 2374.786362537384,
+        "rms": 0.0014210333386196487,
+        "rms_over_exact": 0.7182744013485877
+      },
+      {
+        "binade": -13,
+        "changed": 0.9997767857142857,
+        "count": 112000,
+        "mean_steps": 1181.6749865782601,
+        "rms": 0.0014142971997000084,
+        "rms_over_exact": 0.7148695578319637
+      },
+      {
+        "binade": -12,
+        "changed": 0.9993392857142858,
+        "count": 112000,
+        "mean_steps": 589.004603527614,
+        "rms": 0.0014099937678722413,
+        "rms_over_exact": 0.7126943485417746
+      },
+      {
+        "binade": -11,
+        "changed": 0.9988839285714286,
+        "count": 112000,
+        "mean_steps": 295.6367747192383,
+        "rms": 0.0014141458540761474,
+        "rms_over_exact": 0.7147930587911452
+      },
+      {
+        "binade": -10,
+        "changed": 0.9978839285714286,
+        "count": 112000,
+        "mean_steps": 148.51584381103515,
+        "rms": 0.0014223949583932387,
+        "rms_over_exact": 0.7189626446157651
+      },
+      {
+        "binade": -9,
+        "changed": 0.9959464285714286,
+        "count": 112000,
+        "mean_steps": 74.80377403368269,
+        "rms": 0.0014321282732125918,
+        "rms_over_exact": 0.7238824383215197
+      },
+      {
+        "binade": -8,
+        "changed": 0.9912857142857143,
+        "count": 112000,
+        "mean_steps": 37.645837297712056,
+        "rms": 0.0014439093166611324,
+        "rms_over_exact": 0.7298372753406721
+      },
+      {
+        "binade": -7,
+        "changed": 0.9837410714285715,
+        "count": 112000,
+        "mean_steps": 19.555194196428573,
+        "rms": 0.0014973246271511014,
+        "rms_over_exact": 0.756836536457445
+      },
+      {
+        "binade": -6,
+        "changed": 0.9700089285714286,
+        "count": 112000,
+        "mean_steps": 10.617892857142857,
+        "rms": 0.0016233624203549465,
+        "rms_over_exact": 0.8205435009602813
+      },
+      {
+        "binade": -5,
+        "changed": 0.9463125,
+        "count": 112000,
+        "mean_steps": 5.925950892857143,
+        "rms": 0.0018122493551213205,
+        "rms_over_exact": 0.916018143464922
+      },
+      {
+        "binade": -4,
+        "changed": 0.7294374487605818,
+        "count": 108559,
+        "mean_steps": 1.4462964839396089,
+        "rms": 0.0010423708106724891,
+        "rms_over_exact": 0.526875935751302
+      },
+      {
+        "binade": -3,
+        "changed": 0.46735444304406015,
+        "count": 76963,
+        "mean_steps": 0.5722749892805634,
+        "rms": 0.0009426433248737598,
+        "rms_over_exact": 0.4764677586780863
+      },
+      {
+        "binade": -2,
+        "changed": 0.45136725510557285,
+        "count": 8667,
+        "mean_steps": 0.49146186685127496,
+        "rms": 0.0014947451123202336,
+        "rms_over_exact": 0.7555326969059316
+      },
+      {
+        "binade": -1,
+        "changed": 0.30854668674698793,
+        "count": 5312,
+        "mean_steps": 0.28299108183527566,
+        "rms": 0.0020601943319055846,
+        "rms_over_exact": 1.0413442177568177
+      },
+      {
+        "binade": 0,
+        "changed": 0.0,
+        "count": 24,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      },
+      {
+        "binade": 1,
+        "changed": 0.0,
+        "count": 1,
+        "mean_steps": 0.0,
+        "rms": 0.0,
+        "rms_over_exact": 0.0
+      }
+    ]
+  },
+  "constants": {
+    "alpha": 0.0005,
+    "corr_sample": 40000,
+    "exact_rms": 0.001978398973918052,
+    "members": 32,
+    "per_binade": 4000,
+    "round_trips": 4,
+    "sigma": 0.001,
+    "updates": 259
+  },
+  "date": "2026-10-30T12:10:11+00:00",
+  "env": {
+    "commit": "a416908fe30fbc15fe9dc955827aa8a85cf807f5",
+    "dirty_worktree": true,
+    "hostname": "KX-AH-22848-L",
+    "packages": {
+      "huggingface_hub": "1.27.0",
+      "numpy": "2.5.1",
+      "safetensors": "0.8.0",
+      "torch": "2.13.0+cu130"
+    },
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "python": "3.13.14",
+    "shardes": {
+      "commit": "fcd30affaa5bf3b0b3764173e509d1c4adc09bed",
+      "dirty": false,
+      "source": "checkout",
+      "version": "0.2.0.dev0"
+    }
+  },
+  "es_at_scale": "574a9d134da1ffce2a8bb812019899e5c96b588a",
+  "gates": {
+    "head": "the embedding and the output head's changes correlate at least 0.3",
+    "rounding": "in every binade holding at least 1e5 weights of the layer matrices, the measured rms change is within a factor 1.5 of the simulated one and the measured share of weights changed within 0.15 of it",
+    "shared_draw": "for every matrix type, the measured correlation of the update between layers 13 and 14 is at least 0.3 and at least half the simulated one (independent draws per layer would give |r| < 0.01)"
+  },
+  "norms": {
+    "abs_weight_median": [
+      0.51171875,
+      0.6328125,
+      0.53125,
+      2.890625
+    ],
+    "changed": [
+      0.3390066921710968,
+      0.3401227593421936,
+      0.3074776828289032,
+      0.00027901786961592734
+    ],
+    "corr_input_13_14": 0.40798387361721455,
+    "corr_input_post_13": 0.2783907678763779,
+    "rms": [
+      0.0016254879301413894,
+      0.001906961784698069,
+      0.0015892250230535865,
+      1.6312331354129128e-05
+    ],
+    "rows": [
+      "layers.13.input_layernorm",
+      "layers.13.post_attention_layernorm",
+      "layers.14.input_layernorm",
+      "norm"
+    ]
+  },
+  "relative_change": {
+    "down_proj.0": 0.07361295034507172,
+    "down_proj.18": 0.06198592391019438,
+    "down_proj.27": 0.06285903747801784,
+    "down_proj.9": 0.06665104995449707,
+    "gate_proj.0": 0.07197427356743445,
+    "gate_proj.18": 0.06359453669523947,
+    "gate_proj.27": 0.062299875823725384,
+    "gate_proj.9": 0.05804706694118978,
+    "k_proj.0": 0.04309465869216167,
+    "k_proj.18": 0.06781350658019955,
+    "k_proj.27": 0.08174065539359368,
+    "k_proj.9": 0.06257597969187668,
+    "o_proj.0": 0.07892569990106409,
+    "o_proj.18": 0.05997740158711101,
+    "o_proj.27": 0.056467649261029575,
+    "o_proj.9": 0.061087064390530584,
+    "q_proj.0": 0.05612335811302496,
+    "q_proj.18": 0.0660554196239304,
+    "q_proj.27": 0.06648407923262592,
+    "q_proj.9": 0.0641420018962473,
+    "up_proj.0": 0.07960282108615602,
+    "up_proj.18": 0.061149188030898104,
+    "up_proj.27": 0.05979320426701291,
+    "up_proj.9": 0.06628796942457968,
+    "v_proj.0": 0.09644641896877502,
+    "v_proj.18": 0.05424273419978203,
+    "v_proj.27": 0.04495233129521341,
+    "v_proj.9": 0.057463855879224604
+  },
+  "shared_draw": {
+    "down_proj": {
+      "0-27": 0.7830976123830656,
+      "13-14": 0.7591973319223059
+    },
+    "embed-head": 0.8393781245307522,
+    "gate_proj": {
+      "0-27": 0.7776086336888888,
+      "13-14": 0.7569225065841705
+    },
+    "k_proj": {
+      "0-27": 0.7346509051639566,
+      "13-14": 0.7657615472078527
+    },
+    "k_proj.bias": {
+      "13-14": 0.08249498402539487
+    },
+    "o_proj": {
+      "0-27": 0.7754601181131974,
+      "13-14": 0.7689594827122417
+    },
+    "q_proj": {
+      "0-27": 0.7595749261087595,
+      "13-14": 0.7661950863823496
+    },
+    "q_proj.bias": {
+      "13-14": 0.09172889294947809
+    },
+    "up_proj": {
+      "0-27": 0.7802906777892308,
+      "13-14": 0.7604166481513218
+    },
+    "v_proj": {
+      "0-27": 0.7467760189087757,
+      "13-14": 0.7693525426907428
+    },
+    "v_proj.bias": {
+      "13-14": 0.6942004140623965
+    }
+  }
+}
