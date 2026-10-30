@@ -19,6 +19,14 @@ updates the validation, test and off-task blocks are decoded greedily by the cur
 model and scored; the test block is the one the probe reserved (its digest must match).
 A restart replays the log and checks the f32 copy's digest.
 
+`--full-rank` runs es-at-scale's Countdown recipe (Qiu et al. 2025) on the same blocks
+instead: full-rank Gaussian members on every weight at sigma 1e-3, alpha 5e-4, the
+fitness z-scored, no anchor, through shardes in the worker (`worker.ESWorker`, the
+backend T2 matched to es-at-scale, runs/countdown-README.md). Each member's weights are
+written into the engine in turn and decode the train block; member 0 and the restored
+view are checked bit for bit at every update. The probe's prediction is for its rank-1
+members, so the run carries none. Not resumable: a killed run starts again.
+
 The rule's prediction, copied into run.json: a gain of `step G` per update on the task
 and a loss of `step^2 |C|` from the random part, so after g updates the validation
 change is about `g step G - g step^2 |C|` and the off-task block moves `g step G_offtask`;
@@ -52,6 +60,7 @@ from provenance import env_block  # noqa: E402
 
 SIGMA, ALPHA, RANK = probe.SIGMA, probe.ALPHA, probe.RANK
 N, ITERATIONS, EVAL_EVERY, CHUNK = 64, 30, 5, 32
+FULL_SIGMA, FULL_ALPHA = 1e-3, 5e-4    # es-at-scale's defaults, as es_vllm/countdown-s1.yaml
 STREAM_FIRST_STEP = 160          # the probe's GSM8K blocks come from stream steps 0 to 159
 
 
@@ -148,59 +157,78 @@ def run(args) -> int:
             raise SystemExit(f"the prediction is for {pred['setting']}, the run for {args.setting}")
         if pred["block_digests"] != task.digests():
             raise SystemExit("the blocks are not the probe's")
-    step = args.step if args.step is not None else (pred["step_multiple"] if pred else None)
-    if step is None:
-        raise SystemExit("--step or --prediction")
-    if pred and "shrink" in pred and args.shrink is None:
-        args.shrink = pred["shrink"]                     # the prescription's anchor, unless overridden
-    args.shrink = args.shrink or 0.0
+    if args.full_rank:
+        if args.shrink:
+            raise SystemExit("--full-rank has no anchor")
+        step, args.shrink = (1.0 if args.step is None else args.step), 0.0
+        sigma, alpha, rank = FULL_SIGMA, FULL_ALPHA, None
+    else:
+        step = args.step if args.step is not None else (pred["step_multiple"] if pred else None)
+        if step is None:
+            raise SystemExit("--step or --prediction")
+        if pred and "shrink" in pred and args.shrink is None:
+            args.shrink = pred["shrink"]                 # the prescription's anchor, unless overridden
+        args.shrink = args.shrink or 0.0
+        sigma, alpha, rank = SIGMA, ALPHA, RANK
     n = 8 if args.smoke else args.members
     chunk = min(CHUNK, n)                                   # adapters per generate call
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
     # what the weights depend on; the iteration count can grow on a resume
     conf = {"setting": args.setting, "repo": cfg["repo"], "revision": cfg["revision"], "seed": args.seed,
-            "sigma": SIGMA, "alpha": ALPHA, "rank": RANK, "step": step, "n": n, "prompts": args.prompts,
+            "sigma": sigma, "alpha": alpha, "rank": rank, "step": step, "n": n, "prompts": args.prompts,
             "ranking": args.ranking, "shrink": args.shrink,
             "eval_every": 1 if args.smoke else args.eval_every, "smoke": args.smoke}
+    if args.full_rank:
+        conf["noise"] = "full-rank"                         # the rank-1 runs predate the key
     if (out / "run.json").exists():
         if json.loads((out / "run.json").read_text())["config"] != conf:
             raise SystemExit(f"{out} holds a run with another configuration")
     else:
         harness.write_atomic(out / "run.json", {
-            "config": conf, "iterations": args.iterations, "engine": {"chunk": chunk}, "prediction": pred,
+            "config": conf, "iterations": args.iterations, "engine": {"chunk": chunk},
+            "prediction": None if args.full_rank else pred, "blocks_from": pred and pred["source"],
             "blocks": {b: len(v) for b, v in task.blocks.items()}, "block_digests": task.digests(),
             "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-            "env": env_block(E2E, ["runs"], ("vllm", "torch"))})
+            "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib"))})
     log, e_log = out / "log.jsonl", out / "eval.jsonl"
     done, e_done = lines(log), {r["iteration"] for r in lines(e_log)}
+    if args.full_rank and done:
+        raise SystemExit(f"{out} has a log; a full-rank run is never resumed, move it aside first")
     pairs = n // 2
 
     scorer = task.scorer()                                  # before CUDA: the Countdown grader forks
     mdir = probe.model_dir(cfg)
-    shapes = lowrank.leaf_shapes(mdir)
-    template = lowrank.write_template(Path(args.workdir) / "adapter", RANK, cfg["repo"])
-    lowrank.install_adapters(template, args.seed, shapes, RANK, SIGMA, n=n)
-    for k_, fn in lowrank.worker_methods().items():
-        setattr(ESWorker, k_, fn)
-    llm = probe.engine(cfg, 0.6, enable_lora=True, max_lora_rank=RANK, max_loras=chunk, max_cpu_loras=n,
-                       worker_extension_cls="es_vllm.worker.ESWorker")
-    rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
-    rpc("lr_setup", mdir, args.seed, RANK, 0, shapes)
-    if args.shrink:
-        rpc("lr_keep_start")
-    t0 = time.perf_counter()
-    for rec in done:                                        # replay: the factors regenerate from their seeds
-        rpc("lr_factors", args.seed, RANK, pairs, shapes, lowrank.generation_of(rec["iteration"]))
-        rpc("lr_step", list(step * lowrank.coefficients(rec["ranked"], n, ALPHA, RANK)))
+    if args.full_rank:
+        llm = probe.engine(cfg, 0.6, worker_extension_cls="es_vllm.worker.ESWorker")
+        rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
+        print(f"es_init {rpc('es_init', mdir, n, sigma, step * alpha * sigma, args.seed)}", flush=True)
+        if not rpc("es_check", None)["ok"]:
+            raise SystemExit("engine weights are not the f32 master's view")
+    else:
+        shapes = lowrank.leaf_shapes(mdir)
+        template = lowrank.write_template(Path(args.workdir) / "adapter", RANK, cfg["repo"])
+        lowrank.install_adapters(template, args.seed, shapes, RANK, SIGMA, n=n)
+        for k_, fn in lowrank.worker_methods().items():
+            setattr(ESWorker, k_, fn)
+        llm = probe.engine(cfg, 0.6, enable_lora=True, max_lora_rank=RANK, max_loras=chunk, max_cpu_loras=n,
+                           worker_extension_cls="es_vllm.worker.ESWorker")
+        rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
+        rpc("lr_setup", mdir, args.seed, RANK, 0, shapes)
         if args.shrink:
-            rpc("lr_shrink", args.shrink)
-    if done:
-        if rpc("lr_digest") != done[-1]["digest"]:
-            raise SystemExit("the replayed weights are not the logged ones")
-        print(f"replayed {len(done)} updates {time.perf_counter() - t0:.0f}s", flush=True)
-    if not rpc("lr_check")["ok"]:
-        raise SystemExit("engine weights are not the f32 copy")
+            rpc("lr_keep_start")
+        t0 = time.perf_counter()
+        for rec in done:                                    # replay: the factors regenerate from their seeds
+            rpc("lr_factors", args.seed, RANK, pairs, shapes, lowrank.generation_of(rec["iteration"]))
+            rpc("lr_step", list(step * lowrank.coefficients(rec["ranked"], n, ALPHA, RANK)))
+            if args.shrink:
+                rpc("lr_shrink", args.shrink)
+        if done:
+            if rpc("lr_digest") != done[-1]["digest"]:
+                raise SystemExit("the replayed weights are not the logged ones")
+            print(f"replayed {len(done)} updates {time.perf_counter() - t0:.0f}s", flush=True)
+        if not rpc("lr_check")["ok"]:
+            raise SystemExit("engine weights are not the f32 copy")
 
     tok = probe.tokenizer(cfg)
     if args.prompts == "repeated":
@@ -234,36 +262,55 @@ def run(args) -> int:
         t1 = time.perf_counter()
         rows = batches[g]
         ids = [task.render(tok, r) for r in rows]
-        rewards, lengths = [], []
-        for c0 in range(0, n, chunk):
-            part = list(range(c0, min(n, c0 + chunk)))
-            o = probe.decode(llm, [i for _ in part for i in ids], task.params(rows * len(part)),
-                             [LoRARequest(f"g{g}m{m}", g * n + m + 1, str(template)) for m in part for _ in ids])
-            r = probe.score_outs(scorer, o, rows * len(part))
-            for q in range(len(part)):
-                rewards.append(r[q * len(ids):(q + 1) * len(ids)])
-                lengths.append(float(np.mean([len(x.outputs[0].token_ids) for x in o[q * len(ids):(q + 1) * len(ids)]])))
+        rewards, lengths, extra = [], [], {}
+        if args.full_rank:
+            rpc("es_ask")
+            for m in range(n):
+                rpc("es_perturb", m)
+                if m == 0:                                  # the JAX-to-torch handoff (worker.py)
+                    extra["checks"] = [{"member": 0, **rpc("es_check", 0)}]
+                    if not extra["checks"][0]["ok"]:
+                        raise SystemExit(f"engine weights are not member 0 at update {g + 1}")
+                o = probe.decode(llm, ids, task.params(rows))
+                rewards.append(probe.score_outs(scorer, o, rows))
+                lengths.append(float(np.mean([len(x.outputs[0].token_ids) for x in o])))
+        else:
+            for c0 in range(0, n, chunk):
+                part = list(range(c0, min(n, c0 + chunk)))
+                o = probe.decode(llm, [i for _ in part for i in ids], task.params(rows * len(part)),
+                                 [LoRARequest(f"g{g}m{m}", g * n + m + 1, str(template)) for m in part for _ in ids])
+                r = probe.score_outs(scorer, o, rows * len(part))
+                for q in range(len(part)):
+                    rewards.append(r[q * len(ids):(q + 1) * len(ids)])
+                    lengths.append(float(np.mean([len(x.outputs[0].token_ids) for x in o[q * len(ids):(q + 1) * len(ids)]])))
         decode_s = time.perf_counter() - t1
         fitness = np.asarray(rewards).mean(1)
         # the random-only control: the real fitnesses in a seeded random order, so the
         # update has the real one's norm and none of its direction
         ranked = fitness if args.ranking == "real" else fitness[np.random.default_rng((args.seed, g)).permutation(n)]
-        k = list(step * lowrank.coefficients(ranked, n, ALPHA, RANK))
-        rpc("lr_factors", args.seed, RANK, pairs, shapes, lowrank.generation_of(g))
-        norm = rpc("lr_norm", k)
-        rpc("lr_step", k)
-        if args.shrink:
-            rpc("lr_shrink", args.shrink)
-        check = rpc("lr_check")
+        if args.full_rank:
+            extra["tell"] = rpc("es_tell", ranked.tolist())
+            rpc("es_restore")
+            check = rpc("es_check", None)
+            extra["checks"].append({"member": None, **check})
+            norm, w_digest = None, rpc("es_digest")
+        else:
+            k = list(step * lowrank.coefficients(ranked, n, ALPHA, RANK))
+            rpc("lr_factors", args.seed, RANK, pairs, shapes, lowrank.generation_of(g))
+            norm = rpc("lr_norm", k)
+            rpc("lr_step", k)
+            if args.shrink:
+                rpc("lr_shrink", args.shrink)
+            check, w_digest = rpc("lr_check"), rpc("lr_digest")
         if not check["ok"]:
             raise SystemExit(f"engine weights are not the f32 copy after update {g + 1}")
         append(log, {"iteration": g, "fitness": fitness.tolist(), "ranked": ranked.tolist(), "mean_fitness": float(fitness.mean()),
                      "sd_fitness": float(fitness.std()), "rewards": rewards, "mean_len": lengths,
                      "prompt_digest": digest(rows), "rollouts": n * len(rows), "update_norm": norm,
-                     "digest": rpc("lr_digest"), "check": check["ok"], "decode_seconds": decode_s,
+                     "digest": w_digest, "check": check["ok"], **extra, "decode_seconds": decode_s,
                      "seconds": time.perf_counter() - t1})
-        print(f"[{g}] fitness {fitness.mean():.4f} sd {fitness.std():.4f} |update| {norm:.2f} "
-              f"{time.perf_counter() - t1:.0f}s", flush=True)
+        print(f"[{g}] fitness {fitness.mean():.4f} sd {fitness.std():.4f}"
+              + ("" if norm is None else f" |update| {norm:.2f}") + f" {time.perf_counter() - t1:.0f}s", flush=True)
     evaluate(args.iterations)
     scorer.close()
     return 0
@@ -603,6 +650,7 @@ def analyze(out: Path) -> dict:
                                     "offtask_change": (eff_g * step * pred["G_offtask"] if real else 0.0) if pred["G_offtask"] is not None else None}
         rows.append(row)
     res = {"setting": run_["config"]["setting"], "seed": run_["config"]["seed"], "step": step, "n": run_["config"]["n"],
+           "noise": run_["config"].get("noise", "rank-1"),
            "ranking": run_["config"].get("ranking", "real"), "shrink": run_["config"].get("shrink"),
            "iterations_done": len(log), "rollouts_total": sum(r["rollouts"] for r in log),
            "seconds_total": sum(r["seconds"] for r in log),
@@ -623,7 +671,8 @@ def analyze(out: Path) -> dict:
 
 def variant_of(a: dict):
     """What a run changed against the prescription's population and ranking, or None."""
-    parts = [x for x, on in ((f"N {a['n']}", a["n"] != probe.N_MEMBERS), ("random ranking", a["ranking"] == "random"),
+    parts = [x for x, on in (("full-rank", a["noise"] == "full-rank"), (f"N {a['n']}", a["n"] != probe.N_MEMBERS),
+                             ("random ranking", a["ranking"] == "random"),
                              (f"shrink {a['shrink']}", bool(a["shrink"]))) if on]
     return ", ".join(parts) or None
 
@@ -721,6 +770,8 @@ def main(argv=None) -> int:
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--seed", type=int, default=0, help="member seeds; 0 shares the probe's first generation")
     ap.add_argument("--members", type=int, default=N)
+    ap.add_argument("--full-rank", action="store_true",
+                    help="es-at-scale's Countdown recipe: full-rank members at sigma 1e-3, alpha 5e-4, no anchor")
     ap.add_argument("--step", type=float, help="multiple of the unit update (default: the prediction's)")
     ap.add_argument("--iterations", type=int, default=ITERATIONS)
     ap.add_argument("--eval-every", type=int, default=EVAL_EVERY)

@@ -343,3 +343,38 @@ def test_samples_compare_pairs_evaluations_at_equal_samples_seen(tmp_path):
                                                         "block_digests": {**digests, "test": "z"}}, evals((0, 5), lambda g: 0.14), es_log)
     with pytest.raises(SystemExit):
         pr.samples_compare(tmp_path / "grpo", [tmp_path / "other"])
+
+
+def test_a_full_rank_run_reads_without_the_rank1_prediction(tmp_path):
+    """--full-rank (es-at-scale's recipe on the probe's blocks): the run carries no
+    prediction and no update norm, is labelled in the tables, and pairs with a GRPO run
+    at equal samples seen (30 members on 192 prompts: 4 updates are 30 GRPO steps)."""
+    P = 600
+    kinds = ["countdown"] * P + ["gsm8k"] * (P // 2)
+    block = ["validation"] * (P // 2) + ["test"] * (P // 2) + ["offtask"] * (P // 2)
+    digests = {"train": "a", "validation": "b", "test": "c", "offtask": "d"}
+
+    def evals(iters):
+        return [{"iteration": g, "rewards": [1.1 if i % (P // 2) < 40 + g else 0.0 for i in range(P)] + [10.0] * (P // 2),
+                 "kinds": kinds, "block": block, "mean_len": 300.0} for g in iters]
+
+    def write(d, run, ev, log):
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps(run))
+        (d / "eval.jsonl").write_text("\n".join(json.dumps(e) for e in ev) + "\n")
+        (d / "log.jsonl").write_text("\n".join(json.dumps(r) for r in log) + "\n")
+
+    conf = {"setting": "qwen3b/countdown", "seed": 0, "sigma": 1e-3, "alpha": 5e-4, "rank": None, "step": 1.0, "n": 30,
+            "prompts": "repeated", "ranking": "real", "shrink": 0.0, "eval_every": 1, "smoke": False, "noise": "full-rank"}
+    log = [{"iteration": g, "rollouts": 30 * 192, "seconds": 300.0, "mean_fitness": 0.1, "sd_fitness": 0.01, "update_norm": None}
+           for g in range(8)]
+    d = tmp_path / "es" / "qwen3b-countdown-full-rank-s0"
+    write(d, {"config": conf, "prediction": None, "block_digests": digests}, evals(range(9)), log)
+    a = pr.analyze(d)
+    assert a["noise"] == "full-rank" and pr.variant_of(a) == "full-rank, N 30"
+    assert "predicted" not in a["eval"][0] and a["fitness"][0]["update_norm"] is None
+    assert "**qwen3b-countdown-full-rank-s0** (step 1, full-rank, N 30, 8 updates, 46,080 rollouts" in pr.curves(tmp_path / "es")
+    write(tmp_path / "grpo", {"config": {"setting": "qwen3b/countdown", "seed": 0, "lr": 1e-6, "beta": 0.01}, "block_digests": digests},
+          evals(range(0, 61, 10)), [{"iteration": g, "rollouts": 768, "seconds": {"generate": 20.0}} for g in range(60)])
+    rows = pr.samples_compare(tmp_path / "grpo", [tmp_path / "es"])
+    assert [(r["samples"], r["es_iteration"], r["grpo_step"]) for r in rows] == [(23040, 4, 30), (46080, 8, 60)]

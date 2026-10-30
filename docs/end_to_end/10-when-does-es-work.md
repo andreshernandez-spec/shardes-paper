@@ -1188,6 +1188,59 @@ plateau is the task's or the KL anchor's is the open question there (a beta-0 ar
 $45). The stop rule is met: stage 2 (to 1 million samples, with Qiu's recipe as a second
 ES arm) runs on 3B instruct only, and the 1.5B beta-0 arm is proposed beside it.
 
+#### S5, the early history under the published recipe: preregistration (2026-10-30, before any run)
+
+Andres approved on 2026-10-30 ("Yes, run those 20 iterations"). The question is whether
+ES leads GRPO at any point early in training, even if GRPO wins later. Qiu et al.'s
+Countdown claim (their appendix A.1, A.6, A.8) is made in the regime stage 1 already
+used: 200 training problems reused at every iteration, the methods compared at equal
+sample evaluations (one generated answer to one training problem) up to 3 million, RL
+trained on the same problems, and ES "consistently outperformed RL ... throughout
+training". Our GRPO cycled through the same 192 problems as the ES arms, so stage 1 is in
+that regime, but every ES arm in it used our recipe (mirrored rank-1 members at sigma
+5e-4, the rule's step, an anchor on some). The published recipe has not run on 3B.
+
+**What runs.** `es_vllm/probe_run.py --full-rank`: es-at-scale's recipe on the first
+probe's blocks (`runs/probe/qwen3b-countdown`), 30 full-rank Gaussian members on every
+weight, sigma 1e-3, alpha 5e-4, the fitness z-scored, no anchor, every member decoding
+the probe's 192 train prompts greedily at every update (5,760 samples per update), with
+shardes in the worker as T2 ran it at 0.5B. Twenty updates, 115,200 samples, one seed,
+the validation, test and off-task blocks scored after every update:
+
+    python -m es_vllm.probe_run --setting qwen3b/countdown --prediction runs/probe/qwen3b-countdown \
+        --full-rank --members 30 --iterations 20 --eval-every 1 --seed 0 \
+        --out runs/s5-early/qwen3b-countdown-full-rank-s0
+
+One H200, about 2.5 hours of uptime, about $10. The run stops early if a bit-for-bit
+check fails (the driver exits) or if updates 1 and 2 project the run past 4 hours of
+uptime, in which case it is stopped and reported before any more is spent.
+
+**What is compared.** `probe_run --samples runs/s5/qwen3b-countdown-grpo-lr1e-6-s0
+runs/s5-early`: ES update 4m and GRPO step 30m are both 23,040m samples, so the two
+meet at five milestones, 23,040 to 115,200, paired over the test block's prompts as in
+stage 1. The ES curve at every update is reported beside GRPO's, which is scored every
+7,680 samples.
+
+**Predictions.**
+
+1. *GRPO ahead from the start.* At each of the five milestones GRPO's test change
+   exceeds ES's by more than two paired standard errors. The basis: every rank-1 arm in
+   stage 1 was behind at its first milestone (61,440 samples), and at 0.5B this recipe
+   solved almost nothing in its first 15 updates (T2).
+2. *No early window at all.* No ES evaluation in the 20 updates reaches GRPO's test
+   change at its first evaluation, +0.113 after 7,680 samples.
+
+**What the outcomes mean.** 1 holding means that on this setting, with the published
+recipe in our code and the same problems, ES is behind GRPO from the first milestone:
+Qiu et al.'s lead comes from their RL baseline, not from the regime, and starting with
+ES before switching to GRPO has no early window to use here. ES ahead of GRPO by two
+standard errors at any milestone is an early window: its length is then measured with
+more seeds and the switch is the next test. A milestone within two standard errors is
+reported as unresolved, with one seed. 2 failing while 1 holds says ES reaches GRPO's
+first level within 115,200 samples but later than GRPO does.
+
+**Not changed by this run.** The GRPO arm, the stage 1 ES arms, the blocks.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
