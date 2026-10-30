@@ -111,11 +111,12 @@ def audit_citations(node, path=()):
 
 @pytest.mark.parametrize("record", sorted(E2E.rglob("*.json")), ids=lambda p: p.name)
 def test_records_cite_commits_only_where_the_audit_expects(record):
-    # env.commit is this repository, env.shardes.commit the library. Anything else would
-    # be read as a commit of some other repository named by its parent key.
+    # env.commit is this repository, env.shardes.commit the library, at any depth (a resumed
+    # run keeps each leg's env). Anything else would be read as a commit of some other
+    # repository named by its parent key.
     doc = json.loads(record.read_text())
     for path in audit_citations(doc):
-        assert path in ((), ("env",), ("env", "shardes")), f"{record.name}: {path}"
+        assert path[-1:] in ((), ("env",)) or path[-2:] == ("env", "shardes"), f"{record.name}: {path}"
     if "env" in doc:
         assert doc["env"]["shardes"]["commit"] != doc["env"]["commit"], \
             "without a separate library commit the audit reads this as a monorepo record"
