@@ -1,0 +1,22 @@
+# Follow-up to probe.yaml, committed before its run. The greedy probe found the Olmo 3
+# base model looping to the 16,384-token cap on 46% of IF prompts (H100, 128 prompts),
+# which prices a greedy ES run at thousands of dollars. The IF run itself sampled at
+# temperature 1.0 and averaged ~340 tokens. This cell measures the base model under
+# that sampling, one seed per prompt, everything else as in probe.yaml's first cell.
+
+vllm_seed: 0
+warmup: {prompts: 4, max_tokens: 16}
+
+settings:
+  olmo3_if:
+    model: OLMO3_BASE
+    prompts: olmo3_if_stream
+    template: OLMO_THINKER
+    add_bos: false
+    stop: ["</answer>"]
+    max_tokens: 16384
+    max_model_len: 18432
+    temperature: 1.0              # the run's logged temperature, top_p 1
+    sampling_seed: 0
+    cells:
+      - {gpu_memory_utilization: 0.85, prompts_per_member: 32, members: 4}

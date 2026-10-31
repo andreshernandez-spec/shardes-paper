@@ -1,0 +1,25 @@
+{
+  "concentration": {
+    "0.0001": {
+      "elements": 7151378,
+      "share_of_norm2": 0.7691540379569732
+    },
+    "0.001": {
+      "elements": 51948,
+      "share_of_norm2": 0.46811766559785684
+    },
+    "0.01": {
+      "elements": 789,
+      "share_of_norm2": 0.21103410449911514
+    },
+    "1e-05": {
+      "elements": 210433109,
+      "share_of_norm2": 0.9956767121951391
+    },
+    "max_abs": 0.06565618515014648
+  },
+  "nonzero": 357826537,
+  "norm_matrices": 60.30748679527579,
+  "perturbed_params": 357826560,
+  "rl_step_length": 0.009458152039378517
+}

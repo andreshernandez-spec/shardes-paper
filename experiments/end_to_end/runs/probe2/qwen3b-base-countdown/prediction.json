@@ -1,0 +1,592 @@
+{
+  "level0": {
+    "answers_per_second": 110.25900141097217,
+    "curvature_per_length2": 9.113193724196313e-07,
+    "first_task_damaged_random": "countdown",
+    "gradient_diversity_yin": 0.21088612331653125,
+    "gradient_norm": 69.89666444355316,
+    "gradient_sharedness": 0.019591076929975554,
+    "live_prompts_in_gradient": 192,
+    "live_share": 1.0,
+    "mean_sample_len": 260.3515625,
+    "perturbed_params": 2774532096,
+    "random_direction_responses": {
+      "10.5348": {
+        "by_block": {
+          "offtask": {
+            "even_per_length2": 8.259650951490259e-05
+          },
+          "validation": {
+            "even_per_length2": 3.907975346882776e-06
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "even_per_length2": 3.907975346882776e-06,
+            "odd_per_length": 0.00018175750849514497
+          },
+          "gsm8k": {
+            "even_per_length2": 8.259650951490259e-05,
+            "odd_per_length": -0.0009887896110022725
+          }
+        },
+        "directions": 4,
+        "even": 0.004800189393939393,
+        "even_per_length2": 4.325224243089269e-05,
+        "even_per_length2_sd_over_directions": 1.4651659922112411e-05,
+        "even_se": 0.0036775870044531284,
+        "odd_per_length": -0.00040351605125356365,
+        "usable": true,
+        "usable_by_block": true
+      },
+      "26.3369": {
+        "by_block": {
+          "offtask": {
+            "even_per_length2": 4.114807928560603e-05
+          },
+          "validation": {
+            "even_per_length2": -1.0373029409821989e-05
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "even_per_length2": -1.0373029409821989e-05,
+            "odd_per_length": -3.329524290138561e-05
+          },
+          "gsm8k": {
+            "even_per_length2": 4.114807928560603e-05,
+            "odd_per_length": 8.701348576820001e-05
+          }
+        },
+        "directions": 4,
+        "even": 0.010673295454545454,
+        "even_per_length2": 1.538752493789202e-05,
+        "even_per_length2_sd_over_directions": 2.338409983673986e-05,
+        "even_se": 0.004453962373791686,
+        "odd_per_length": 2.6859121433407134e-05,
+        "usable": true,
+        "usable_by_block": true
+      },
+      "65.8423": {
+        "by_block": {
+          "offtask": {
+            "even_per_length2": 6.920085742630386e-06
+          },
+          "validation": {
+            "even_per_length2": -5.097446997791122e-06
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "even_per_length2": -5.097446997791122e-06,
+            "odd_per_length": -0.00016338399972343003
+          },
+          "gsm8k": {
+            "even_per_length2": 6.920085742630386e-06,
+            "odd_per_length": -0.0008732989844372072
+          }
+        },
+        "directions": 4,
+        "even": 0.00395075757575757,
+        "even_per_length2": 9.113193724196313e-07,
+        "even_per_length2_sd_over_directions": 1.6082910625514366e-05,
+        "even_se": 0.005550088407489099,
+        "odd_per_length": -0.0005183414920803186,
+        "usable": true,
+        "usable_by_block": false
+      }
+    },
+    "rl_first_step_gain": 0.004767985462693304,
+    "rl_first_step_gain_at_longest_usable": 0.003136102845912259,
+    "rl_slope_along_direction": 0.18103812445136647,
+    "rl_slope_at_longest_usable": 0.11907632306199176,
+    "rl_slope_offtask": 0.03323463566363536,
+    "rl_slope_se_at_longest_usable": 0.019393731839418914,
+    "rl_step_length": 0.02633691371440473,
+    "sign_direction_responses": {
+      "0.315252": {
+        "by_block": {
+          "offtask": {
+            "even_per_effective_length2": -0.15905390510802003,
+            "slope_along_rl_direction": 0.03323463566363536,
+            "slope_se": 0.05443590523333793
+          },
+          "validation": {
+            "even_per_effective_length2": -0.8068370822752291,
+            "slope_along_rl_direction": 0.18103812445136647,
+            "slope_se": 0.030322821212355
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "even_per_effective_length2": -0.8068370822752291,
+            "slope_along_rl_direction": 0.18103812445136647,
+            "slope_se": 0.030322821212355
+          },
+          "gsm8k": {
+            "even_per_effective_length2": -0.15905390510802003,
+            "slope_along_rl_direction": 0.03323463566363536,
+            "slope_se": 0.05443590523333793
+          }
+        },
+        "effective_length": 0.125371215404228,
+        "even": -0.007590909090909093,
+        "even_per_effective_length2": -0.4829454936916246,
+        "even_se": 0.007364785481117381,
+        "odd": -0.013431818181818184,
+        "odd_se": 0.00391357199618411,
+        "slope_along_rl_direction": 0.10713638005750091,
+        "slope_se": 0.031215873464780417,
+        "usable": true
+      },
+      "0.630505": {
+        "by_block": {
+          "offtask": {
+            "even_per_effective_length2": 0.05619893605792474,
+            "slope_along_rl_direction": -0.0025865709985819696,
+            "slope_se": 0.03030011380537114
+          },
+          "validation": {
+            "even_per_effective_length2": 0.14013241198859153,
+            "slope_along_rl_direction": 0.11907632306199176,
+            "slope_se": 0.019393731839418914
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "even_per_effective_length2": 0.14013241198859153,
+            "slope_along_rl_direction": 0.11907632306199176,
+            "slope_se": 0.019393731839418914
+          },
+          "gsm8k": {
+            "even_per_effective_length2": 0.05619893605792474,
+            "slope_along_rl_direction": -0.0025865709985819696,
+            "slope_se": 0.03030011380537114
+          }
+        },
+        "effective_length": 0.32217686419208674,
+        "even": 0.010189393939393937,
+        "even_per_effective_length2": 0.09816567402325813,
+        "even_se": 0.008229868826704576,
+        "odd": -0.018765151515151516,
+        "odd_se": 0.005820353752421502,
+        "slope_along_rl_direction": 0.0582448760317049,
+        "slope_se": 0.018065709861001436,
+        "usable": true
+      }
+    },
+    "start_reward_normalized": {
+      "offtask": 0.39,
+      "train": 0.08678977272727273,
+      "validation": 0.10275757575757576
+    },
+    "zero_advantage_share": 0.0
+  },
+  "level1": {
+    "sigma": {
+      "best_of_n_improvement": {
+        "16": 0.026751893939393936,
+        "32": 0.026751893939393936,
+        "64": 0.026751893939393936,
+        "8": 0.026751893939393936
+      },
+      "cross_prompt_correlation": 0.0030045682921767,
+      "member_mean_change": 0.0024192116477272712,
+      "member_sd": 0.012832310785994706,
+      "n": 64,
+      "pairs_changed": 0.5283203125,
+      "prompts": 192,
+      "reliability_at_prompts": 0.36612620226213266,
+      "residual": 0.020040740614913812,
+      "shared_covariance": 6.0394917250857616e-05,
+      "sigma": 0.0005,
+      "split_half_reliability": 0.23217143800064702,
+      "true_effect_sd": 0.007764621223151411
+    },
+    "sigma2": {
+      "best_of_n_improvement": {
+        "16": 0.03854166666666666,
+        "32": 0.04228219696969696,
+        "8": 0.03854166666666666
+      },
+      "cross_prompt_correlation": 0.014633633977620858,
+      "member_mean_change": -0.0028290719696969723,
+      "member_sd": 0.021531047640094184,
+      "n": 32,
+      "pairs_changed": 0.6612955729166666,
+      "prompts": 192,
+      "reliability_at_prompts": 0.7396909242992165,
+      "residual": 0.02316972411196456,
+      "shared_covariance": 0.0003440752868010514,
+      "sigma": 0.001,
+      "split_half_reliability": 0.6106186515924653,
+      "true_effect_sd": 0.01851783913051205
+    }
+  },
+  "level1_offtask": {
+    "by_block": {
+      "offtask": {
+        "G_from_members": -0.0001873036215104625,
+        "G_from_members_se": 0.0013637232725061538,
+        "correlation_90_pairs": [
+          -0.29370116152355036,
+          0.220099474054935
+        ],
+        "correlation_se_prompts": 0.018328313843413012,
+        "correlation_with_train_odd": -0.05097599219174423,
+        "even_mean": 0.012578125000000022,
+        "even_se": 0.01322705966145156,
+        "mean_len": 978.66875,
+        "odd_per_pair_noise_sd": 0.011106493457746317,
+        "odd_per_pair_sd": 0.09198085436961605,
+        "odd_per_pair_true_sd": 0.09130784946343634,
+        "start_mean_len": 999.8583333333333,
+        "top4_pairs_share_of_G": -37.50594622544185
+      },
+      "validation": {
+        "G_from_members": 0.004145281652622566,
+        "G_from_members_se": 0.0005955095470802784,
+        "correlation_90_pairs": [
+          0.34600438509407794,
+          0.7576366086144792
+        ],
+        "correlation_se_prompts": 0.06198850702053353,
+        "correlation_with_train_odd": 0.5922571498357518,
+        "even_mean": -0.008455965909090486,
+        "even_se": 0.0058593653826106975,
+        "mean_len": 255.19223958333333,
+        "odd_per_pair_noise_sd": 0.004219106804196386,
+        "odd_per_pair_sd": 0.008524303156142398,
+        "odd_per_pair_true_sd": 0.007406948229372406,
+        "start_mean_len": 251.415,
+        "top4_pairs_share_of_G": 0.5161141475244476
+      }
+    },
+    "coefficient_norm": 7.26223699738131e-05,
+    "n": 64,
+    "offtask_change_at_target": -0.00451847756573941,
+    "offtask_change_per_unit_gain": -0.0451847756573941,
+    "pairs": 32,
+    "prompts": {
+      "offtask": 600,
+      "validation": 600
+    },
+    "sigma": 0.0005,
+    "train_even_mean": 0.0024192116477272712,
+    "train_odd_noise_sd": 0.007201971015471318,
+    "train_odd_sd": 0.010554223232011727,
+    "train_odd_true_sd": 0.0077151306873861234,
+    "validation_offtask_odd_correlation": -0.21062995986735403,
+    "validation_resolved": true
+  },
+  "rule": {
+    "bootstrap_over_prompts": {
+      "call_shares": {
+        "undetermined: no resolved cost": 1.0
+      },
+      "draws": 1000,
+      "joint_prompts": true,
+      "modal_call": "undetermined: no resolved cost",
+      "modal_share": 1.0,
+      "ratio_90": null,
+      "ratio_resolved_share": 0.0,
+      "split": false
+    },
+    "call": "undetermined: no resolved cost",
+    "constants": {
+      "G_target": 0.1,
+      "damage": 0.02,
+      "live_min": 0.1,
+      "marginal_below": 25.0,
+      "rl_lr": 5e-07,
+      "rl_rollouts_per_step": 768,
+      "works_below": 5.0
+    },
+    "es": null,
+    "offtask_loss_at_target": false,
+    "ratio_es_over_rl_rollouts": null,
+    "rl": {
+      "rollouts": 16107.431660795752,
+      "steps": 20.9732183083278
+    }
+  },
+  "rule_curve": {
+    "call": "works",
+    "es": {
+      "even": 0.014856060606060598,
+      "feasible": true,
+      "net_per_update": 0.06833333333333333,
+      "net_pessimistic": 0.038572494375598815,
+      "odd": 0.05347727272727273,
+      "retained_block_random_loss": {
+        "offtask": 0.175609756097561
+      },
+      "rollouts": 17982.439024390245,
+      "step_multiple": 17.214170068700604,
+      "updates": 1.4634146341463417
+    },
+    "exploratory": "2026-10-15",
+    "lam_max": 17.214170068700604,
+    "lengths_used": [
+      2.754267210992097,
+      6.885668027480242,
+      17.214170068700604
+    ],
+    "ratio_es_over_rl_rollouts": 1.1164063522403833,
+    "rl": {
+      "rollouts": 16107.431660795752,
+      "steps": 20.9732183083278
+    }
+  },
+  "rule_net": {
+    "call": "undetermined: cost unresolved",
+    "constants": {
+      "G_target_net": 0.1,
+      "damage_per_retained_block": 0.02,
+      "live_min": 0.1,
+      "marginal_below": 25.0,
+      "resolved_call_se": 2.0,
+      "rl_lr": 5e-07,
+      "rl_rollouts_per_step": 768,
+      "works_below": 5.0
+    },
+    "curvature_stability": {
+      "C": [
+        -5.736253769906806e-05,
+        5.0133899243619925e-05
+      ],
+      "agree_within_2se": true,
+      "lengths": [
+        "26.3369",
+        "65.8423"
+      ]
+    },
+    "es": {
+      "feasible": true,
+      "net_per_update": 0.06833333333333333,
+      "retained_block_random_loss": {
+        "offtask": 0.175609756097561
+      },
+      "retained_block_single_draw_odd_change": {
+        "offtask": 0.02682926829268293
+      },
+      "rollouts": 17982.439024390245,
+      "step_multiple": 17.214170068700604,
+      "updates": 1.4634146341463417
+    },
+    "lam_max": 17.214170068700604,
+    "length_used": "65.8423",
+    "prescribed_step_response": {
+      "C": 0.00022754552280358968,
+      "G": 0.0020857992506758886,
+      "by_block": {
+        "offtask": {
+          "C": 0.0004049571463635594,
+          "C_se": 6.716341569039539e-05,
+          "G": 0.0010650140703946937,
+          "G_se": 0.00073668619573957,
+          "even": 0.12,
+          "odd": 0.018333333333333333
+        },
+        "validation": {
+          "C": 5.0133899243619925e-05,
+          "C_se": 2.9049240325364646e-05,
+          "G": 0.0031065844309570837,
+          "G_se": 0.0003643699522200119,
+          "even": 0.014856060606060598,
+          "odd": 0.05347727272727273
+        }
+      },
+      "by_task": {
+        "countdown": {
+          "C": 5.0133899243619925e-05,
+          "G": 0.0031065844309570837,
+          "even": 0.014856060606060598,
+          "odd": 0.05347727272727273
+        },
+        "gsm8k": {
+          "C": 0.0004049571463635594,
+          "G": 0.0010650140703946937,
+          "even": 0.12,
+          "odd": 0.018333333333333333
+        }
+      },
+      "even": 0.0674280303030303,
+      "even_se": 0.010943401133677253,
+      "lam": 17.214170068700604,
+      "minus": 0.27323484848484847,
+      "odd": 0.03590530303030303,
+      "odd_se": 0.007089150170508415,
+      "plus": 0.34504545454545454,
+      "usable": true,
+      "usable_by_block": true
+    },
+    "ratio_es_over_rl_rollouts": 1.1164063522403833,
+    "rl": {
+      "rollouts": 16107.431660795752,
+      "steps": 20.9732183083278
+    },
+    "validation": {
+      "C": 5.0133899243619925e-05,
+      "C_se": 2.9049240325364646e-05,
+      "G": 0.0031065844309570837,
+      "G_se": 0.0003643699522200119,
+      "even": 0.014856060606060598,
+      "odd": 0.05347727272727273
+    }
+  },
+  "setting": "qwen3b-base/countdown",
+  "update": {
+    "C": 0.00022754552280358968,
+    "C_se": 3.6930070788380685e-05,
+    "G": 0.0031065844309570837,
+    "G_offtask": 0.0010650140703946937,
+    "G_pooled": 0.0020857992506758886,
+    "G_se": 0.0003643699522200119,
+    "first_task_damaged": "countdown",
+    "length_used": "65.8423",
+    "n": 64,
+    "offtask_change_at_target": 0.034282476271426554,
+    "random_cost_at_this_N_per_length2": 1.5553591705121652e-05,
+    "responses": {
+      "10.5348": {
+        "C": 0.0009302437999074125,
+        "G": -0.0029197118691218155,
+        "by_block": {
+          "offtask": {
+            "C": 0.0032955496937138616,
+            "C_se": 0.0017120825289802311,
+            "G": -0.010287067725403288,
+            "G_se": 0.0032342006653035315,
+            "even": 0.025,
+            "odd": -0.028333333333333332
+          },
+          "validation": {
+            "C": -0.0014350620938990363,
+            "C_se": 0.0009089572034082105,
+            "G": 0.004447643987159657,
+            "G_se": 0.0014347572244410862,
+            "even": -0.010886363636363638,
+            "odd": 0.01225
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "C": -0.0014350620938990363,
+            "G": 0.004447643987159657,
+            "even": -0.010886363636363638,
+            "odd": 0.01225
+          },
+          "gsm8k": {
+            "C": 0.0032955496937138616,
+            "G": -0.010287067725403288,
+            "even": 0.025,
+            "odd": -0.028333333333333332
+          }
+        },
+        "even": 0.007056818181818181,
+        "even_se": 0.007367553091109595,
+        "lam": 2.754267210992097,
+        "minus": 0.2568106060606061,
+        "odd": -0.008041666666666666,
+        "odd_se": 0.004905615641922111,
+        "plus": 0.24072727272727273,
+        "usable": true,
+        "usable_by_block": true
+      },
+      "26.3369": {
+        "C": 0.00034920842936298884,
+        "G": 0.0017895096957613321,
+        "by_block": {
+          "offtask": {
+            "C": 0.0007557793964250457,
+            "C_se": 0.000319515573930444,
+            "G": -0.0006051216309060759,
+            "G_se": 0.001458332252765672,
+            "even": 0.035833333333333335,
+            "odd": -0.004166666666666667
+          },
+          "validation": {
+            "C": -5.736253769906806e-05,
+            "C_se": 0.00016807602053081015,
+            "G": 0.00418414102242874,
+            "G_se": 0.0007263799550186181,
+            "even": -0.002719696969696975,
+            "odd": 0.028810606060606064
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "C": -5.736253769906806e-05,
+            "G": 0.00418414102242874,
+            "even": -0.002719696969696975,
+            "odd": 0.028810606060606064
+          },
+          "gsm8k": {
+            "C": 0.0007557793964250457,
+            "G": -0.0006051216309060759,
+            "even": 0.035833333333333335,
+            "odd": -0.004166666666666667
+          }
+        },
+        "even": 0.01655681818181818,
+        "even_se": 0.00857308220424261,
+        "lam": 6.885668027480242,
+        "minus": 0.2459469696969697,
+        "odd": 0.0123219696969697,
+        "odd_se": 0.005626982410340764,
+        "plus": 0.2705909090909091,
+        "usable": true,
+        "usable_by_block": true
+      },
+      "65.8423": {
+        "C": 0.00022754552280358968,
+        "G": 0.0020857992506758886,
+        "by_block": {
+          "offtask": {
+            "C": 0.0004049571463635594,
+            "C_se": 6.716341569039539e-05,
+            "G": 0.0010650140703946937,
+            "G_se": 0.00073668619573957,
+            "even": 0.12,
+            "odd": 0.018333333333333333
+          },
+          "validation": {
+            "C": 5.0133899243619925e-05,
+            "C_se": 2.9049240325364646e-05,
+            "G": 0.0031065844309570837,
+            "G_se": 0.0003643699522200119,
+            "even": 0.014856060606060598,
+            "odd": 0.05347727272727273
+          }
+        },
+        "by_task": {
+          "countdown": {
+            "C": 5.0133899243619925e-05,
+            "G": 0.0031065844309570837,
+            "even": 0.014856060606060598,
+            "odd": 0.05347727272727273
+          },
+          "gsm8k": {
+            "C": 0.0004049571463635594,
+            "G": 0.0010650140703946937,
+            "even": 0.12,
+            "odd": 0.018333333333333333
+          }
+        },
+        "even": 0.0674280303030303,
+        "even_se": 0.010943401133677253,
+        "lam": 17.214170068700604,
+        "minus": 0.27323484848484847,
+        "odd": 0.03590530303030303,
+        "odd_se": 0.007089150170508415,
+        "plus": 0.34504545454545454,
+        "usable": true,
+        "usable_by_block": true
+      }
+    },
+    "rule_net_date": "2026-10-13",
+    "unit_norm": 3.824888683174365,
+    "usable": true
+  }
+}

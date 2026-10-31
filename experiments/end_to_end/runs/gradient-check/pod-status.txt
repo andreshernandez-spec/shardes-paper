@@ -1,0 +1,12 @@
+bootstrapped 2026-10-10T13:22:52Z at 591341d
+finished smoke-sample exit 0 13:23:23
+finished smoke-gradient exit 0 13:23:34
+finished smoke-project exit 0 13:23:59
+finished smoke-scan exit 0 13:24:57
+finished sample exit 0 13:29:14
+finished gradient exit 0 13:40:14
+finished project exit 0 13:43:52
+finished scan exit 0 15:36:00
+gc-finished
+finished scan2 exit 0 16:24:36
+gc2-finished
