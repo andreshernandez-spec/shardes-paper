@@ -497,7 +497,8 @@ def compare_table(rows: list) -> str:
 def samples_seen(out: Path) -> list:
     """Each evaluation of a run with the samples generated before it (the rollouts of the
     iterations before, from the log), the loop seconds they took (an ES update's, a GRPO
-    step's phases; no evaluation or setup) and its normalized per-prompt rewards."""
+    step's phases; no evaluation or setup), its normalized per-prompt rewards and which
+    prompts it solved."""
     ev = sorted(lines(out / "eval.jsonl"), key=lambda r: r["iteration"])
     log = lines(out / "log.jsonl")
     rolls = {r["iteration"]: r["rollouts"] for r in log}
@@ -505,7 +506,8 @@ def samples_seen(out: Path) -> list:
             for r in log if "seconds" in r}
     return [{"iteration": r["iteration"], "samples": int(sum(v for i, v in rolls.items() if i < r["iteration"])),
              "seconds": float(sum(v for i, v in secs.items() if i < r["iteration"])),
-             "normalized": probe.normalized(r["rewards"], r["kinds"]), "block": np.asarray(r["block"])} for r in ev]
+             "normalized": probe.normalized(r["rewards"], r["kinds"]), "solved": probe.solved(r["rewards"], r["kinds"]),
+             "block": np.asarray(r["block"])} for r in ev]
 
 
 def samples_compare(grpo_dir: Path, es_roots: list, tolerance: float = 0.02) -> list:
@@ -570,7 +572,8 @@ def history(runs: list, upto=None) -> list:
     """Every evaluation of the runs (GRPO or ES, the same blocks, checked by digest) on one
     axis of samples seen, up to `upto`, with the loop seconds before each: each block's
     change against the run's own evaluation at zero and the test change's standard error
-    over prompts. `samples_compare`
+    over prompts, and the test block's accuracy (a level, Qiu et al.'s Countdown measure;
+    None where the block's task has no answer point). `samples_compare`
     pairs only evaluations at equal counts; this keeps every point of each curve."""
     rows, digests = [], None
     for d in runs:
@@ -590,22 +593,32 @@ def history(runs: list, upto=None) -> list:
                 row[b] = float(change.mean())
                 if b == "test":
                     row["test_se"] = float(change.std(ddof=1) / np.sqrt(change.size)) if e["iteration"] else 0.0
+                    s = e["solved"][m]
+                    acc = None if np.isnan(s).any() else float(s.mean())
+                    row["test_acc"] = acc
+                    row["test_acc_se"] = None if acc is None else float(np.sqrt(acc * (1 - acc) / s.size))
             rows.append(row)
     return sorted(rows, key=lambda r: (r["samples"], r["run"]))
 
 
 def history_table(rows: list) -> str:
     cols = (("samples", "samples seen"), ("loop_seconds", "loop seconds"), ("run", "run"), ("at", "update or step"), ("test", "test"),
-            ("test_se", "SE"), ("validation", "validation"), ("offtask", "off-task"))
+            ("test_se", "SE"), ("test_acc", "test accuracy"), ("test_acc_se", "accuracy SE"), ("validation", "validation"),
+            ("offtask", "off-task"))
+    levels = {"test_acc", "test_acc_se"}
 
-    def fmt(x):
+    def fmt(k, x):
+        if x is None:
+            return "-"
+        if k in levels:
+            return f"{x:.3f}"
         if isinstance(x, float):
             return f"{x:+.3f}" if x else "0"
         return f"{x:,}" if isinstance(x, int) and x >= 1000 else str(x)
 
     head = "| " + " | ".join(n for _, n in cols) + " |"
     sep = "|" + "|".join("---" for _ in cols) + "|"
-    return "\n".join([head, sep, *("| " + " | ".join(fmt(r[k]) for k, _ in cols) + " |" for r in rows)])
+    return "\n".join([head, sep, *("| " + " | ".join(fmt(k, r.get(k)) for k, _ in cols) + " |" for r in rows)])
 
 
 def effective_updates(g: int, gamma: float) -> tuple:

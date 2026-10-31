@@ -406,6 +406,13 @@ def test_history_puts_every_evaluation_on_one_axis_of_samples(tmp_path):
     assert abs(rows[3]["offtask"]) < 1e-9
     assert [r["loop_seconds"] for r in rows[2:5]] == [104, 850, 208]       # GRPO's phases summed
     assert "| 7,680 | 850 | grpo | 10 | +0.033 |" in pr.history_table(rows)
+    assert abs(rows[2]["test_acc"] - 43 / 300) < 1e-9 and abs(rows[0]["test_acc"] - 40 / 300) < 1e-9
+    assert abs(rows[2]["test_acc_se"] - np.sqrt(43 / 300 * 257 / 300 / 300)) < 1e-12
+    assert "| 0.143 | 0.020 |" in pr.history_table(rows)
+    # format points alone (0.1 of 1.1) are not a solve
+    np.testing.assert_array_equal(pr.probe.solved([1.1, 1.06, 1.0, 0.1, 0.06, 0.0, 7.0], ["countdown"] * 6 + ["tulu"])[:6],
+                                  [1, 1, 1, 0, 0, 0])
+    assert np.isnan(pr.probe.solved([7.0], ["tulu"])[0])
     write(tmp_path / "other", range(0, 2), lambda g: 40, 5760, dig={**digests, "test": "z"})
     with pytest.raises(SystemExit):
         pr.history([tmp_path / "grpo", tmp_path / "other"])

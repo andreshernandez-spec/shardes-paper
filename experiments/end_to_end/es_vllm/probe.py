@@ -102,6 +102,7 @@ USABLE = 0.2                               # a scan point is usable if neither s
 SHRINK, FALLBACK_MULT = 0.1, 0.4            # S4b: the anchor, and the fallback step in member lengths
 CAPS = {"countdown": 512, "tulu": 2048}    # es_vllm/countdown-s1.yaml; the Tulu run
 SCALE = {"countdown": 1.1}                 # a row kind's maximum reward; the Tulu verifiers give 10
+SOLVED = {"countdown": 1.0}                # the answer's point; format adds at most 0.1
 
 
 def scale_of(kinds) -> np.ndarray:
@@ -112,6 +113,14 @@ def normalized(rewards, kinds) -> np.ndarray:
     """Rewards in [0, 1], each row by its own kind's maximum: a Countdown setting's
     off-task block is scored by the Tulu verifiers on the 10 scale."""
     return np.asarray(rewards, dtype=float) / scale_of(kinds)
+
+
+def solved(rewards, kinds) -> np.ndarray:
+    """1 where the row's answer is correct, 0 where not, NaN for a kind with no answer
+    point. Its mean over a Countdown block is Qiu et al.'s accuracy (format ignored)."""
+    r = np.asarray(rewards, dtype=float)
+    t = np.asarray([SOLVED.get(k, np.nan) for k in kinds])
+    return np.where(np.isnan(t), np.nan, (r >= t).astype(float))
 
 MODELS = {
     "tulu8b": (R.TULU31_START, "tulu"),

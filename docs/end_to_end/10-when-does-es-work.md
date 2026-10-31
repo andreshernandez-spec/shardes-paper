@@ -1259,6 +1259,65 @@ comes from their RL baseline, not from the regime, and an ES-then-GRPO schedule 
 nothing to gain here. One seed and 20 of their 500 iterations; a later overtaking is
 not tested.
 
+#### S5, the published recipe to 100 updates: preregistration (2026-10-31, before any run)
+
+Andres approved on 2026-10-31 ("Yes, run Qiu's recipe to 100 updates"). The early-history
+run stopped at 115,200 samples, before the first point of Qiu et al.'s training curves
+(their Figure 7: every 0.6M sample evaluations, that is every 100 ES iterations). In
+their measure, accuracy (the share of test problems answered correctly, format ignored;
+doc 11 has their setup), our GRPO arm reaches 0.570 at 207,360 samples, above every RL
+point they plot for Qwen-3B (at most 45.1 at 1.2M). Their ES is at 35.6 at 0.6M and 60.5
+at 3.0M. Their own figure has Dr.GRPO-v level with ES at 0.6M and ahead at 1.2M, with ES
+passing it near 1.5M. The open question is whether the published recipe in our code
+follows their ES curve. If it does, ES on this setting is slow but keeps rising: behind
+our GRPO for a long stretch, and possibly level with GRPO's best after about ten times
+its samples.
+
+**What runs.** The early-history command with 100 updates and member seed 1, so its
+first 20 updates are also a second seed of the early history:
+
+    python -m es_vllm.probe_run --setting qwen3b/countdown --prediction runs/probe/qwen3b-countdown \
+        --full-rank --members 30 --iterations 100 --eval-every 1 --seed 1 \
+        --out runs/s5-early/qwen3b-countdown-full-rank-s1
+
+576,000 samples (their 0.6M is on 200 problems an iteration against our 192). One H200,
+about 3.5 hours of uptime: about $13 on Community, $19 on Secure. The run stops early if
+a bit-for-bit check fails (the driver exits) or if updates 1 and 2 project it past 5
+hours of uptime.
+
+**Measure.** Test accuracy from `probe_run --history`, whose accuracy column is added in
+this commit: a Countdown reward of at least 1 is a correct answer, since format adds at
+most 0.1. The 300 test problems come from es-at-scale's evaluation set, the pool of 2,000
+Qiu et al. test on; the base model scores 0.083 here and 10.0% in their Table 1. The
+standard error is about 0.028 near 0.35. Primary: the evaluation after update 100.
+Secondary: the mean of the evaluations after updates 91 to 100, since the early run's
+accuracy moved by up to 0.027 between consecutive updates.
+
+**Predictions.**
+
+1. *Our ES follows Qiu's curve.* Accuracy after update 100 is within two standard errors
+   of their 0.356, so between 0.30 and 0.41. The basis: a least-squares line through the
+   early run's accuracy column from update 4 gains 0.0023 per update and is at 0.35 at
+   update 100 (0.0028 and 0.395 from update 1); their straight line from 10.0 to 35.6
+   gains 0.0026 per update.
+2. *Still below our GRPO.* Accuracy after update 100 is below 0.47: GRPO's last
+   evaluation (0.527 after 368,640 samples) less two of its standard errors (0.029).
+3. *The early history replicates.* `probe_run --samples` puts GRPO ahead by more than two
+   paired standard errors at the early run's five milestones (23,040 to 115,200 samples).
+   All 16 milestones up to GRPO's last step (368,640 samples, ES update 64) are reported.
+
+**What the outcomes mean.** 1 holding means the published recipe in our code learns at
+the rate their paper shows, so the difference between their results and ours is in the
+RL arm; ES's level at 3M (60.5 in their run) is then the next test, 400 more updates for
+about $55 to $85. Below 0.30 means our ES learns slower than theirs here, and the cause
+(implementation, the 192-problem train block, the 300-problem test block, one seed) comes
+before any longer run. Above 0.41 is reported as faster, with the same caveats. 2 failing
+puts ES level with GRPO's last evaluation at 576,000 samples, which would change the
+early run's reading. 3 failing at any milestone is an early window in one seed of two,
+and gets a third seed before any conclusion.
+
+**Not changed by this run.** The GRPO arm, the seed 0 run, the blocks.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
