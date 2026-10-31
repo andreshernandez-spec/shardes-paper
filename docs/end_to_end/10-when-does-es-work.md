@@ -1338,6 +1338,62 @@ on these two drivers it keeps pace over the 2.7 hours compared; GRPO's later 0.5
 at 22,933 s, beyond this ES run. Whether ES keeps rising to their 60.5% at 3M, past our
 GRPO's best, is not tested; one seed to 100 updates.
 
+#### S5, the published recipe to 500 updates: preregistration (2026-10-31, before any run)
+
+Andres approved on 2026-10-31 ("Test it"). The question is the reverse of the early
+window: given about ten times GRPO's samples, does ES end above GRPO on this setting?
+Qiu et al.'s ES on Qwen-3B rose almost linearly from 35.6% at 0.6M sample evaluations to
+60.5% at 3.0M (their Figure 7: 41.2, 48.0, 54.2 between), about 0.0006 accuracy per
+iteration. Ours was at 0.433 over updates 91 to 100 and rose about 0.0007 per update over
+its last 30. Our GRPO arm is flat from step 200 on (mean accuracy 0.527 over its 29
+evaluations from step 200 to 480, 0.517 over its last ten); its single best, 0.570 at
+step 270, is the largest of 48 evaluations and is not used as its level.
+
+**What runs.** The seed 1 run resumed from its 100 logged updates to 500 (2.88M samples,
+against Qiu et al.'s 3.0M on 200 problems). `probe_run` now resumes a full-rank run by
+replaying each logged update from its ranked fitnesses and stops unless the weights'
+digest equals the logged one after every update; run.json records the resume and the
+environment that ran it. Checked on the laptop with the Qwen-0.5B smoke setting: a run
+resumed after 2 updates matched a fresh 4-update run in weight digests, fitnesses and
+evaluations at updates 3 and 4, and a copy of its log with one fitness altered was
+refused at update 1 with nothing appended.
+
+    python -m es_vllm.probe_run --setting qwen3b/countdown --prediction runs/probe/qwen3b-countdown \
+        --full-rank --members 30 --iterations 500 --eval-every 1 --seed 1 \
+        --out runs/s5-early/qwen3b-countdown-full-rank-s1
+
+One H200, about 12.7 hours of uptime: about $46 on Community, $67 on Secure. The run
+stops before decoding if a replayed digest differs (then a fresh run is Andres's call),
+when a bit-for-bit check fails (the driver exits), or if the first resumed updates project
+it past 16 hours of uptime.
+
+**Measure.** Test accuracy from `probe_run --history`, as for 100 updates, compared as
+means over ten evaluations (`--window`), since single evaluations move by about 0.03 and
+a run's best is biased upward. ES: the mean after updates 491 to 500. GRPO: the mean over
+its last ten evaluations, 0.517 (steps 390 to 480). Also reported: the first update g
+whose ten evaluations after updates g-9 to g average above 0.517, and GSM8K.
+
+**Predictions.**
+
+1. *ES keeps Qiu's late rate.* The mean after updates 491 to 500 is between 0.60 and
+   0.76. Basis: their gain from 0.6M to 3.0M (+0.249) added to our 0.433 gives 0.68; our
+   own rate over updates 71 to 100 gives 0.71.
+2. *ES ends above GRPO.* That mean exceeds GRPO's 0.517 by more than 0.07, about two
+   standard errors of the difference of two such means. The window first averages above
+   0.517 between updates 150 and 350.
+3. *GSM8K holds.* No evaluation's off-task change is below -0.05.
+
+**What the outcomes mean.** 2 holding means that on this setting GRPO wins early and ES
+wins late: ES ends above GRPO's plateau after about ten times its samples, the reverse
+of an early window. GRPO's level is that of one learning rate and one run that stopped at
+368,640 samples; a tuned or scheduled GRPO could move it, so the reading is about these
+two arms. 1 failing low means our ES slows below their curve; 2 then decides whether it
+still passes GRPO. 3 failing means the late gains cost the retained task, reported beside
+2 whatever 2 says.
+
+**Not changed by this run.** The GRPO arm, the first 100 updates (replayed, not rerun),
+the blocks.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):

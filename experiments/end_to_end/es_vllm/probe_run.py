@@ -17,7 +17,8 @@ checked bit for bit. `step` is the multiple of the unit update, the rule's
 `step_multiple` from the setting's prediction.json unless given. Every `eval_every`
 updates the validation, test and off-task blocks are decoded greedily by the current
 model and scored; the test block is the one the probe reserved (its digest must match).
-A restart replays the log and checks the f32 copy's digest.
+A restart replays the log and checks the f32 copy's digest, and run.json gains a
+`resumes` entry with the environment that ran the rest.
 
 `--full-rank` runs es-at-scale's Countdown recipe (Qiu et al. 2025) on the same blocks
 instead: full-rank Gaussian members on every weight at sigma 1e-3, alpha 5e-4, the
@@ -25,7 +26,8 @@ fitness z-scored, no anchor, through shardes in the worker (`worker.ESWorker`, t
 backend T2 matched to es-at-scale, runs/countdown-README.md). Each member's weights are
 written into the engine in turn and decode the train block; member 0 and the restored
 view are checked bit for bit at every update. The probe's prediction is for its rank-1
-members, so the run carries none. Not resumable: a killed run starts again.
+members, so the run carries none. A restart replays each logged update from its ranked
+fitnesses and stops unless the weights' digest is the logged one after every update.
 
 The rule's prediction, copied into run.json: a gain of `step G` per update on the task
 and a loss of `step^2 |C|` from the random part, so after g updates the validation
@@ -193,8 +195,6 @@ def run(args) -> int:
             "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib"))})
     log, e_log = out / "log.jsonl", out / "eval.jsonl"
     done, e_done = lines(log), {r["iteration"] for r in lines(e_log)}
-    if args.full_rank and done:
-        raise SystemExit(f"{out} has a log; a full-rank run is never resumed, move it aside first")
     pairs = n // 2
 
     scorer = task.scorer()                                  # before CUDA: the Countdown grader forks
@@ -205,6 +205,17 @@ def run(args) -> int:
         print(f"es_init {rpc('es_init', mdir, n, sigma, step * alpha * sigma, args.seed)}", flush=True)
         if not rpc("es_check", None)["ok"]:
             raise SystemExit("engine weights are not the f32 master's view")
+        t0 = time.perf_counter()
+        for rec in done:                                    # replay: each update from its logged fitnesses
+            rpc("es_ask")
+            rpc("es_tell", rec["ranked"])
+            if rpc("es_digest") != rec["digest"]:
+                raise SystemExit(f"replayed update {rec['iteration'] + 1} is not the logged one")
+        if done:
+            rpc("es_restore")
+            if not rpc("es_check", None)["ok"]:
+                raise SystemExit("engine weights are not the replayed master's view")
+            print(f"replayed {len(done)} updates, every digest the logged one, {time.perf_counter() - t0:.0f}s", flush=True)
     else:
         shapes = lowrank.leaf_shapes(mdir)
         template = lowrank.write_template(Path(args.workdir) / "adapter", RANK, cfg["repo"])
@@ -229,6 +240,13 @@ def run(args) -> int:
             print(f"replayed {len(done)} updates {time.perf_counter() - t0:.0f}s", flush=True)
         if not rpc("lr_check")["ok"]:
             raise SystemExit("engine weights are not the f32 copy")
+    if done:                                                # what ran the rest, beside what started it
+        meta = json.loads((out / "run.json").read_text())
+        meta.setdefault("resumes", []).append({
+            "from": len(done), "iterations": args.iterations,
+            "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib"))})
+        harness.write_atomic(out / "run.json", meta)
 
     tok = probe.tokenizer(cfg)
     if args.prompts == "repeated":
