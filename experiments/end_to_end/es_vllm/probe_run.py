@@ -601,6 +601,17 @@ def history(runs: list, upto=None) -> list:
     return sorted(rows, key=lambda r: (r["samples"], r["run"]))
 
 
+def window_accuracy(rows: list, lo: int, hi: int) -> dict:
+    """Each run's mean test accuracy over its evaluations after updates (or steps) lo to
+    hi, with how many there were: a level less sensitive to one checkpoint than a
+    single evaluation."""
+    out = {}
+    for r in rows:
+        if lo <= r["at"] <= hi and r["test_acc"] is not None:
+            out.setdefault(r["run"], []).append(r["test_acc"])
+    return {run: (float(np.mean(v)), len(v)) for run, v in out.items()}
+
+
 def history_table(rows: list) -> str:
     cols = (("samples", "samples seen"), ("loop_seconds", "loop seconds"), ("run", "run"), ("at", "update or step"), ("test", "test"),
             ("test_se", "SE"), ("test_acc", "test accuracy"), ("test_acc_se", "accuracy SE"), ("validation", "validation"),
@@ -824,6 +835,9 @@ def main(argv=None) -> int:
     ap.add_argument("--history", nargs="+", type=Path, metavar="DIR",
                     help="runs on the same blocks: every evaluation of each on one axis of samples seen")
     ap.add_argument("--upto", type=int, help="with --history, the last sample count shown")
+    ap.add_argument("--window", type=int, nargs=2, action="append", metavar=("FROM", "TO"),
+                    help="with --history, each run's mean test accuracy after updates or steps FROM to TO "
+                         "instead of the table (repeatable)")
     ap.add_argument("--samples", nargs="+", type=Path, metavar="DIR",
                     help="a GRPO run, then directories of ES runs: each ES run of its setting against it at equal samples seen")
     ap.add_argument("--setting", help="model/task, as es_vllm.probe")
@@ -852,7 +866,12 @@ def main(argv=None) -> int:
         print(compare_table(compare(es, gr)))
         return 0
     if args.history:
-        print(history_table(history([p if p.is_absolute() else E2E / p for p in args.history], args.upto)))
+        rows = history([p if p.is_absolute() else E2E / p for p in args.history], args.upto)
+        if not args.window:
+            print(history_table(rows))
+        for lo, hi in args.window or ():
+            for name, (m, n) in window_accuracy(rows, lo, hi).items():
+                print(f"{name}: mean test accuracy after {lo} to {hi}: {m:.3f} ({n} evaluations)")
         return 0
     if args.samples:
         if len(args.samples) < 2:

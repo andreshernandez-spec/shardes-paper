@@ -413,6 +413,8 @@ def test_history_puts_every_evaluation_on_one_axis_of_samples(tmp_path):
     np.testing.assert_array_equal(pr.probe.solved([1.1, 1.06, 1.0, 0.1, 0.06, 0.0, 7.0], ["countdown"] * 6 + ["tulu"])[:6],
                                   [1, 1, 1, 0, 0, 0])
     assert np.isnan(pr.probe.solved([7.0], ["tulu"])[0])
+    w = pr.window_accuracy(rows, 1, 3)                                    # ES 43, 46, 49 solved; GRPO has none there
+    assert set(w) == {"es"} and w["es"][1] == 3 and abs(w["es"][0] - 46 / 300) < 1e-12
     write(tmp_path / "other", range(0, 2), lambda g: 40, 5760, dig={**digests, "test": "z"})
     with pytest.raises(SystemExit):
         pr.history([tmp_path / "grpo", tmp_path / "other"])

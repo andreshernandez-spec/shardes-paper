@@ -1318,6 +1318,26 @@ and gets a third seed before any conclusion.
 
 **Not changed by this run.** The GRPO arm, the seed 0 run, the blocks.
 
+#### S5, the published recipe to 100 updates: results (2026-10-31, `runs/s5-early/README.md`)
+
+The run went to 100 updates on one Secure H200, about $17 by uptime, every bit-for-bit
+check passing. Prediction 1 failed on the high side: accuracy after update 100 is 0.430
+(standard error 0.029; the mean after updates 91 to 100 is 0.433) against the band of 0.30
+to 0.41 around Qiu et al.'s 35.6% at 0.6M. Prediction 2 held: 0.430 is below 0.47, and
+GRPO is ahead at all 16 equal-sample milestones up to its last step, by 5.8 to 11.9 paired
+standard errors. Prediction 3 held: with seed 1, GRPO is ahead at the five early
+milestones by 5.9 to 9.1 paired standard errors. Not preregistered: at equal loop seconds
+the two are level within about one standard error through GRPO's step 110 (9,254 s), and
+ES reached 0.43 first (7,269 s); GRPO then rises to 0.570 at step 270.
+
+**Reading.** The published recipe in our code learns at least as fast as theirs did, so
+the gap between Qiu et al.'s results and ours is in the RL arm: our GRPO's 0.570 at
+207,360 samples is above every RL point they plot for this model. At equal samples ES
+leads nowhere and needs about five times GRPO's samples to reach 0.43. At equal GPU time
+on these two drivers it keeps pace over the 2.7 hours compared; GRPO's later 0.570 came
+at 22,933 s, beyond this ES run. Whether ES keeps rising to their 60.5% at 3M, past our
+GRPO's best, is not tested; one seed to 100 updates.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
