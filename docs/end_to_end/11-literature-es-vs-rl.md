@@ -50,6 +50,39 @@ for `08` and the draft.
   sample 2PL (ES) against 8PL (GRPO). The "ES smooths the jagged reward landscape"
   mechanism is stated as a hypothesis: "Direct evidence for this hypothesis still needs
   to be obtained."
+
+  The RL baselines (read 2026-10-31 from v3 of 14 Jul 2026, Appendix A.1 and Table 4).
+  PPO-z is TinyZero. GRPO-z, with groups of 8 and 30, is GRPO-Zero
+  (`policy-gradient/GRPO-Zero`), tuned "around the settings of" TinyZero. GRPO-v and
+  Dr.GRPO-v are VERL with "the standard default configurations for math reasoning
+  benchmarks": global batch 1024, learning rate 1e-6, group 8; GRPO-v adds a KL loss at
+  beta 0.001; Dr.GRPO-v has no KL loss, no division by the group's std, and
+  seq-mean-token-sum loss aggregation scaled by 1024. PPO-z and GRPO-z got a 2 x 2 grid
+  per model, beta in {1e-3, 5e-3} by learning rate in {1e-6, 1e-5} (Qwen-3B picked 1e-3
+  and 1e-6 for PPO-z, 1e-3 and 1e-5 for GRPO-z). The VERL runs used one setting, although
+  Table 1's caption says a grid search was run for each RL experiment. Every RL run stops
+  at ES's 500 x 30 x 200 = 3M sample evaluations. Not stated: sampling temperature,
+  answer length, prompts per step for the -z runs, optimizer, clipping, updates per
+  batch, which checkpoint is reported, whether RL was scored greedily like ES.
+
+  Two details do not fit. GRPO-Zero has no KL term (its README lists "Removing KL
+  Divergence"; unchanged since `d41bb48` of 2025-04-18), so the beta grid implies a
+  modified copy the paper does not describe. VERL's global batch counts prompts, which
+  makes 1,024 x 8 = 8,192 answers per step against 200 training problems.
+
+  Three seeds (A.4, Table 11), Qwen-3B: ES 58.67 (std 1.47), GRPO-v 35.07 (2.33),
+  Dr.GRPO-v 44.43 (1.89). At Qwen-3B the RL rows of Table 1 span 20.1 to 43.8, wider
+  than the 16.7 points from the best of them to ES. Figure 7, Qwen-3B, read off the plot
+  at 0.6M, 1.2M, ..., 3.0M sample evaluations: ES 35.6, 41.2, 48.0, 54.2, 60.5;
+  Dr.GRPO-v 36.0, 45.1, 42.8, 44.1, 43.8; GRPO-v 26.4, 35.5, 33.2, 36.7, 37.8. So
+  Dr.GRPO-v ties ES at the first point and leads at 1.2M, against A.6's "ES consistently
+  outperformed RL across all tested models throughout training"; ES passes it near 1.5M
+  and is still rising at 3.0M, where the RL curves have been flat since 1.2M. PPO-z ends
+  near 11 in the figure against 20.1 in Table 1. Section 5 cites GRPO's "non-obvious
+  design choices and implementation details" as a reason to prefer ES, not as a caveat
+  on these baselines. Accuracy is the share of correct answers. The ES reward also pays
+  for format (Figure 3 prints "Reward: 1.1000 (Format: 1.0000, Answer: 1.0000)",
+  es-at-scale's `0.1 * format + answer`); the RL reward is not stated.
 - [Hoy, Wang, Pan 2026](https://arxiv.org/abs/2604.01499) (COLM) [HTML, v3].
   Qwen3-4B-Instruct, 200 training prompts, ES N = 30, sigma 0.0015, alpha sigma/2; GRPO
   80 steps, batch about 63, G = 8, no KL. Appendix B.8: ES at 100 iterations uses 3.72x
