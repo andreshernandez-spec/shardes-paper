@@ -101,3 +101,28 @@ S5 took 96 s per update at 512 tokens on 192 prompts. At 1,024 tokens on 200, ab
 to 160 s, so 17 to 22 hours for 500 updates, with their evaluator beside it and setup:
 $95 to 125 on a Secure H200 at $5.29/h. If the first 20 updates project above $150 the
 run stops and the plan is revisited. Health checks every 30 minutes, as before.
+
+## Amendment before update 200 (2026-11-01, written at update 140)
+
+Andres, at update 138: if the curve is still flattening by update 200, stop the run and
+find out why, running their code if useful. "Still flattening" is fixed here, before the
+data after update 140: a least-squares line through the running test accuracies after
+100, 110, ..., 200 updates (eleven evaluations of the 2,000 problems). If its value at 200
+plus 300 times its slope is below 55.7% (the band's lower edge for checkpoint 500), the
+run stops once checkpoint 200 is written and scored by their evaluator; otherwise it goes
+on to 500. A straight line is generous to a curve that has been concave so far, so a stop
+means even a straight continuation would miss the band.
+
+If it stops, the diagnosis starts from one difference not yet weighed. Their trainer
+reseeds one generator with the member's seed for every tensor (their i.i.d. variant only
+shifts the seed by the tensor's index), so every tensor of one shape gets the same noise:
+every layer's q_proj and o_proj share one draw, every gate_proj and up_proj another, and
+so on. Their update is then one delta per shape, applied to all 36 layers: about 50M
+independent directions in the transformer layers against our 2.8B. Doc 08 traced ES's
+stall to the random part of the update, which grows with the directions searched, so this
+is the first candidate. Their trainer runs unchanged for a few iterations on the same pod
+with hooks that record the seeds, fitnesses and a few matrices (q_proj, o_proj, gate_proj,
+down_proj and a layer norm at layers 0, 17 and 35), to show what their update does to the
+weights: how much of the intended change survives bf16 rounding, what the perturb and
+restore leave behind, and how the change is shared across layers. The same quantities
+come from our checkpoints 0, 100 and 200.
