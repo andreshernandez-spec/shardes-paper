@@ -81,3 +81,15 @@ def test_his_grading_of_the_whole_sequence():
     ans = odd["context"] + f" </think>\n<answer> {' + '.join(nums)} </answer>"
     assert qm._grade(ans, odd["context"], odd["target"])[1] == 0.0
     assert qm.accuracy([(1.1, 1.0, 1.0), (0.06, 0.0, 0.6)]) == 0.5
+
+
+def test_trace_counts_updates_the_weights_did_not_take():
+    torch = pytest.importorskip("torch")
+    from es_vllm import qiu_trace as qt
+
+    u = torch.tensor([1.0, 2.0, -1.0, 0.5], dtype=torch.float64)     # meant
+    d = torch.tensor([1.0, 0.0, -1.0, 0.0], dtype=torch.float64)     # got: two rounded away
+    s = qt.stats(u, d)
+    assert s["lost_share"] == 0.5 and s["moved_share"] == 0.5
+    assert s["cosine"] == pytest.approx(2 / (6.25 ** 0.5 * 2 ** 0.5))
+    assert len(qt.TRACKED) == 15 and qt.TRACKED[0] == "model.layers.0.self_attn.q_proj.weight"
