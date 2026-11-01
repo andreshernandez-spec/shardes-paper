@@ -8,3 +8,4 @@
 vllm==0.30.0
 jax[cuda13]==0.11.2  # the ES backend: JAX on the same GPU, in the same process as vLLM
 pyarrow           # the probe reads prompts from the pinned parquet sources
+pandas            # Qiu's countdown_task.py imports it (qiu_match.py grades with it)

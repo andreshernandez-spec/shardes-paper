@@ -189,6 +189,28 @@ class ESWorker:
             h.update(v.tobytes())
         return h.hexdigest()
 
+    def es_save(self, path: str) -> dict:
+        """The view as one HF safetensors file, read back and hashed as `es_digest` does,
+        so a checkpoint scored elsewhere is the weights the run logged."""
+        from safetensors import safe_open  # noqa: PLC0415
+        from safetensors.torch import save_file  # noqa: PLC0415
+
+        f = Path(path) / "model.safetensors"
+        tensors = {}
+        for name in self._es_names:
+            leaf = self._es_master[name].astype(stream.COMPUTE)
+            leaf.block_until_ready()
+            tensors[name] = _torch(leaf).cpu().contiguous()
+            del leaf
+        save_file(tensors, str(f), metadata={"format": "pt"})
+        del tensors
+        h = hashlib.sha256()
+        with safe_open(str(f), framework="pt") as st:
+            for name in self._es_names:
+                h.update(name.encode())
+                h.update(st.get_tensor(name).view(torch.uint16).numpy().tobytes())
+        return {"file_digest": h.hexdigest(), "ok": h.hexdigest() == self.es_digest()}
+
     def es_status(self) -> str:
         return json.dumps({"generation": self._es_generation, "n": self._es_n,
                            "sigma": self._es_sigma, "lr": self._es_lr})
