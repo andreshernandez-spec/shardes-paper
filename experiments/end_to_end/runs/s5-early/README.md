@@ -299,3 +299,106 @@ at 3M, which would put it above our GRPO's best after about 14 times its samples
 tested. The loop seconds compare two unoptimized drivers on two pods. GRPO's step is
 mostly its training phase, so a faster GRPO trainer or a slower ES decode would move that
 comparison.
+
+# Seed 1, to 500 updates (docs/end_to_end/10, preregistered 2026-10-31 at 71c5896)
+
+The seed 1 run resumed from its 100 logged updates to 500 (2,880,000 samples), to test
+whether ES, given about ten times GRPO's samples, ends above GRPO, as Qiu et al.'s curve
+(60.5% at 3.0M) would suggest.
+
+    python -m es_vllm.probe_run --setting qwen3b/countdown --prediction runs/probe/qwen3b-countdown \
+        --full-rank --members 30 --iterations 500 --eval-every 1 --seed 1 \
+        --out runs/s5-early/qwen3b-countdown-full-rank-s1
+
+One Secure H200 (RunPod pod `z16tp7bjie2gqy`, US-NC-1, $5.29/h; Community had no stock),
+created 2026-10-31 11:59:31 UTC and deleted 2026-11-01 00:33, about $66 by uptime: 5
+minutes to the end of bootstrap (12:04:51), 22 minutes replaying the 100 logged updates,
+every weight digest the logged one, then 12 h 2 min for 400 updates (finished 00:30:44).
+The resume ran commit 71c5896 with shardes bc39579 from the pin, on a clean worktree;
+the `resumes` entry of `run.json` stamps both. Member 0 and the restored view matched the
+f32 master bit for bit at all 400 new updates. An update took 94.5 to 101 s (80 to 86 s
+of it decoding), an evaluation 9 to 15 s. The harvested files match the pod's by sha256,
+and their first 100 updates and 101 evaluations are byte for byte those of 47f9ae4.
+
+## Accuracy over ten evaluations
+
+`python -m es_vllm.probe_run --history runs/s5-early/qwen3b-countdown-full-rank-s1
+--window 91 100 --window 141 150` and so on; samples are counted at the window's last
+update.
+
+| updates | samples | mean test accuracy |
+|---|---|---|
+| 91 to 100 | 576,000 | 0.433 |
+| 141 to 150 | 864,000 | 0.457 |
+| 191 to 200 | 1,152,000 | 0.469 |
+| 241 to 250 | 1,440,000 | 0.471 |
+| 291 to 300 | 1,728,000 | 0.466 |
+| 341 to 350 | 2,016,000 | 0.475 |
+| 391 to 400 | 2,304,000 | 0.494 |
+| 441 to 450 | 2,592,000 | 0.490 |
+| 491 to 500 | 2,880,000 | 0.496 |
+
+None of the 491 ten-update windows (`--window g-9 g` for g = 10 to 500) averages above
+0.499 (updates 415 to 424), so none reaches GRPO's 0.517. Single evaluations: 0.500 after
+update 500, the best 0.513 after update 388.
+
+Beside Qiu et al.'s Figure 7, the ten updates ending nearest each of their points:
+0.472 at 1.2M (updates 199 to 208; theirs 41.2%), 0.463 at 1.8M (303 to 312; 48.0%),
+0.489 at 2.4M (408 to 417; 54.2%), and 0.496 at 2.88M against their 60.5% at 3.0M.
+Ours is above their curve to about 1.2M and below it after.
+
+The members' mean reward on the 192 training problems (`log.jsonl`, `mean_fitness`, 0 to
+1.1) kept rising: 0.471 at update 99, 0.543 at 199, 0.589 at 299, 0.604 at 399, 0.625 at
+499. Over updates 200 to 350, while it rose from 0.543 to about 0.6, test accuracy was
+flat.
+
+GSM8K (the off-task change in `--history`) fell more than 0.05 below its start at 102 of
+the 501 evaluations, the first after update 274, by at most 0.077 (update 473), and was
+0.073 below at the end; its mean change over updates 101 to 500 is -0.037. GRPO's never
+fell more than 0.033 below.
+
+At equal loop seconds (rows of the two `--history` tables): GRPO's step 200 at 16,936 s
+is at 0.543, ES's update 173 at 16,971 s at 0.470; GRPO's last step at 41,187 s is at
+0.527, ES's update 422 at 41,190 s at 0.497.
+
+`python -m es_vllm.probe_run --table runs/s5-early`:
+
+| run | preregistered call | step | variant | updates to target, predicted | updates | validation at end | test at end | off-task at end | peak test gain | at | validation-selected checkpoint | test there | class | class by test peak | class, task alone | collapsed |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| qwen3b-countdown-full-rank-s0 | - | 1 | full-rank, N 30 | - | 20 | +0.086 | +0.087 | -0.017 | 0.113 | 19 | 18 | 0.0991 | marginal | works | works | yes |
+| qwen3b-countdown-full-rank-s1 | - | 1 | full-rank, N 30 | - | 500 | +0.381 | +0.408 | -0.073 | 0.42 | 481 | 250 | 0.38 | works | works | works | yes |
+
+## Against the preregistration
+
+1. *ES keeps Qiu's late rate*: failed, low. The mean after updates 491 to 500 is 0.496,
+   against the band of 0.60 to 0.76; it rose 0.063 over the 400 new updates where theirs
+   rose 0.249 from 0.6M to 3.0M.
+2. *ES ends above GRPO*: failed. 0.496 is 0.021 below GRPO's 0.517, not 0.07 above, and
+   no ten-update window averages above 0.517, so there is no crossing to report.
+3. *GSM8K holds*: failed. 102 of 501 evaluations are more than 0.05 below the start, the
+   lowest 0.077 below.
+
+## Reading
+
+With the published recipe in our code, ES on this setting neither leads early nor wins
+late. It rose quickly to about 0.47 by update 200 (1.15M samples), then slowly, and ended
+at 0.496 over its last ten evaluations after 2.88M samples. That is level with GRPO's
+plateau within about one standard error of the difference of two such means, and below
+it: GRPO averaged 0.517 over its last ten evaluations and first reached 0.50 at step 130,
+after 99,840 samples. So ES gets close to GRPO's level after about 20 times its samples
+and never passes it. Its late gains are on the training problems: their reward kept
+rising while held-out accuracy was flat from update 200 to 350, and over the same late
+stretch GSM8K fell 0.04 to 0.08, which GRPO's training did not do.
+
+Qiu et al.'s ES kept rising almost linearly to 60.5% at 3.0M; ours did not. Ours was
+faster than theirs to about 1.2M and slower after. Why is not known from their paper: one
+seed of ours against one run of theirs, 192 training problems against 200, and a
+300-problem test set against 2,000 from the same pool (base 0.083 here, 10.0% there).
+Their 3.0M number is not reproduced here, although their 0.6M point was exceeded.
+
+## Limitations
+
+One seed. One GRPO run at one learning rate, stopped at 368,640 samples and taken as
+its plateau. 300 test problems (about 0.029 standard error for one evaluation); the
+ten-update windows score the same prompts, so neighbouring windows are not independent.
+Their curve is read off a plot.

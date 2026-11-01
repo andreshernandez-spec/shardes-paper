@@ -53,5 +53,31 @@
   },
   "iterations": 100,
   "prediction": null,
+  "resumes": [
+    {
+      "env": {
+        "commit": "71c5896b715df3376246c774bf71e124deaddab3",
+        "dirty_worktree": false,
+        "hostname": "30db8b8906b8",
+        "packages": {
+          "jax": "0.11.2",
+          "jaxlib": "0.11.2",
+          "torch": "2.13.0",
+          "vllm": "0.30.0"
+        },
+        "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+        "python": "3.12.3",
+        "shardes": {
+          "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+          "dirty": false,
+          "source": "vcs",
+          "version": "0.1.0"
+        }
+      },
+      "from": 100,
+      "iterations": 500,
+      "started": "2026-10-31T12:28:36+00:00"
+    }
+  ],
   "started": "2026-10-31T07:48:31+00:00"
 }

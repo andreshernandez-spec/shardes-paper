@@ -1394,6 +1394,23 @@ still passes GRPO. 3 failing means the late gains cost the retained task, report
 **Not changed by this run.** The GRPO arm, the first 100 updates (replayed, not rerun),
 the blocks.
 
+#### S5, the published recipe to 500 updates: results (2026-11-01, `runs/s5-early/README.md`)
+
+The resume replayed the 100 logged updates with every weight digest the logged one, and
+the run went to 500 updates on one Secure H200, about $66 by uptime, every bit-for-bit
+check passing. All three predictions failed. 1: the mean accuracy after updates 491 to
+500 is 0.496, below the band of 0.60 to 0.76. 2: it is 0.021 below GRPO's 0.517, and no
+ten-update window averages above 0.517 (the highest is 0.499). 3: GSM8K fell more than
+0.05 below its start at 102 of 501 evaluations, by at most 0.077, and ended 0.073 below.
+
+**Reading.** On this setting ES neither leads early nor wins late. It reaches about 0.47
+by 1.15M samples and creeps to 0.50 by 2.88M, level with GRPO's plateau within noise
+and below it, after about 20 times the samples GRPO needed to reach 0.50. The late
+updates raise the reward on the 192 training problems (members' mean 0.54 to 0.63 from
+update 200 to 500) far more than held-out accuracy, and cost GSM8K. Qiu et al.'s ES kept
+rising to 60.5% at 3.0M; ours was above their curve to about 1.2M and below it after, for
+reasons their paper does not let us separate. One seed; one GRPO run.
+
 ## S3c results (2026-10-14, `runs/grpo-run/README.md`)
 
 Three GRPO arms, 40 steps of 768 rollouts each on one H200 (about $17):
