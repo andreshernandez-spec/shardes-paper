@@ -132,3 +132,30 @@ after 100 to 200 updates were 45.4, 45.6, 45.9, 48.1, 48.4, 47.7, 49.1, 48.2, 49
 and 50.6%; the line rises 0.48 points per 10 updates, stands at 50.4% at 200 and reaches
 64.7% at 500, above 55.7%. Their evaluator gave checkpoint 200 49.9% (their Figure 7: 41.2%
 at 1.2M sample evaluations).
+
+## Result, 2026-11-02
+
+Details, the diagnosis and the trace of their trainer: `runs/qiu-matched/README.md`;
+numbers from `python -m es_vllm.qiu_match_table runs/qiu-matched`.
+
+Both checks passed: in float32 our decoding matched their trainer's on 151 of 200 answers
+(their own decoding in other batches: 153; without the repetition penalty: 0), and their
+evaluator gave the base weights 9.55%.
+
+| updates | their evaluator on our checkpoints | their Figure 7 |
+|---|---|---|
+| 0 | 9.55% | 10.0% (Table 1) |
+| 100 | 45.05% | 35.6% |
+| 200 | 49.90% | 41.2% |
+| 300 | 53.70% | 48.0% |
+| 400 | 54.90% | 54.2% |
+| 500 | **56.50%** | **60.5%** (three seeds: 58.67, sd 1.47) |
+
+**Checkpoint 500 is inside the band (55.7% to 61.6%): on their setup our ES reproduces
+theirs**, 2.2 points below their three-seed mean, with one seed. S5's level came from the
+setup. Ours leads their curve until about update 400 and gains less after: 0.20 to 0.26
+points per 10 updates from update 200 on, where theirs gains 0.64 (41.2% to 60.5%). Their trainer
+gives every tensor of one shape the same noise (traced, bit for bit), which could explain
+the difference; that was not tested. Arm A (their code to 500 updates, about 330 hours of
+H200 at their trainer's speed) was dropped by Andres. Cost: $148 for the run, $5.6 for the
+trace.
