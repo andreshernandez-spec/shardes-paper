@@ -1,0 +1,259 @@
+{
+ "his": [
+  {
+   "iteration": 0,
+   "tensors": {
+    "model.layers.0.self_attn.q_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.18704286818804988,
+     "got_norm": 0.19329102218257438,
+     "cosine": 0.8652149041857988,
+     "error_over_meant": 0.5288582555792116,
+     "lost_share": 0.506239652633667,
+     "moved_share": 0.493760347366333,
+     "residue_over_meant": 0.6203759986540747,
+     "residue_share": 0.2186906337738037
+    },
+    "model.layers.0.self_attn.o_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.18704286818804988,
+     "got_norm": 0.19471613409622401,
+     "cosine": 0.9388047705875914,
+     "error_over_meant": 0.3592970841249956,
+     "lost_share": 0.3476557731628418,
+     "moved_share": 0.6523442268371582,
+     "residue_over_meant": 0.47055600126895564,
+     "residue_share": 0.29352402687072754
+    },
+    "model.layers.0.mlp.gate_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.4334103358459663,
+     "got_norm": 0.4546368817727134,
+     "cosine": 0.9095416656367359,
+     "error_over_meant": 0.4383785920524413,
+     "lost_share": 0.4194459617137909,
+     "moved_share": 0.5805540084838867,
+     "residue_over_meant": 0.5362700329478077,
+     "residue_share": 0.26246896386146545
+    },
+    "model.layers.0.mlp.down_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.4334103358459663,
+     "got_norm": 0.4554608081556736,
+     "cosine": 0.9164950404809026,
+     "error_over_meant": 0.42201334301937704,
+     "lost_share": 0.41070637106895447,
+     "moved_share": 0.5892936587333679,
+     "residue_over_meant": 0.5244216424083611,
+     "residue_share": 0.259413480758667
+    },
+    "model.layers.0.input_layernorm.weight": {
+     "reproduced": true,
+     "meant_norm": 0.004191225141433455,
+     "got_norm": 0.0,
+     "cosine": 0.0,
+     "error_over_meant": 1.0,
+     "lost_share": 1.0,
+     "moved_share": 0.0,
+     "residue_over_meant": 2.259035103582635,
+     "residue_share": 0.01953125
+    },
+    "model.layers.17.self_attn.q_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.18704286818804988,
+     "got_norm": 0.1940207461513609,
+     "cosine": 0.9183039063121566,
+     "error_over_meant": 0.41337574448829506,
+     "lost_share": 0.38701343536376953,
+     "moved_share": 0.6129865646362305,
+     "residue_over_meant": 0.5138292266050384,
+     "residue_share": 0.27762460708618164
+    },
+    "model.layers.17.self_attn.o_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.18704286818804988,
+     "got_norm": 0.19521709897525832,
+     "cosine": 0.9272813647663284,
+     "error_over_meant": 0.3920499185546233,
+     "lost_share": 0.37487220764160156,
+     "moved_share": 0.6251277923583984,
+     "residue_over_meant": 0.49600534852179695,
+     "residue_share": 0.2805953025817871
+    },
+    "model.layers.17.mlp.gate_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.4334103358459663,
+     "got_norm": 0.4548828167529856,
+     "cosine": 0.912763580061176,
+     "error_over_meant": 0.430779847756613,
+     "lost_share": 0.41759130358695984,
+     "moved_share": 0.5824086666107178,
+     "residue_over_meant": 0.5329098884611717,
+     "residue_share": 0.2566095292568207
+    },
+    "model.layers.17.mlp.down_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.4334103358459663,
+     "got_norm": 0.45458474846039326,
+     "cosine": 0.915594552807425,
+     "error_over_meant": 0.42360955407085965,
+     "lost_share": 0.40970486402511597,
+     "moved_share": 0.590295135974884,
+     "residue_over_meant": 0.5256416741519585,
+     "residue_share": 0.26082858443260193
+    },
+    "model.layers.17.input_layernorm.weight": {
+     "reproduced": true,
+     "meant_norm": 0.004191225141433455,
+     "got_norm": 5.422542181331444e-05,
+     "cosine": 0.01347536076148525,
+     "error_over_meant": 0.9999093476787758,
+     "lost_share": 0.9990234375,
+     "moved_share": 0.0009765625,
+     "residue_over_meant": 2.5095058272976343,
+     "residue_share": 0.005859375
+    },
+    "model.layers.35.self_attn.q_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.18704286818804988,
+     "got_norm": 0.19581344520479707,
+     "cosine": 0.9309892979513729,
+     "error_over_meant": 0.3830040071976361,
+     "lost_share": 0.37230420112609863,
+     "moved_share": 0.6276957988739014,
+     "residue_over_meant": 0.49058727201869323,
+     "residue_share": 0.27930116653442383
+    },
+    "model.layers.35.self_attn.o_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.18704286818804988,
+     "got_norm": 0.19621786805864205,
+     "cosine": 0.907699360180487,
+     "error_over_meant": 0.4427896813888817,
+     "lost_share": 0.4283299446105957,
+     "moved_share": 0.5716700553894043,
+     "residue_over_meant": 0.5428984661936403,
+     "residue_share": 0.2517979145050049
+    },
+    "model.layers.35.mlp.gate_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.4334103358459663,
+     "got_norm": 0.4554229480360876,
+     "cosine": 0.9108777186474188,
+     "error_over_meant": 0.43574882128458037,
+     "lost_share": 0.42310717701911926,
+     "moved_share": 0.5768927931785583,
+     "residue_over_meant": 0.5368769974734755,
+     "residue_share": 0.25383102893829346
+    },
+    "model.layers.35.mlp.down_proj.weight": {
+     "reproduced": true,
+     "meant_norm": 0.4334103358459663,
+     "got_norm": 0.45432106095321384,
+     "cosine": 0.9209341098484871,
+     "error_over_meant": 0.40998649195888237,
+     "lost_share": 0.3968062400817871,
+     "moved_share": 0.6031937599182129,
+     "residue_over_meant": 0.5140491514297614,
+     "residue_share": 0.2673982083797455
+    },
+    "model.layers.35.input_layernorm.weight": {
+     "reproduced": true,
+     "meant_norm": 0.004191225141433455,
+     "got_norm": 0.0,
+     "cosine": 0.0,
+     "error_over_meant": 1.0,
+     "lost_share": 1.0,
+     "moved_share": 0.0,
+     "residue_over_meant": 0.0,
+     "residue_share": 0.0
+    }
+   },
+   "shared": {
+    "self_attn.q_proj.weight": {
+     "0-17": 1.0,
+     "0-35": 1.0
+    },
+    "self_attn.o_proj.weight": {
+     "0-17": 1.0,
+     "0-35": 1.0
+    },
+    "mlp.gate_proj.weight": {
+     "0-17": 1.0,
+     "0-35": 1.0
+    },
+    "mlp.down_proj.weight": {
+     "0-17": 1.0,
+     "0-35": 1.0
+    },
+    "input_layernorm.weight": {
+     "0-17": 1.0000000000000002,
+     "0-35": 1.0000000000000002
+    },
+    "q_proj-o_proj layer 0": 1.0
+   }
+  }
+ ],
+ "ours": {},
+ "model_sha": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+ "pinned": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+ "threads": 4,
+ "seconds": [
+  2401.092886686325
+ ],
+ "tracked": [
+  "model.layers.0.self_attn.q_proj.weight",
+  "model.layers.0.self_attn.o_proj.weight",
+  "model.layers.0.mlp.gate_proj.weight",
+  "model.layers.0.mlp.down_proj.weight",
+  "model.layers.0.input_layernorm.weight",
+  "model.layers.17.self_attn.q_proj.weight",
+  "model.layers.17.self_attn.o_proj.weight",
+  "model.layers.17.mlp.gate_proj.weight",
+  "model.layers.17.mlp.down_proj.weight",
+  "model.layers.17.input_layernorm.weight",
+  "model.layers.35.self_attn.q_proj.weight",
+  "model.layers.35.self_attn.o_proj.weight",
+  "model.layers.35.mlp.gate_proj.weight",
+  "model.layers.35.mlp.down_proj.weight",
+  "model.layers.35.input_layernorm.weight"
+ ],
+ "rewards": [
+  [
+   0.20060000000000003,
+   0.15,
+   0.169,
+   0.1118,
+   0.16400000000000003,
+   0.1422,
+   0.1382,
+   0.1948,
+   0.1758,
+   0.22740000000000002,
+   0.133,
+   0.1796,
+   0.2034,
+   0.1168,
+   0.20420000000000002,
+   0.2094,
+   0.14100000000000001,
+   0.1272,
+   0.1726,
+   0.2096,
+   0.14300000000000002,
+   0.1696,
+   0.22360000000000002,
+   0.1242,
+   0.1306,
+   0.1194,
+   0.1574,
+   0.1504,
+   0.19880000000000003,
+   0.14200000000000002
+  ]
+ ],
+ "env": {
+  "torch": "2.8.0+cu128",
+  "commit": "b6695176be2210083d989d03b739f7c1fa37b05c"
+ }
+}
