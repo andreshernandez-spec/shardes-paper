@@ -254,6 +254,10 @@
  ],
  "env": {
   "torch": "2.8.0+cu128",
-  "commit": "b6695176be2210083d989d03b739f7c1fa37b05c"
+  "commit": "b6695176be2210083d989d03b739f7c1fa37b05c",
+  "shardes": {
+   "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+   "source": "pin, not imported"
+  }
  }
 }

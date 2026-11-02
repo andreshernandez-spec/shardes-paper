@@ -33,6 +33,7 @@ is shared across layers. The same tensors from our checkpoints (qiu_match.py) gi
 import argparse
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -142,6 +143,15 @@ def run(args) -> None:
     print("trace written", trace, flush=True)
 
 
+def library_pin() -> dict:
+    """The shardes commit this checkout pins. The tracer runs in the evaluator's venv and
+    never imports the library, but a record stamps it so provenance_audit.py reads the
+    record as one written after the split."""
+    req = (E2E.parent.parent / "requirements.txt").read_text()
+    sha = re.search(r"shardes @ \S+@([0-9a-f]{40})", req).group(1)
+    return {"commit": sha, "source": "pin, not imported"}
+
+
 def stats(u, d) -> dict:
     """The update meant (u) against the one the weights got (d), both float64."""
     nz = u != 0
@@ -162,7 +172,8 @@ def analyze(args) -> dict:
     out = {"his": [], "ours": {}, "model_sha": rec["model_sha"], "pinned": rec["pinned"],
            "threads": rec["threads"], "seconds": rec["seconds"], "tracked": TRACKED,
            "rewards": rec["rewards"], "env": {"torch": torch.__version__,
-           "commit": subprocess.run(["git", "-C", str(E2E), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()}}
+           "commit": subprocess.run(["git", "-C", str(E2E), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip(),
+           "shardes": library_pin()}}
     for t in range(len(rec["seconds"])):
         start = torch.load(trace / f"start-{t}.pt")
         pre = torch.load(trace / f"pre-{t}.pt")
