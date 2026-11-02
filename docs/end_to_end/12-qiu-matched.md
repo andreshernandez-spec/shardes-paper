@@ -126,3 +126,9 @@ down_proj and a layer norm at layers 0, 17 and 35), to show what their update do
 weights: how much of the intended change survives bf16 rounding, what the perturb and
 restore leave behind, and how the change is shared across layers. The same quantities
 come from our checkpoints 0, 100 and 200.
+
+**Applied at update 200 (2026-11-02, 02:10 UTC): the run continues.** The running tests
+after 100 to 200 updates were 45.4, 45.6, 45.9, 48.1, 48.4, 47.7, 49.1, 48.2, 49.6, 49.3
+and 50.6%; the line rises 0.48 points per 10 updates, stands at 50.4% at 200 and reaches
+64.7% at 500, above 55.7%. Their evaluator gave checkpoint 200 49.9% (their Figure 7: 41.2%
+at 1.2M sample evaluations).
