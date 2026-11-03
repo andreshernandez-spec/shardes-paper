@@ -121,6 +121,11 @@ class ESWorker:
 
     # ---------------------------------------------------------------- update
 
+    def es_set_lr(self, lr: float) -> float:
+        """For a step schedule: the next `es_tell` steps with this lr."""
+        self._es_lr = float(lr)
+        return self._es_lr
+
     def es_tell(self, rewards: list) -> dict:
         reward = jnp.asarray(rewards, dtype=jnp.float32)
         if reward.shape != (self._es_n,):

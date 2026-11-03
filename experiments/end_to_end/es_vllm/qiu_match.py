@@ -33,6 +33,14 @@ The reported test numbers come from his eval_countdown.py on checkpoints written
 checked against the run's digest). Every `--eval-every` updates the 2,000 test prompts
 are also decoded here by the same rule in vLLM (eval.jsonl), as a running curve. A
 restart replays the log as probe_run --full-rank does.
+
+`--arm <name>` branches from another run (ARMS, docs/end_to_end/13-step-decay.md): its
+first updates are replayed from that run's log, digest by digest, and the rest run here
+with the arm's step schedule. The seed stays the source's, so every update draws the same
+noise as the source's update of the same number; only the step and what follows from it
+differ.
+
+    python -m es_vllm.qiu_match --arm decay --out runs/qiu-matched/qwen3b-s1-decay --ckpt /root/qiu-ckpt
 """
 
 import os
@@ -69,6 +77,17 @@ SMOKE = {"setting": "qwen0.5b/countdown", "train": 8, "test": 16, "test_batch": 
          "max_new": 256, "ckpt_every": 2, "eval_every": 1}
 TOKENIZER_FILES = ("config.json", "generation_config.json", "tokenizer.json",
                    "tokenizer_config.json", "vocab.json", "merges.txt")
+ARMS = {"decay": {"from": "runs/qiu-matched/qwen3b-s1", "at": 200, "iterations": 350, "schedule": "inverse"}}
+
+
+def step_scale(g: int, arm: dict | None) -> float:
+    """The factor on alpha for update g (0-based). "inverse": at/g from update `at` on,
+    so the step is continuous at the branch and falls as 1/g."""
+    if arm is None or g < arm["at"]:
+        return 1.0
+    if arm["schedule"] == "inverse":
+        return arm["at"] / g
+    raise ValueError(arm["schedule"])
 
 
 def lines(path: Path) -> list:
@@ -189,6 +208,10 @@ def run(args) -> int:
                                stop_token_ids=eos, extra_args={"pad_penalty": [pad, rep]} if p else None)
                 for p in pads[block]]
 
+    arm = ARMS[args.arm] if args.arm else None
+    if arm and args.smoke:
+        arm = {**arm, "at": 2, "iterations": 4}
+    iterations = arm["iterations"] if arm else args.iterations
     out = E2E / args.out
     out.mkdir(parents=True, exist_ok=True)
     ckpt = Path(args.ckpt)
@@ -199,6 +222,17 @@ def run(args) -> int:
             "max_new_tokens": s["max_new"], "repetition_penalty": rep, "stop_token_ids": eos, "pad_token": pad,
             "test_batch": s["test_batch"], "ckpt_every": s["ckpt_every"], "eval_every": s["eval_every"],
             "smoke": args.smoke}
+    source, src_ckpt = [], {}
+    if arm:
+        src = E2E / (args.source or arm["from"])
+        meta = json.loads((src / "run.json").read_text())
+        if meta["config"] != conf:
+            raise SystemExit(f"{src} ran another configuration: {meta['config']}")
+        source = lines(src / "log.jsonl")[:arm["at"]]
+        if len(source) < arm["at"]:
+            raise SystemExit(f"{src} has {len(source)} updates, the branch needs {arm['at']}")
+        src_ckpt = {r["iteration"]: r["digest"] for r in lines(src / "ckpt.jsonl")}
+        conf = {**conf, "arm": args.arm, **{f"arm_{k}": v for k, v in arm.items()}, "arm_from": str(src.relative_to(E2E))}
     data = {"es_at_scale": harness.git(clone, "rev-parse", "HEAD"),
             "file": "archive/countdown/data/countdown.json",
             "file_sha256": hashlib.sha256((clone / "archive/countdown/data/countdown.json").read_bytes()).hexdigest(),
@@ -212,7 +246,7 @@ def run(args) -> int:
             raise SystemExit(f"{out} holds a run with another configuration or other data")
     else:
         harness.write_atomic(out / "run.json", {
-            "config": conf, "data": data, "iterations": args.iterations,
+            "config": conf, "data": data, "iterations": iterations,
             "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib", "transformers"))})
     log, e_log, c_log = out / "log.jsonl", out / "eval.jsonl", out / "ckpt.jsonl"
@@ -224,20 +258,28 @@ def run(args) -> int:
     print(f"es_init {rpc('es_init', probe.model_dir(cfg), s['n'], SIGMA, lr, args.seed)}", flush=True)
     if not rpc("es_check", None)["ok"]:
         raise SystemExit("engine weights are not the f32 master's view")
+
+    def step(g):
+        return rpc("es_set_lr", lr * step_scale(g, arm))
+
     t0 = time.perf_counter()
-    for rec in done:                                    # replay: each update from its logged fitnesses
+    for g, rec in enumerate(source + done):             # replay: each update from its logged fitnesses
+        if rec["iteration"] != g or step(g) != rec.get("lr", lr):
+            raise SystemExit(f"logged update {g + 1} is not the one this run would make")
         rpc("es_ask")
         rpc("es_tell", rec["fitness"])
         if rpc("es_digest") != rec["digest"]:
-            raise SystemExit(f"replayed update {rec['iteration'] + 1} is not the logged one")
-    if done:
+            raise SystemExit(f"replayed update {g + 1} is not the logged one")
+    start = len(source) + len(done)
+    if start:
         rpc("es_restore")
         if not rpc("es_check", None)["ok"]:
             raise SystemExit("engine weights are not the replayed master's view")
-        print(f"replayed {len(done)} updates, every digest the logged one, {time.perf_counter() - t0:.0f}s", flush=True)
+        print(f"replayed {start} updates, every digest the logged one, {time.perf_counter() - t0:.0f}s", flush=True)
+    if done:
         meta = json.loads((out / "run.json").read_text())
         meta.setdefault("resumes", []).append({
-            "from": len(done), "iterations": args.iterations,
+            "from": start, "iterations": iterations,
             "started": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib", "transformers"))})
         harness.write_atomic(out / "run.json", meta)
@@ -249,7 +291,7 @@ def run(args) -> int:
             [x.outputs[0].finish_reason for x in o]
 
     def evaluate(g):
-        if g in e_done or (g % s["eval_every"] and g != args.iterations):
+        if g in e_done or (g % s["eval_every"] and g != iterations):
             return
         t1 = time.perf_counter()
         sc, n_tok, fin = decode("test", test)
@@ -259,7 +301,7 @@ def run(args) -> int:
         print(f"test after {g} updates: accuracy {accuracy(sc):.4f} mean length {np.mean(n_tok):.0f}", flush=True)
 
     def checkpoint(g):
-        if g in c_done or g % s["ckpt_every"]:
+        if g in c_done or (g % s["ckpt_every"] and g != iterations):
             return
         d = ckpt / f"ckpt-{g}"
         if d.exists():
@@ -270,15 +312,18 @@ def run(args) -> int:
         saved = rpc("es_save", str(d))
         if not saved["ok"]:
             raise SystemExit(f"checkpoint {g} is not the view the run logged")
+        if source and g == len(source) and src_ckpt.get(g, saved["file_digest"]) != saved["file_digest"]:
+            raise SystemExit(f"checkpoint {g} is not the source's checkpoint {g}")
         rec = {"iteration": g, "dir": d.name, "digest": saved["file_digest"]}
         harness.write_atomic(d / "saved.json", rec)     # the evaluator watches for this
         append(c_log, rec)
         print(f"checkpoint after {g} updates: {d}", flush=True)
 
-    checkpoint(len(done))
-    for g in range(len(done), args.iterations):
+    checkpoint(start)
+    for g in range(start, iterations):
         evaluate(g)
         t1 = time.perf_counter()
+        g_lr = step(g)
         rpc("es_ask")
         rewards, answers, lengths, checks = [], [], [], []
         for m in range(s["n"]):
@@ -301,13 +346,13 @@ def run(args) -> int:
             raise SystemExit(f"engine weights are not the f32 master after update {g + 1}")
         append(log, {"iteration": g, "fitness": fitness.tolist(), "mean_fitness": float(fitness.mean()),
                      "sd_fitness": float(fitness.std()), "solved": answers, "mean_len": lengths,
-                     "rewards": rewards, "rollouts": s["n"] * len(train), "digest": rpc("es_digest"),
+                     "rewards": rewards, "rollouts": s["n"] * len(train), "lr": g_lr, "digest": rpc("es_digest"),
                      "tell": tell, "checks": checks, "timeouts": grader.timeouts,
                      "decode_seconds": decode_s, "seconds": time.perf_counter() - t1})
         print(f"[{g}] fitness {fitness.mean():.4f} sd {fitness.std():.4f} solved {np.mean(answers) / len(train):.3f}"
               f" {time.perf_counter() - t1:.0f}s", flush=True)
         checkpoint(g + 1)
-    evaluate(args.iterations)
+    evaluate(iterations)
     grader.close()
     return 0
 
@@ -320,6 +365,8 @@ def main(argv=None) -> int:
     ap.add_argument("--iterations", type=int, default=ITERATIONS)
     ap.add_argument("--eval-every", type=int, default=EVAL_EVERY)
     ap.add_argument("--gpu", type=float, default=0.35, help="vLLM's share; his evaluator runs beside it")
+    ap.add_argument("--arm", choices=sorted(ARMS), help="branch from another run with a step schedule")
+    ap.add_argument("--source", help="--arm: the run to branch from, in place of the arm's (the smoke test)")
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--es-at-scale", type=Path, default=Path.home() / "private" / "open-source" / "es-at-scale")
     return run(ap.parse_args(argv))

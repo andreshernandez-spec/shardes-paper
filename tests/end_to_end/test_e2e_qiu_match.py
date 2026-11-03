@@ -93,3 +93,10 @@ def test_trace_counts_updates_the_weights_did_not_take():
     assert s["lost_share"] == 0.5 and s["moved_share"] == 0.5
     assert s["cosine"] == pytest.approx(2 / (6.25 ** 0.5 * 2 ** 0.5))
     assert len(qt.TRACKED) == 15 and qt.TRACKED[0] == "model.layers.0.self_attn.q_proj.weight"
+
+
+def test_decay_step_is_continuous_at_the_branch_and_falls_as_one_over_g():
+    arm = qm.ARMS["decay"]
+    assert qm.step_scale(0, None) == qm.step_scale(199, arm) == qm.step_scale(arm["at"], arm) == 1.0
+    assert qm.step_scale(400, arm) == 0.5
+    assert qm.step_scale(arm["iterations"] - 1, arm) == pytest.approx(200 / 349)
