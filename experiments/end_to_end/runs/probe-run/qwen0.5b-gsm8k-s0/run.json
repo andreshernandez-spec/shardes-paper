@@ -1,0 +1,71 @@
+{
+  "block_digests": {
+    "offtask": "ec03f0dc37c5c650355078f93bb02cfc2670a569ebdf5b66b7dd9a555d74e274",
+    "test": "f75d4961a48f011d6a3d49dadf9e0eac4da9e32ffd44fef0288309f4a883ec6d",
+    "train": "9c68e914c0092fae95866ddb64eacabd69d221b775f6dd85367bb5b371f0b539",
+    "validation": "4ca3f05ee1373d40cdebedbd47dfd0e345f11c2d325033a560308e545d7f89c9"
+  },
+  "blocks": {
+    "offtask": 300,
+    "test": 300,
+    "train": 192,
+    "validation": 300
+  },
+  "config": {
+    "alpha": 0.0005,
+    "eval_every": 5,
+    "n": 64,
+    "prompts": "repeated",
+    "rank": 1,
+    "repo": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+    "seed": 0,
+    "setting": "qwen0.5b/gsm8k",
+    "sigma": 0.0005,
+    "smoke": false,
+    "step": 1.1015041861926413
+  },
+  "engine": {
+    "chunk": 32
+  },
+  "env": {
+    "commit": "001c03eea74093d6fe24182cd642957fc7da9bbd",
+    "dirty_worktree": false,
+    "hostname": "90c520de603e",
+    "packages": {
+      "torch": "2.13.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-146-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "iterations": 30,
+  "prediction": {
+    "C": -0.0002602707391463444,
+    "C_se": 5.100066656546697e-05,
+    "G": 0.0014334465435657565,
+    "G_offtask": 0.0013378834406613726,
+    "G_se": 0.0008992338214142343,
+    "block_digests": {
+      "offtask": "ec03f0dc37c5c650355078f93bb02cfc2670a569ebdf5b66b7dd9a555d74e274",
+      "test": "f75d4961a48f011d6a3d49dadf9e0eac4da9e32ffd44fef0288309f4a883ec6d",
+      "train": "9c68e914c0092fae95866ddb64eacabd69d221b775f6dd85367bb5b371f0b539",
+      "validation": "4ca3f05ee1373d40cdebedbd47dfd0e345f11c2d325033a560308e545d7f89c9"
+    },
+    "call": "fails: rollouts",
+    "fitted_net_per_update": 0.0019736842105263167,
+    "ratio_es_over_rl_rollouts": 50.28035143072107,
+    "setting": "qwen0.5b/gsm8k",
+    "source": "/root/shardes-paper/experiments/end_to_end/runs/probe/qwen0.5b-gsm8k",
+    "step_multiple": 1.1015041861926413,
+    "unit_norm": 1.3557755349366547,
+    "updates_to_target": 63.333333333333314
+  },
+  "started": "2026-10-13T13:38:27+00:00"
+}

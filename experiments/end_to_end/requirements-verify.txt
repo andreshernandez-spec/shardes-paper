@@ -1,0 +1,9 @@
+# The Tulu 3.1 verifiers' own environment, pinned as open-instruct 3f37c29 pinned them.
+# Separate from the vLLM venv because torch there requires sympy>=1.13.3, and the MATH
+# verifier's verdicts depend on sympy's LaTeX parsing; matching the run's versions makes
+# the rewards the run's by construction instead of by argument.
+#
+#     python -m venv .venv-verify && .venv-verify/bin/pip install -r experiments/end_to_end/requirements-verify.txt
+sympy==1.13.1
+antlr4-python3-runtime==4.11.0
+pytest

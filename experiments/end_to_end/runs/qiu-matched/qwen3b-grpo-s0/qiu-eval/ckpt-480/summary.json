@@ -1,0 +1,27 @@
+{
+  "model_path": "/root/qiu-ckpt/ckpt-480",
+  "base_model_name": "Qwen/Qwen2.5-3B-Instruct",
+  "eval_stats": {
+    "dataset_name": "Eval",
+    "num_samples": 2000,
+    "avg_reward": 0.6370999999999858,
+    "avg_format_reward": 0.8759999999999902,
+    "avg_answer_reward": 0.5495,
+    "std_reward": 0.5113898610649218,
+    "min_reward": 0.06,
+    "max_reward": 1.1,
+    "high_reward_count": 1099,
+    "high_reward_percentage": 54.949999999999996,
+    "correct_count": 1099,
+    "accuracy": 54.949999999999996,
+    "eval_time": 290.3986248970032
+  },
+  "generation_config": {
+    "max_new_tokens": 1024,
+    "do_sample": false,
+    "temperature": null,
+    "top_p": null,
+    "batch_size": 500,
+    "mixed_precision": "fp16"
+  }
+}

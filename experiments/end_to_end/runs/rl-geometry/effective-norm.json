@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-08T07:15:59+00:00",
+  "env": {
+    "commit": "1fba6298039c75508d8009665a8a053ff01211a7",
+    "dirty_worktree": false,
+    "hostname": "KX-AH-22848-L",
+    "packages": {
+      "huggingface_hub": "1.33.0",
+      "numpy": "2.4.6"
+    },
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "python": "3.13.14",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "perturbations": {
+    "random 0.2378": {
+      "effective_norm": 0.10732908131154782,
+      "kept_fraction_of_norm": 0.45134180534713125,
+      "nominal_norm": 0.2378
+    },
+    "random 0.4756": {
+      "effective_norm": 0.28170274823490976,
+      "kept_fraction_of_norm": 0.592310235985933,
+      "nominal_norm": 0.4756
+    },
+    "random 0.9513": {
+      "effective_norm": 0.7339712841785141,
+      "kept_fraction_of_norm": 0.771545552589629,
+      "nominal_norm": 0.9513
+    },
+    "random 44.81": {
+      "effective_norm": 44.86645024526827,
+      "kept_fraction_of_norm": 1.0012597689191758,
+      "nominal_norm": 44.81
+    },
+    "rl120 lambda 0.25": {
+      "effective_norm": 0.07284187383713417,
+      "kept_fraction_of_norm": 0.6125927619126983,
+      "nominal_norm": 0.1189075
+    },
+    "rl120 lambda 0.5": {
+      "effective_norm": 0.31532476876727217,
+      "kept_fraction_of_norm": 1.3259246421263258,
+      "nominal_norm": 0.237815
+    },
+    "rl120 lambda 1.0": {
+      "effective_norm": 0.47563,
+      "kept_fraction_of_norm": 1.0,
+      "nominal_norm": 0.47563
+    },
+    "rl120 lambda 2.0": {
+      "effective_norm": 0.9500515046172562,
+      "kept_fraction_of_norm": 0.9987295845691568,
+      "nominal_norm": 0.95126
+    }
+  },
+  "rl_step_120": "4746ed0734be3f1aac348922aa8d10ace30bec86",
+  "start": "a7beb67e33ffd01cc87ac3b46cadc1000985b8db",
+  "tensors": [
+    "model.layers.0.self_attn.q_proj.weight",
+    "model.layers.15.self_attn.q_proj.weight",
+    "model.layers.31.self_attn.q_proj.weight",
+    "model.layers.15.self_attn.v_proj.weight",
+    "model.layers.15.mlp.down_proj.weight"
+  ]
+}

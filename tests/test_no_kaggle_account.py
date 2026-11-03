@@ -20,9 +20,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: An owner starts with a letter or a digit, which keeps `./shardes-lib` and other relative
 #: paths out of it.
 KERNEL_ID = re.compile(r"(?<![A-Za-z0-9_.-])([A-Za-z0-9][A-Za-z0-9_.-]*)/shardes-[a-z0-9-]+")
-#: The placeholder the runner fills in at push time, and the GitHub owner of
-#: `andreshernandez-spec/shardes-paper`, which has the same shape.
-OWNERS = {"USERNAME", "andreshernandez-spec"}
+#: The placeholder the runner fills in at push time, the GitHub owner of
+#: `andreshernandez-spec/shardes-paper`, which has the same shape, and the pod clone
+#: `/root/shardes-paper`, which a few run records name as the prediction's source.
+OWNERS = {"USERNAME", "andreshernandez-spec", "root"}
 
 EMAIL = re.compile(r"[A-Za-z0-9_.+-]+@[A-Za-z0-9-]+\.[A-Za-z][A-Za-z.]*")
 #: Published on purpose: the author address on the manuscript, the identity the commits

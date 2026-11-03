@@ -1,0 +1,58 @@
+{
+  "by_source": {
+    "MATH": {
+      "n": 447,
+      "reward": 4.496644295302014
+    },
+    "gsm8k": {
+      "n": 517,
+      "reward": 8.278529980657641
+    },
+    "ifeval": {
+      "n": 956,
+      "reward": 4.2468619246861925
+    }
+  },
+  "capped": 23,
+  "date": "2026-09-27T05:50:27+00:00",
+  "env": {
+    "commit": "dc9625a29672ccb9d982e1ec962c82c3849ebbba",
+    "dirty_worktree": false,
+    "hostname": "948803e57909",
+    "packages": {
+      "jax": "0.11.2",
+      "torch": "2.13.0",
+      "transformers": "5.17.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-137-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "mean_len": 311.209375,
+  "model": {
+    "config": "es_vllm/tulu-pilot-random.yaml",
+    "kind": "es",
+    "name": "es-random",
+    "run": "runs/tulu-pilot-random"
+  },
+  "prompts": 1920,
+  "reward": 5.390625,
+  "reward_se": 0.11378973713804001,
+  "seconds": 145.70148346200585,
+  "source": {
+    "check": true,
+    "digest": "50a545b00a53e1748445c45e119b2e69fe9e68abf85e18a8cb9ffa0b8e23eb0e",
+    "iterations": 30,
+    "run": "runs/tulu-pilot-random"
+  },
+  "stream_steps": [
+    120,
+    160
+  ]
+}

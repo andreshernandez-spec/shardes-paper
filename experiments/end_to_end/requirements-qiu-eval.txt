@@ -1,0 +1,12 @@
+# Qiu et al.'s eval_countdown.py (es-at-scale archive/), run unchanged on qiu_match.py's
+# checkpoints. Its own venv over the pod image's torch 2.8 (--system-site-packages). The
+# archive's requirement.txt pins nothing, so these are the releases current when the
+# paper's first version came out (September 2025); flash-attn because the script asks for
+# flash_attention_2.
+#
+#     python3 -m venv --system-site-packages .venv-qiu-eval && .venv-qiu-eval/bin/pip install -r experiments/end_to_end/requirements-qiu-eval.txt
+transformers==4.56.2
+accelerate==1.10.1
+pandas
+psutil
+flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl

@@ -1,0 +1,104 @@
+{
+  "checkpoints": [
+    {
+      "seconds": 32.2,
+      "step": 80
+    },
+    {
+      "seconds": 31.9,
+      "step": 160
+    },
+    {
+      "seconds": 33.8,
+      "step": 240
+    },
+    {
+      "seconds": 39.5,
+      "step": 320
+    },
+    {
+      "seconds": 36.9,
+      "step": 400
+    },
+    {
+      "seconds": 32.5,
+      "step": 480
+    }
+  ],
+  "config": {
+    "beta": 0.01,
+    "clip": 0.2,
+    "eval_every": 80,
+    "lr": 1e-06,
+    "max_grad_norm": 1.0,
+    "max_new_tokens": 1024,
+    "micro": 2,
+    "minibatches": 2,
+    "optimizer": {
+      "betas": [
+        0.9,
+        0.95
+      ],
+      "eps": 1e-08,
+      "name": "AdamW",
+      "weight_decay": 0.0
+    },
+    "pad_token": 151643,
+    "prompts_per_step": 50,
+    "repetition_penalty": 1.05,
+    "repo": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "samples_per_prompt": 15,
+    "save": [
+      240,
+      480
+    ],
+    "seed": 0,
+    "setting": "qwen3b/countdown",
+    "smoke": false,
+    "steps": 480,
+    "stop_token_ids": [
+      151643,
+      151645
+    ],
+    "temperature": 1.0,
+    "test": 2000,
+    "test_batch": 500,
+    "train": 200
+  },
+  "data": {
+    "es_at_scale": "574a9d134da1ffce2a8bb812019899e5c96b588a",
+    "file": "archive/countdown/data/countdown.json",
+    "file_sha256": "f1b5c5865d9f4bc517991740175f14f6869a2f8e4b00f8602f4655fdc6ccd8ba",
+    "non_integer_targets": {
+      "test": 58,
+      "train": 0
+    },
+    "padded": {
+      "test": 1992,
+      "train": 198
+    },
+    "prompt_ids_digest": "5b33d6c7f453dc94ea988b39f08323f26e8328bf74d8651a63189e9264eea386",
+    "test_digest": "bb2a056c991b29443b27ab085ec1b85ed244f011f239fbcd49a23673c8133ee1",
+    "train_digest": "b38354f93ab917d1f3636ca1b0c8132eb0111511ee3092b5123ece5080e96489"
+  },
+  "env": {
+    "commit": "34035a454b50c01b87d1aa91f507aa078d419b3b",
+    "dirty_worktree": false,
+    "hostname": "274350f10cf9",
+    "packages": {
+      "torch": "2.13.0",
+      "transformers": "5.22.1",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "started": "2026-11-03T09:46:02+00:00"
+}

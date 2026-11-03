@@ -1,0 +1,164 @@
+{
+  "block_digests": {
+    "offtask": "b48b5f238c29315ae5df5b24fc95d877d0fda61de895036a2c17a8c35a8cd024",
+    "test": "0d0bf8b59b15e50e332ea0f4b3b8aeb913c1369c0cab70443697c944737d6f41",
+    "train": "9d65c5da3be4808f68499c30bba05a7d268f78fc45d390e4d92261538c9ddf87",
+    "validation": "1d97ed6972ebb363675093bd9f9a664f6aa630ca4986f630ee991d17adaac495"
+  },
+  "blocks": {
+    "offtask": 300,
+    "test": 300,
+    "train": 192,
+    "validation": 300
+  },
+  "checkpoints": [
+    {
+      "seconds": 50.3,
+      "step": 40
+    },
+    {
+      "seconds": 57.3,
+      "step": 80
+    },
+    {
+      "seconds": 54.2,
+      "step": 120
+    },
+    {
+      "seconds": 53.6,
+      "step": 160
+    },
+    {
+      "seconds": 53.4,
+      "step": 200
+    },
+    {
+      "seconds": 53.9,
+      "step": 240
+    },
+    {
+      "seconds": 56.1,
+      "step": 280
+    },
+    {
+      "seconds": 52.2,
+      "step": 320
+    },
+    {
+      "seconds": 51.1,
+      "step": 360
+    },
+    {
+      "seconds": 54.6,
+      "step": 400
+    },
+    {
+      "seconds": 65.1,
+      "step": 440
+    },
+    {
+      "seconds": 65.5,
+      "step": 480
+    }
+  ],
+  "config": {
+    "beta": 0.01,
+    "clip": 0.2,
+    "eval_every": 10,
+    "lr": 1e-06,
+    "max_grad_norm": 1.0,
+    "micro": 2,
+    "minibatches": 2,
+    "optimizer": {
+      "betas": [
+        0.9,
+        0.95
+      ],
+      "eps": 1e-08,
+      "name": "AdamW",
+      "weight_decay": 0.0
+    },
+    "prompts_per_step": 48,
+    "repo": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "samples_per_prompt": 16,
+    "seed": 0,
+    "setting": "qwen3b/countdown",
+    "smoke": false,
+    "steps": 480,
+    "temperature": 1.0
+  },
+  "env": {
+    "commit": "72091fde92751c1a2e33e8a9793fa5b108d48d95",
+    "dirty_worktree": false,
+    "hostname": "1cb124d86daf",
+    "packages": {
+      "torch": "2.13.0",
+      "transformers": "5.20.2",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "prediction": {
+    "C": -2.9688010226840256e-05,
+    "C_se": 2.6099505889002867e-05,
+    "G": 0.0022652101865105606,
+    "G_offtask": -0.0002490900904859997,
+    "G_se": 0.0004757159108594559,
+    "block_digests": {
+      "offtask": "b48b5f238c29315ae5df5b24fc95d877d0fda61de895036a2c17a8c35a8cd024",
+      "test": "0d0bf8b59b15e50e332ea0f4b3b8aeb913c1369c0cab70443697c944737d6f41",
+      "train": "9d65c5da3be4808f68499c30bba05a7d268f78fc45d390e4d92261538c9ddf87",
+      "validation": "1d97ed6972ebb363675093bd9f9a664f6aa630ca4986f630ee991d17adaac495"
+    },
+    "blocks": {
+      "offtask": 300,
+      "test": 300,
+      "train": 192,
+      "validation": 300
+    },
+    "call": "works",
+    "fitted_net_per_update": 0.043209170552900744,
+    "ratio_es_over_rl_rollouts": 2.8173683736290536,
+    "setting": "qwen3b/countdown",
+    "source": "runs/probe/qwen3b-countdown",
+    "step_multiple": 15.260101092680408,
+    "unit_norm": 3.28013211012152,
+    "updates_to_target": 2.892904408960205
+  },
+  "resumed": [
+    {
+      "at_step": 40,
+      "env": {
+        "commit": "72091fde92751c1a2e33e8a9793fa5b108d48d95",
+        "dirty_worktree": false,
+        "hostname": "1cb124d86daf",
+        "packages": {
+          "torch": "2.13.0",
+          "transformers": "5.20.2",
+          "vllm": "0.30.0"
+        },
+        "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+        "python": "3.12.3",
+        "shardes": {
+          "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+          "dirty": false,
+          "source": "vcs",
+          "version": "0.1.0"
+        }
+      },
+      "eval_every": 10,
+      "steps": 480,
+      "steps_before": 480,
+      "time": "2026-10-26T04:19:22+00:00"
+    }
+  ],
+  "started": "2026-10-25T21:50:23+00:00"
+}

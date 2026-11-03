@@ -1,0 +1,60 @@
+{
+  "hf": {
+    "transformers": "4.56.2",
+    "torch": "2.8.0+cu128",
+    "repetition_penalty": 1.05,
+    "accuracy": 0.12,
+    "mean_reward": 0.20340000000000003
+  },
+  "hf_rebatched": {
+    "batch": 50,
+    "identical": 153,
+    "first_difference_median": 276.0,
+    "accuracy": 0.12,
+    "mean_reward": 0.20440000000000003
+  },
+  "fp32": true,
+  "padded_rows": 198,
+  "variants": {
+    "matched": {
+      "identical": 151,
+      "first_difference_median": 199.0,
+      "accuracy": 0.125,
+      "mean_reward": 0.2082
+    },
+    "no_pad_penalty": {
+      "identical": 115,
+      "first_difference_median": 276.0,
+      "accuracy": 0.125,
+      "mean_reward": 0.2088
+    },
+    "no_repetition_penalty": {
+      "identical": 0,
+      "first_difference_median": 9.0,
+      "accuracy": 0.105,
+      "mean_reward": 0.18320000000000003
+    }
+  },
+  "env": {
+    "commit": "f7e40129e9277fefd49c18f3740c2cd790b58912",
+    "dirty_worktree": false,
+    "shardes": {
+      "version": "0.1.0",
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs"
+    },
+    "python": "3.12.3",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "hostname": "e871bed46554",
+    "packages": {
+      "vllm": "0.30.0",
+      "torch": "2.13.0",
+      "jax": "0.11.2",
+      "jaxlib": "0.11.2",
+      "transformers": "5.22.1"
+    }
+  },
+  "processor_applied": true,
+  "passes": true
+}

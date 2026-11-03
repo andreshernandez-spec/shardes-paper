@@ -1,0 +1,16 @@
+# Exploratory context for the Tulu 3.1 pilot, committed before its run; not a gate
+# (docs/end_to_end/05-tulu31-heldout.md). The prompts of RL steps 121 to 160 (1,920,
+# stream steps [120, 160)) are new to every model below: the DPO start, the RL run's
+# branches at steps 40, 80 and 120, and each pilot arm's final ES weights, which are
+# matched to RL step 120 in prompts and rollouts. Greedy, cap 2,048, the run's verifiers.
+stream_steps: [120, 160]
+max_tokens: 2048
+models:
+  - {name: dpo-start, kind: hf, release: TULU31_START}
+  - {name: rl-step40, kind: hf, release: TULU31_RL, branch: step_40}
+  - {name: rl-step80, kind: hf, release: TULU31_RL, branch: step_80}
+  - {name: rl-step120, kind: hf, release: TULU31_RL, branch: step_120}
+  - {name: es-s5e-4, kind: es, run: runs/tulu-pilot-s5e-4, config: es_vllm/tulu-pilot-s5e-4.yaml}
+  - {name: es-s1e-3, kind: es, run: runs/tulu-pilot-s1e-3, config: es_vllm/tulu-pilot-s1e-3.yaml}
+  - {name: es-s2e-3, kind: es, run: runs/tulu-pilot-s2e-3, config: es_vllm/tulu-pilot-s2e-3.yaml}
+  - {name: es-random, kind: es, run: runs/tulu-pilot-random, config: es_vllm/tulu-pilot-random.yaml}

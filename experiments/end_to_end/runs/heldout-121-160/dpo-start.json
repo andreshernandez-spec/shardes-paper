@@ -1,0 +1,56 @@
+{
+  "by_source": {
+    "MATH": {
+      "n": 447,
+      "reward": 4.675615212527965
+    },
+    "gsm8k": {
+      "n": 517,
+      "reward": 8.471953578336556
+    },
+    "ifeval": {
+      "n": 956,
+      "reward": 4.131799163179917
+    }
+  },
+  "capped": 19,
+  "date": "2026-09-27T05:45:35+00:00",
+  "env": {
+    "commit": "dc9625a29672ccb9d982e1ec962c82c3849ebbba",
+    "dirty_worktree": false,
+    "hostname": "97bfb8c9396e",
+    "packages": {
+      "jax": "0.11.2",
+      "torch": "2.13.0",
+      "transformers": "5.17.0",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "mean_len": 303.634375,
+  "model": {
+    "kind": "hf",
+    "name": "dpo-start",
+    "release": "TULU31_START"
+  },
+  "prompts": 1920,
+  "reward": 5.427083333333333,
+  "reward_se": 0.11372145336702635,
+  "seconds": 181.26940798200667,
+  "source": {
+    "branch": null,
+    "repo": "allenai/Llama-3.1-Tulu-3-8B-DPO",
+    "revision": "a7beb67e33ffd01cc87ac3b46cadc1000985b8db"
+  },
+  "stream_steps": [
+    120,
+    160
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "block_digests": {
+    "offtask": "3d71c4510804e0c6d51e4cc5bf3494878abc2d415d256478550e93b000d0fec5",
+    "test": "f722e2265be8d9226637d952734770a8a6b6a608920f3a0902fc81070b816b84",
+    "train": "91e80b8c360f5d5d5e7a8350e240210bf4f5dcf537220b74e2712a559d6e280a",
+    "validation": "f4b6eb764808f42830575ba0ddf0e3eeb681e0e95e2c2ad3654d645ba36da177"
+  },
+  "blocks": {
+    "offtask": 600,
+    "test": 300,
+    "train": 192,
+    "validation": 600
+  },
+  "config": {
+    "beta": 0.01,
+    "clip": 0.2,
+    "eval_every": 5,
+    "lr": 5e-07,
+    "max_grad_norm": 1.0,
+    "micro": 2,
+    "minibatches": 2,
+    "optimizer": {
+      "betas": [
+        0.9,
+        0.95
+      ],
+      "eps": 1e-08,
+      "name": "AdamW",
+      "weight_decay": 0.0
+    },
+    "prompts_per_step": 48,
+    "repo": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "samples_per_prompt": 16,
+    "seed": 0,
+    "setting": "qwen3b/math",
+    "smoke": false,
+    "steps": 40,
+    "temperature": 1.0
+  },
+  "env": {
+    "commit": "0b5f18388f6cc3bea4f666e67d72e92e18d6d7b9",
+    "dirty_worktree": false,
+    "hostname": "fb7aae7e6f27",
+    "packages": {
+      "torch": "2.13.0",
+      "transformers": "5.20.2",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "prediction": {
+    "C": -7.804391141057261e-05,
+    "C_se": 7.190890062035612e-06,
+    "G": -0.0002985650085242848,
+    "G_offtask": -0.00034121715259918264,
+    "G_se": 0.0002467717692691249,
+    "block_digests": {
+      "offtask": "3d71c4510804e0c6d51e4cc5bf3494878abc2d415d256478550e93b000d0fec5",
+      "test": "f722e2265be8d9226637d952734770a8a6b6a608920f3a0902fc81070b816b84",
+      "train": "91e80b8c360f5d5d5e7a8350e240210bf4f5dcf537220b74e2712a559d6e280a",
+      "validation": "f4b6eb764808f42830575ba0ddf0e3eeb681e0e95e2c2ad3654d645ba36da177"
+    },
+    "blocks": {
+      "offtask": 600,
+      "test": 300,
+      "train": 192,
+      "validation": 600
+    },
+    "call": "undetermined",
+    "fitted_net_per_update": null,
+    "prescription": {
+      "P1_learns": "undetermined",
+      "P2_collapses": "no call",
+      "P2_spread_ratio": {
+        "draws_resolved_share": 0.934,
+        "interval_90": [
+          0.1990333055998717,
+          1.1778926813019592
+        ],
+        "ratio": 1.5602000046959048,
+        "unresolved": false
+      },
+      "P3_pace": {
+        "band": [
+          0.008057022229124999,
+          0.032228088916499996
+        ],
+        "predicted_validation_change_after_5": 0.032228088916499996
+      },
+      "P4_rl_pace": null,
+      "constants": {
+        "anchored_updates_for_P3": [
+          3.6855899999999995,
+          2.776686650100001
+        ],
+        "learns_at": 0.05,
+        "resolved_se": 2.0
+      },
+      "date": "2026-10-15",
+      "fallback": true,
+      "first_displacement_multiple": 2.813457625700555,
+      "method": "anchored",
+      "response_at_first_displacement": {
+        "even": -0.0016666666666666668,
+        "even_se": 0.010077376400521561,
+        "odd": 0.01,
+        "odd_se": 0.00611519905092118,
+        "within_scan": true
+      },
+      "shrink": 0.1,
+      "step_multiple": 3.126064028556172,
+      "unit_norm": 3.3699775147048285
+    },
+    "ratio_es_over_rl_rollouts": null,
+    "setting": "qwen3b/math",
+    "shrink": 0.1,
+    "source": "runs/s4b-probe/qwen3b-math",
+    "step_multiple": 3.126064028556172,
+    "unit_norm": 3.3699775147048285,
+    "updates_to_target": null
+  },
+  "started": "2026-10-21T16:17:37+00:00"
+}

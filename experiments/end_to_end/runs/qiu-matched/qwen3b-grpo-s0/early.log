@@ -1,0 +1,7 @@
+0.30.0 [CudaDevice(id=0)] NVIDIA H200
+evaluator 2.8.0+cu128 4.56.2 2.8.3
+bootstrapped 2026-11-03T09:45:52Z
+driver finished 2026-11-03T22:50:36Z
+eval ckpt-240 accuracy 54.900000000000006 2026-11-03T22:55:35Z
+eval ckpt-480 accuracy 54.949999999999996 2026-11-03T23:00:30Z
+finished 2026-11-03T23:00:30Z

@@ -1,0 +1,49 @@
+{
+  "P1_learns": "learns",
+  "P2_collapses": "no call",
+  "P2_spread_ratio": {
+    "draws_resolved_share": 0.994,
+    "interval_90": [
+      0.3825726481577583,
+      2.303156674572889
+    ],
+    "ratio": 0.6497296418350667,
+    "unresolved": false
+  },
+  "P3_pace": {
+    "band": [
+      0.017711997990173544,
+      0.07084799196069418
+    ],
+    "predicted_validation_change_after_5": 0.07084799196069418
+  },
+  "P4_rl_pace": {
+    "band": [
+      11.508569392678842,
+      46.03427757071537
+    ],
+    "predicted_step_to_target": 23.017138785357684
+  },
+  "constants": {
+    "anchored_updates_for_P3": [
+      3.6855899999999995,
+      2.776686650100001
+    ],
+    "learns_at": 0.05,
+    "resolved_se": 2.0
+  },
+  "date": "2026-10-15",
+  "fallback": false,
+  "first_displacement_multiple": 2.7225035545339797,
+  "method": "anchored",
+  "response_at_first_displacement": {
+    "even": 0.00882313564978814,
+    "even_se": 0.004886667706112209,
+    "odd": 0.012575709449479205,
+    "odd_se": 0.003715071736712856,
+    "within_scan": true
+  },
+  "shrink": 0.1,
+  "step_multiple": 3.0250039494822,
+  "unit_norm": 2.4486524843565785
+}

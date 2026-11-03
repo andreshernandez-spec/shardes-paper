@@ -1,0 +1,7 @@
+bootstrapped 2026-10-10T22:31:12Z at 4e1e807 mode smoke
+finished smoke 1 exit 0 22:32:52
+finished smoke 2 exit 0 22:33:39
+s2b-smoke-finished
+bootstrapped 2026-10-10T22:34:13Z at 4e1e807 mode full
+finished full exit 0 14:06:59
+s2b-finished
