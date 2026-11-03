@@ -76,7 +76,59 @@ def main(root: str) -> int:
           f"layer norms moved {max(v['moved_share'] for n, v in it.items() if 'layernorm' in n):.3f}")
     if (Path(root) / "qwen3b-s1-decay").exists():
         decay(Path(root))
+    if (Path(root) / "qwen3b-grpo-s0").exists():
+        grpo(Path(root))
     return 0
+
+
+def grpo(root: Path) -> None:
+    """S6c (docs/end_to_end/14-grpo-matched.md) beside arm B, by answers seen and by
+    training seconds (the logs' own times: decoding and updating, no tests or setup)."""
+    g, b = root / "qwen3b-grpo-s0", root / "qwen3b-s1"
+    lg, lb = lines(g / "log.jsonl"), lines(b / "log.jsonl")
+    eg = {e["iteration"]: e for e in lines(g / "eval.jsonl")}
+    eb = {e["iteration"]: e for e in lines(b / "eval.jsonl")}
+    per_step, per_update = lg[0]["rollouts"], lb[0]["rollouts"]
+    cg = np.concatenate([[0], np.cumsum([sum(r["seconds"].values()) for r in lg])])
+    cb = np.concatenate([[0], np.cumsum([r["seconds"] for r in lb])])
+    print(f"\nS6c: steps {len(lg)}, answers per step {per_step} (ES per update {per_update}), grading timeouts "
+          f"{max(r['timeouts'] for r in lg)}, median seconds per step {np.median([sum(r['seconds'].values()) for r in lg]):.0f} "
+          f"(ES per update {np.median([r['seconds'] for r in lb]):.0f}), training hours {cg[-1] / 3600:.1f}")
+
+    def cut(e):
+        return 1 - np.mean(e["stopped"])
+    print("\n| answers | GRPO step | GRPO | hours | cut at 1,024 | ES update | ES | hours | cut at 1,024 |")
+    print("|---|---|---|---|---|---|---|---|---|")
+    for k in sorted(eg):
+        u = k * per_step // per_update
+        print(f"| {k * per_step:,} | {k} | {100 * eg[k]['accuracy']:.2f}% | {cg[k] / 3600:.1f} | {100 * cut(eg[k]):.0f}% | "
+              f"{u} | {100 * eb[u]['accuracy']:.2f}% | {cb[u] / 3600:.1f} | {100 * cut(eb[u]):.0f}% |")
+    ks = (320, 400, 480)
+    us = [k * per_step // per_update for k in ks]
+    diff = np.mean([solved(eg[k]) for k in ks], 0) - np.mean([solved(eb[u]) for u in us], 0)
+    print(f"D (GRPO after {ks} steps minus ES after {us} updates): {100 * diff.mean():+.2f} points, "
+          f"paired standard error over the 2,000 problems {100 * diff.std(ddof=1) / np.sqrt(len(diff)):.2f}")
+    for k in (240, 480):
+        h = json.loads((g / f"qiu-eval/ckpt-{k}/summary.json").read_text())["eval_stats"]["accuracy"]
+        print(f"his evaluator, GRPO after {k} steps: {h:.2f}%")
+    e = eg[max(eg)]
+    st = np.array(e["stopped"])
+    print(f"GRPO after {max(eg)} steps: accuracy {100 * solved(e)[st].mean():.1f}% on the answers that end, "
+          f"{100 * solved(e)[~st].mean():.1f}% on the {int((~st).sum())} cut at the cap")
+
+    print("\n| hours of training | GRPO | ES (its last test by then) |")
+    print("|---|---|---|")
+    for s in sorted(eg)[1:]:
+        u = max(k for k in eb if cb[k] <= cg[s])
+        print(f"| {cg[s] / 3600:.1f} | {100 * eg[s]['accuracy']:.2f}% (step {s}) | {100 * eb[u]['accuracy']:.2f}% (update {u}) |")
+    for thr in (0.45, 0.50, 0.56):
+        u = min(k for k in eb if eb[k]["accuracy"] >= thr)
+        s = min(k for k in eg if eg[k]["accuracy"] >= thr)
+        print(f"first test at or above {100 * thr:.0f}%: ES after {u} updates ({u * per_update:,} answers, "
+              f"{cb[u] / 3600:.1f} h), GRPO after {s} steps ({s * per_step:,} answers, {cg[s] / 3600:.1f} h)")
+    for name, log in (("GRPO", lg), ("ES", lb)):
+        print(f"{name}: training problems solved in the last 80 steps or 10 updates "
+              f"{np.mean([r['solved'] if name == 'GRPO' else (np.array(r['rewards']) >= 1).mean() for r in log[-(80 if name == 'GRPO' else 10):]]):.3f}")
 
 
 def decay(root: Path) -> None:

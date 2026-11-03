@@ -85,4 +85,4 @@ while the step was still 0.95 to 1 of arm B's; from update 200 to 350 both arms 
 to 0.22 points per 10 updates. A step falling to 0.57 of arm B's leaves the late slope
 unchanged, so the fixed step is not what holds it at a third of Qiu et al.'s. The replay
 took 55 minutes, not minutes, and a first launch stopped at a replay mismatch at update 2
-that the rerun did not repeat. Cost about $51.
+that the rerun did not repeat. Cost about $50.

@@ -65,3 +65,17 @@ run 530 to 620 tokens and about a fifth reach the cap. At 130 to 170 s a step, 4
 and the tests are about 18 to 23 hours: $100 to 125 on a Secure H200 at $5.29/h, with a
 200 GB disk for the 37 GB training state written every 80 steps. If the first 20 steps
 project above $150, the run stops. Health checks every 30 minutes.
+
+## Result, 2026-11-04
+
+Details, the curves by answers and by training time: `runs/qiu-matched/README.md`,
+section S6c; numbers from `python -m es_vllm.qiu_match_table runs/qiu-matched`.
+
+**D = +20.25 points** (paired standard error 0.81): GRPO is ahead of ES at equal answers
+on Qiu et al.'s setup, as predicted. After 80 steps (60,000 answers) GRPO tests at 45.3%,
+which ES reaches after 90 updates (540,000); its best test, 58.05% after 400 steps
+(300,000 answers), is above ES's 56.55% after 3,000,000. His evaluator: 54.90% after 240
+steps and 54.95% after 480. An answer costs ES a quarter of GRPO's time, and GRPO is still
+ahead at every point of training time compared (2.1 to 12.9 hours). GRPO's test stops
+rising after about 240,000 answers and moves with the share of answers cut by the token
+cap (4 to 31%). Cost about $72.

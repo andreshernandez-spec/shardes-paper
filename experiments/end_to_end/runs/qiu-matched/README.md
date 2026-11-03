@@ -183,5 +183,65 @@ So the fixed step is not what holds arm B's late slope at a third of Qiu's: 43% 
 the step's quadratic cost and 25% less of its gain leave the slope unchanged. Their
 shared noise remains the untested difference.
 
-Cost: about $50 (9.4 hours of the pod), plus about $1 for a pod in EUR-IS-4 that never
-started its ssh service and was deleted.
+Cost: about $50 (9.4 hours of the pod).
+
+## S6c: GRPO on the same setup
+
+Preregistered in `docs/end_to_end/14-grpo-matched.md` (34035a4). `es_vllm/qiu_grpo.py` at
+34035a4, seed 0, on one H200 (RunPod Secure, US-CO-1, pod `ks6w5oyjq0lj53`), 2026-11-03
+09:46 to 23:00 UTC. Records in `qwen3b-grpo-s0/`; the numbers below are printed by the
+same `qiu_match_table` command.
+
+S5's GRPO recipe (temperature 1.0, lr 1e-6, beta 0.01, clip 0.2, two mini-batches) on
+S6's problems, reward, token cap and tests, at 50 prompts and 15 samples a step: 750
+answers, so 8 steps are one ES update. 480 steps ran without a resume; no grade timed out;
+the median step took 97 s (ES: 190 s an update for 6,000 answers), 12.9 hours of training.
+
+| answers | GRPO step | GRPO | hours | cut at 1,024 | ES update | ES | hours | cut at 1,024 |
+|---|---|---|---|---|---|---|---|---|
+| 0 | 0 | 8.35% | 0.0 | 19% | 0 | 8.35% | 0.0 | 19% |
+| 60,000 | 80 | 45.30% | 2.1 | 16% | 10 | 17.60% | 0.6 | 20% |
+| 120,000 | 160 | 53.35% | 4.3 | 18% | 20 | 20.90% | 1.1 | 17% |
+| 180,000 | 240 | 54.60% | 6.4 | 34% | 30 | 28.80% | 1.7 | 20% |
+| 240,000 | 320 | 56.15% | 8.6 | 4% | 40 | 31.10% | 2.2 | 16% |
+| 300,000 | 400 | 58.05% | 10.7 | 14% | 50 | 36.40% | 2.7 | 26% |
+| 360,000 | 480 | 54.05% | 12.9 | 31% | 60 | 40.00% | 3.3 | 25% |
+
+(The running test, both methods decoded by the same rule. "Cut" is the share of test
+answers stopped by the 1,024-token cap, all of them wrong.)
+
+**D = +20.25 points** (GRPO after 320, 400 and 480 steps minus ES after 40, 50 and 60
+updates; paired standard error 0.81 over the 2,000 problems): above +3, so GRPO is ahead
+of ES at equal answers on Qiu et al.'s setup, as predicted. His evaluator gives GRPO's
+weights after 240 steps 54.90% and after 480 steps 54.95%, against ES's 45.05% after 100
+updates (600,000 answers) and 56.50% after 500 (3,000,000).
+
+By training time on the same GPU type, against ES's last test by then:
+
+| hours of training | GRPO | ES |
+|---|---|---|
+| 2.1 | 45.30% (step 80) | 28.80% (update 30) |
+| 4.3 | 53.35% (step 160) | 42.20% (update 70) |
+| 6.4 | 54.60% (step 240) | 45.65% (update 110) |
+| 8.6 | 56.15% (step 320) | 47.70% (update 150) |
+| 10.7 | 58.05% (step 400) | 49.30% (update 190) |
+| 12.9 | 54.05% (step 480) | 50.70% (update 230) |
+
+An answer costs ES a quarter of GRPO's time (0.032 against 0.129 s), and GRPO is still
+ahead at every time: it first tests at 50% after 4.3 hours and 120,000 answers, ES after
+10.8 hours and 1,200,000; at 56%, 8.6 hours and 240,000 against 23.1 hours and 2,580,000.
+
+The GRPO curve stops rising after about 240,000 answers and moves with the share of test
+answers that run into the cap: 4% at step 320, 31% at step 480. After 480 steps 78.8% of
+the answers that end are right and none of the 628 cut ones; ES after 500 updates has 34%
+cut and 85.8% right among the rest. The greedy decoding with the repetition penalty loops
+on a varying share of problems for both methods, so the test's top is set by the loops as
+much as by the reasoning. Training answers, sampled at temperature 1, end 98.9% of the
+time over the last 80 steps.
+
+GRPO solves 78.1% of its training problems over its last 80 steps, against ES's 63.9% over
+its last 10 updates; on 200 problems seen 1,800 times each (GRPO) the gap to the test is
+wider than ES's.
+
+Cost: about $71 (13.4 hours of the pod), plus about $1 for a first pod in EUR-IS-4 that
+never started its ssh service and was deleted after 13 minutes.
