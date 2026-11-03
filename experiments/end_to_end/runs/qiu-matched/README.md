@@ -134,3 +134,54 @@ speed would take about 330 hours for 500 iterations, so arm A was dropped.
 
 Arm B $148; the trace $5.6 (two Community H200s with a failed GPU, $0.66, then a Secure
 one).
+
+## S6b: a shrinking step from update 200
+
+Preregistered in `docs/end_to_end/13-step-decay.md` (f1a3392). `es_vllm/qiu_match.py --arm
+decay` at f1a3392 on one H200 (RunPod Secure, US-CO-1, pod `tf3jjxel0mm1th`),
+2026-11-03 08:29 to 17:27 UTC. Records in `qwen3b-s1-decay/`; the numbers below are
+printed by the same `qiu_match_table` command.
+
+Arm B's first 200 updates were replayed from its log, every digest equal, and the
+weights after update 200 are arm B's checkpoint 200 bit for bit. Then 150 updates at
+alpha times 200/g, the step falling to 0.573 of arm B's, with the noise of arm B's
+updates of the same number. Every engine check passed, no grade timed out, the median
+update took 183 s. The replay took 3,303 s, not the minutes the preregistration
+assumed (each replayed update hashes the 6 GB of weights on the host). The first launch
+on the same pod stopped at the replay of update 2 on a digest mismatch (`attempt1.log`);
+the rerun replayed all 200, so the mismatch was the process, not the record, as with the
+H200 nondeterminism of S1.
+
+| updates | step (of alpha) | decay arm | arm B | difference |
+|---|---|---|---|---|
+| 200 | 1.00 | 50.60% | 50.60% | +0.00 |
+| 210 | 0.95 | 51.70% | 50.55% | +1.15 |
+| 250 | 0.80 | 53.25% | 51.75% | +1.50 |
+| 300 | 0.67 | 54.60% | 52.80% | +1.80 |
+| 310 | 0.65 | 54.70% | 53.00% | +1.70 |
+| 320 | 0.62 | 53.85% | 52.60% | +1.25 |
+| 330 | 0.61 | 54.20% | 53.65% | +0.55 |
+| 340 | 0.59 | 54.35% | 54.35% | +0.00 |
+| 350 | | 54.30% | 53.00% | +1.30 |
+
+(The running test; the full table every 10 updates is in the command's output.)
+
+**D = +0.96 points** (54.28% against 53.32%, paired standard error 0.49 over the 2,000
+problems, which leaves out the runs' own chance spread): between −2 and +2, so no
+difference was found over 150 updates, as predicted. His evaluator gives the decay arm's
+checkpoint 300 53.80% (arm B 53.70%) and its checkpoint 350 54.40%.
+
+The arm's lead is a level, not a slope. It is about a point after the first 10 updates,
+when the step was still 0.95 to 1 of arm B's, and stays near that; from 200 to 350 both
+arms rise 0.21 to 0.22 points per 10 updates. By the training problems the two are the
+same at the end (60.0% and 60.3% solved over updates 340 to 349; 107 and 105 problems
+still split the members). The two arms' test answers after 350 updates differ on 268 of
+the 2,000 problems, more than the 126 to 159 on which two evaluators differ on one set of
+weights.
+
+So the fixed step is not what holds arm B's late slope at a third of Qiu's: 43% less of
+the step's quadratic cost and 25% less of its gain leave the slope unchanged. Their
+shared noise remains the untested difference.
+
+Cost: about $50 (9.4 hours of the pod), plus about $1 for a pod in EUR-IS-4 that never
+started its ssh service and was deleted.

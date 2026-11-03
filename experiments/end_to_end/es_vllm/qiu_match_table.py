@@ -74,7 +74,51 @@ def main(root: str) -> int:
           f"residue/meant {min(v['residue_over_meant'] for v in mats.values()):.2f} to {max(v['residue_over_meant'] for v in mats.values()):.2f}, "
           f"residue share {min(v['residue_share'] for v in mats.values()):.2f} to {max(v['residue_share'] for v in mats.values()):.2f}; "
           f"layer norms moved {max(v['moved_share'] for n, v in it.items() if 'layernorm' in n):.3f}")
+    if (Path(root) / "qwen3b-s1-decay").exists():
+        decay(Path(root))
     return 0
+
+
+def decay(root: Path) -> None:
+    """S6b (docs/end_to_end/13-step-decay.md) beside arm B."""
+    d, b = root / "qwen3b-s1-decay", root / "qwen3b-s1"
+    ld, lb = lines(d / "log.jsonl"), lines(b / "log.jsonl")
+    ed = {e["iteration"]: e for e in lines(d / "eval.jsonl")}
+    eb = {e["iteration"]: e for e in lines(b / "eval.jsonl")}
+    print(f"\nS6b: updates {ld[0]['iteration']} to {ld[-1]['iteration']}, every check ok "
+          f"{all(c['ok'] for r in ld for c in r['checks'])}, grading timeouts {max(r['timeouts'] for r in ld)}, "
+          f"median seconds per update {np.median([r['seconds'] for r in ld]):.0f}, "
+          f"step at the last update {ld[-1]['lr'] / ld[0]['lr']:.3f} of the first")
+    print("\n| updates | step (of alpha) | decay arm | arm B | difference |")
+    print("|---|---|---|---|---|")
+    for k in range(200, 351, 10):
+        lr = next((r["lr"] / ld[0]["lr"] for r in ld if r["iteration"] == k), None)
+        print(f"| {k} | {'' if lr is None else f'{lr:.2f}'} | {100 * ed[k]['accuracy']:.2f}% | {100 * eb[k]['accuracy']:.2f}% | "
+              f"{100 * (ed[k]['accuracy'] - eb[k]['accuracy']):+.2f} |")
+    ks = range(310, 351, 10)
+    diff = np.mean([solved(ed[k]) for k in ks], 0) - np.mean([solved(eb[k]) for k in ks], 0)
+    print(f"D (mean of the running tests after 310 to 350): {100 * diff.mean():+.2f} points "
+          f"(decay {100 * np.mean([ed[k]['accuracy'] for k in ks]):.2f}%, arm B {100 * np.mean([eb[k]['accuracy'] for k in ks]):.2f}%), "
+          f"paired standard error over the 2,000 problems {100 * diff.std(ddof=1) / np.sqrt(len(diff)):.2f}")
+    g = np.arange(200, 351, 10)
+    for name, ev in (("decay", ed), ("arm B", eb)):
+        x, y = solved(ev[200]), solved(ev[350])
+        print(f"{name}: slope 200 to 350 {10 * np.polyfit(g, [100 * ev[k]['accuracy'] for k in g], 1)[0]:+.3f} points per 10 updates, "
+              f"test answers gained {int((~x & y).sum())}, lost {int((x & ~y).sum())}")
+    print(f"the two arms' answers after 350 updates differ on {int((solved(ed[350]) != solved(eb[350])).sum())} of 2,000")
+    for k in (300, 350):
+        h = json.loads((d / f"qiu-eval/ckpt-{k}/summary.json").read_text())["eval_stats"]["accuracy"]
+        print(f"his evaluator, decay checkpoint {k}: {h:.2f}%")
+
+    def train(log, a, z):
+        return np.mean([(np.array(r["rewards"]) >= 1).mean() for r in log if a <= r["iteration"] < z])
+
+    def split(r):
+        s = np.array(r["rewards"]) >= 1
+        per = s.sum(0)
+        return int(((per > 0) & (per < len(s))).sum())
+    print(f"training problems solved over updates 340 to 349: decay {train(ld, 340, 350):.3f}, arm B {train(lb, 340, 350):.3f}; "
+          f"problems that split the members at update 349: decay {split(ld[-1])}, arm B {split(lb[349])}")
 
 
 if __name__ == "__main__":

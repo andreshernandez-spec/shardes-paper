@@ -72,3 +72,17 @@ noise is not the whole of Qiu's later gain.
 Replaying 200 updates takes minutes. 150 updates at S6's 190 s each, with setup and
 his evaluator, is about 9 hours: about $48 on a Secure H200 at $5.29/h. If the first 10
 updates project above $65, the run stops. Health checks every 30 minutes, as in S6.
+
+## Result, 2026-11-03
+
+Details and the full curve: `runs/qiu-matched/README.md`, section S6b; numbers from
+`python -m es_vllm.qiu_match_table runs/qiu-matched`.
+
+**D = +0.96 points** (the arm 54.28%, arm B 53.32%): no difference found over 150
+updates, as predicted. His evaluator gives the arm's checkpoint 300 53.80% (arm B 53.70%)
+and checkpoint 350 54.40%. The lead of about a point opened in the first 10 updates,
+while the step was still 0.95 to 1 of arm B's; from update 200 to 350 both arms rise 0.21
+to 0.22 points per 10 updates. A step falling to 0.57 of arm B's leaves the late slope
+unchanged, so the fixed step is not what holds it at a third of Qiu et al.'s. The replay
+took 55 minutes, not minutes, and a first launch stopped at a replay mismatch at update 2
+that the rerun did not repeat. Cost about $51.
