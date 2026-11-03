@@ -177,19 +177,21 @@ def digest(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
 
 
-def run(args) -> int:
+def his_setup(s: dict, es_at_scale, smoke: bool):
+    """His problems, prompts and decoding rule for the sizes in `s`: the setting, his
+    slices, the slow tokenizer's prompt ids, which rows his batches pad, the greedy
+    SamplingParams of a block, and the data block run.json stamps."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
     from vllm import SamplingParams  # noqa: PLC0415
     from huggingface_hub import snapshot_download  # noqa: PLC0415
     from transformers import AutoTokenizer  # noqa: PLC0415
 
     from es_vllm import probe  # noqa: PLC0415
-    from es_vllm.pad_penalty import PadPenalty  # noqa: PLC0415
-    from es_vllm.run_countdown import es_at_scale  # noqa: PLC0415
+    from es_vllm.run_countdown import es_at_scale as pin  # noqa: PLC0415
 
-    s = SMOKE if args.smoke else {"setting": "qwen3b/countdown", "train": TRAIN, "test": TEST, "test_batch": TEST_BATCH,
-                                  "n": N, "max_new": MAX_NEW, "ckpt_every": CKPT_EVERY, "eval_every": args.eval_every}
-    cfg = probe.setting(s["setting"], args.smoke)
-    clone = es_at_scale(args.es_at_scale)
+    cfg = probe.setting(s["setting"], smoke)
+    clone = pin(es_at_scale)
     train, test = problems(clone, s["train"], s["test"])
     files = Path(snapshot_download(cfg["repo"], revision=cfg["revision"], allow_patterns=list(TOKENIZER_FILES)))
     gen = json.loads((files / "generation_config.json").read_text())
@@ -208,6 +210,42 @@ def run(args) -> int:
                                stop_token_ids=eos, extra_args={"pad_penalty": [pad, rep]} if p else None)
                 for p in pads[block]]
 
+    data = {"es_at_scale": harness.git(clone, "rev-parse", "HEAD"),
+            "file": "archive/countdown/data/countdown.json",
+            "file_sha256": hashlib.sha256((clone / "archive/countdown/data/countdown.json").read_bytes()).hexdigest(),
+            "train_digest": digest(train), "test_digest": digest(test),
+            "prompt_ids_digest": digest(ids), "padded": {b: int(sum(v)) for b, v in pads.items()},
+            "non_integer_targets": {"train": sum(not str(r["target"]).isdigit() for r in train),
+                                    "test": sum(not str(r["target"]).isdigit() for r in test)}}
+    return SimpleNamespace(cfg=cfg, clone=clone, train=train, test=test, files=files, tok=tok, rep=rep, eos=eos,
+                           pad=pad, ids=ids, pads=pads, params=params, data=data)
+
+
+def decode(llm, ids: list, params: list, grader, rows: list) -> tuple:
+    """Greedy answers of `rows` by his rule, graded by his reward: the grades, answer
+    lengths and finish reasons."""
+    from es_vllm import probe  # noqa: PLC0415
+
+    o = probe.decode(llm, ids, params)
+    seqs = [p + list(x.outputs[0].token_ids) for p, x in zip(ids, o)]
+    return grader.score(seqs, rows), [len(x.outputs[0].token_ids) for x in o], [x.outputs[0].finish_reason for x in o]
+
+
+def test_record(g: int, sc: list, n_tok: list, fin: list, seconds: float) -> dict:
+    """One line of eval.jsonl."""
+    return {"iteration": g, "accuracy": accuracy(sc), "reward": [x[0] for x in sc], "answer": [x[1] for x in sc],
+            "format": [x[2] for x in sc], "length": n_tok, "stopped": [f == "stop" for f in fin], "seconds": seconds}
+
+
+def run(args) -> int:
+    from es_vllm import probe  # noqa: PLC0415
+    from es_vllm.pad_penalty import PadPenalty  # noqa: PLC0415
+
+    s = SMOKE if args.smoke else {"setting": "qwen3b/countdown", "train": TRAIN, "test": TEST, "test_batch": TEST_BATCH,
+                                  "n": N, "max_new": MAX_NEW, "ckpt_every": CKPT_EVERY, "eval_every": args.eval_every}
+    st = his_setup(s, args.es_at_scale, args.smoke)
+    cfg, clone, train, test, files, tok = st.cfg, st.clone, st.train, st.test, st.files, st.tok
+    rep, eos, pad, ids, params, data = st.rep, st.eos, st.pad, st.ids, st.params, st.data
     arm = ARMS[args.arm] if args.arm else None
     if arm and args.smoke:
         arm = {**arm, "at": 2, "iterations": 4}
@@ -233,13 +271,6 @@ def run(args) -> int:
             raise SystemExit(f"{src} has {len(source)} updates, the branch needs {arm['at']}")
         src_ckpt = {r["iteration"]: r["digest"] for r in lines(src / "ckpt.jsonl")}
         conf = {**conf, "arm": args.arm, **{f"arm_{k}": v for k, v in arm.items()}, "arm_from": str(src.relative_to(E2E))}
-    data = {"es_at_scale": harness.git(clone, "rev-parse", "HEAD"),
-            "file": "archive/countdown/data/countdown.json",
-            "file_sha256": hashlib.sha256((clone / "archive/countdown/data/countdown.json").read_bytes()).hexdigest(),
-            "train_digest": digest(train), "test_digest": digest(test),
-            "prompt_ids_digest": digest(ids), "padded": {b: int(sum(v)) for b, v in pads.items()},
-            "non_integer_targets": {"train": sum(not str(r["target"]).isdigit() for r in train),
-                                    "test": sum(not str(r["target"]).isdigit() for r in test)}}
     if (out / "run.json").exists():
         meta = json.loads((out / "run.json").read_text())
         if meta["config"] != conf or meta["data"] != data:
@@ -284,20 +315,15 @@ def run(args) -> int:
             "env": env_block(E2E, ["runs"], ("vllm", "torch", "jax", "jaxlib", "transformers"))})
         harness.write_atomic(out / "run.json", meta)
 
-    def decode(block, rows):
-        o = probe.decode(llm, ids[block], params(block))
-        seqs = [p + list(x.outputs[0].token_ids) for p, x in zip(ids[block], o)]
-        return grader.score(seqs, rows), [len(x.outputs[0].token_ids) for x in o], \
-            [x.outputs[0].finish_reason for x in o]
+    def decode_block(block, rows):
+        return decode(llm, ids[block], params(block), grader, rows)
 
     def evaluate(g):
         if g in e_done or (g % s["eval_every"] and g != iterations):
             return
         t1 = time.perf_counter()
-        sc, n_tok, fin = decode("test", test)
-        append(e_log, {"iteration": g, "accuracy": accuracy(sc), "reward": [x[0] for x in sc],
-                       "answer": [x[1] for x in sc], "format": [x[2] for x in sc], "length": n_tok,
-                       "stopped": [f == "stop" for f in fin], "seconds": time.perf_counter() - t1})
+        sc, n_tok, fin = decode_block("test", test)
+        append(e_log, test_record(g, sc, n_tok, fin, time.perf_counter() - t1))
         print(f"test after {g} updates: accuracy {accuracy(sc):.4f} mean length {np.mean(n_tok):.0f}", flush=True)
 
     def checkpoint(g):
@@ -332,7 +358,7 @@ def run(args) -> int:
                 checks.append({"member": 0, **rpc("es_check", 0)})
                 if not checks[0]["ok"]:
                     raise SystemExit(f"engine weights are not member 0 at update {g + 1}")
-            sc, n_tok, _ = decode("train", train)
+            sc, n_tok, _ = decode_block("train", train)
             rewards.append([x[0] for x in sc])
             answers.append(sum(x[1] > 0 for x in sc))
             lengths.append(float(np.mean(n_tok)))

@@ -100,3 +100,12 @@ def test_decay_step_is_continuous_at_the_branch_and_falls_as_one_over_g():
     assert qm.step_scale(0, None) == qm.step_scale(199, arm) == qm.step_scale(arm["at"], arm) == 1.0
     assert qm.step_scale(400, arm) == 0.5
     assert qm.step_scale(arm["iterations"] - 1, arm) == pytest.approx(200 / 349)
+
+
+def test_grpo_steps_line_up_with_es_updates():
+    from es_vllm import qiu_grpo as qg
+
+    per_update = qm.N * qm.TRAIN                         # ES: every member answers every problem
+    assert per_update == 8 * qg.P * qg.K                 # 8 GRPO steps per ES update
+    assert qm.TRAIN % qg.P == 0                          # a step is a quarter of a pass
+    assert qg.EVAL_EVERY == 8 * qm.EVAL_EVERY and qg.STEPS % qg.EVAL_EVERY == 0

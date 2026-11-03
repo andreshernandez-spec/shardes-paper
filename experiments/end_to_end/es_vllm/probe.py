@@ -385,7 +385,7 @@ def engine(cfg, gpu, **kw):
     from vllm import LLM  # noqa: PLC0415
 
     return LLM(model=cfg["repo"], revision=cfg["revision"], dtype="bfloat16", seed=0,
-               gpu_memory_utilization=0.4 if cfg["smoke"] else gpu, max_model_len=4096,
+               gpu_memory_utilization=min(gpu, 0.4) if cfg["smoke"] else gpu, max_model_len=4096,
                enable_prefix_caching=False, max_num_seqs=512, **kw)
 
 

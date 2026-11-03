@@ -166,6 +166,98 @@ def logprobs(model, seqs, plens, idx, autocast):
     return logp, mask[:, 1:]
 
 
+def policy(cfg, lr) -> tuple:
+    """The policy in f32 under gradient checkpointing, a frozen bf16 copy of the start as
+    the reference, and AdamW."""
+    import torch  # noqa: PLC0415
+    from transformers import AutoModelForCausalLM  # noqa: PLC0415
+
+    model = AutoModelForCausalLM.from_pretrained(cfg["repo"], revision=cfg["revision"], dtype=torch.float32,
+                                                 attn_implementation="sdpa").cuda()
+    model.gradient_checkpointing_enable()
+    model.config.use_cache = False
+    model.train()
+    ref = AutoModelForCausalLM.from_pretrained(cfg["repo"], revision=cfg["revision"], dtype=torch.bfloat16,
+                                               attn_implementation="sdpa").cuda().eval()
+    for p in ref.parameters():
+        p.requires_grad_(False)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.95), eps=1e-8, weight_decay=0.0)
+    return model, ref, opt
+
+
+def bf16_weights(model) -> dict:
+    """The policy's weights in bf16 under their HF names, a tied head left out."""
+    import torch  # noqa: PLC0415
+
+    tied = bool(getattr(model.config, "tie_word_embeddings", False))
+    return {n: p.detach().to(torch.bfloat16) for n, p in model.named_parameters()
+            if not (tied and n == "lm_head.weight")}
+
+
+def sync_engine(rpc, model) -> int:
+    """The engine's weights become the policy's, in bf16."""
+    import torch  # noqa: PLC0415
+
+    from es_vllm import worker as W  # noqa: PLC0415
+
+    W.SHARED["weights"] = bf16_weights(model)
+    n = rpc("gr_sync")
+    W.SHARED.clear()
+    torch.cuda.synchronize()
+    return n
+
+
+def update(model, ref, opt, rng, seqs, plens, A, beta, t) -> tuple:
+    """One GRPO step on the sampled sequences: the sampling policy's log-probabilities,
+    then MINIBATCHES optimizer steps over a seeded permutation, each the token mean of the
+    clipped surrogate plus beta times kl3 against `ref`. Phase seconds go into `t`."""
+    import torch  # noqa: PLC0415
+
+    # the sampling policy's log-probabilities, before any update of this step
+    t0 = time.perf_counter()
+    old = [None] * len(seqs)
+    with torch.no_grad():
+        for b0 in range(0, len(seqs), MICRO):
+            idx = list(range(b0, min(len(seqs), b0 + MICRO)))
+            lp, m = logprobs(model, seqs, plens, idx, autocast=True)
+            for r, i in enumerate(idx):
+                old[i] = lp[r][m[r]].detach().clone()
+    torch.cuda.synchronize()
+    t["old_logprobs"] = time.perf_counter() - t0
+
+    t0 = time.perf_counter()
+    perm = rng.permutation(len(seqs))
+    losses, kls, gnorms, clipped = [], [], [], []
+    for mb in np.array_split(perm, MINIBATCHES):
+        micro_batches = [mb[i:i + MICRO].tolist() for i in range(0, len(mb), MICRO)]
+        tot_loss = tot_kl = tot_clip = 0.0
+        for idx in micro_batches:
+            lp, m = logprobs(model, seqs, plens, idx, autocast=True)
+            with torch.no_grad():
+                rp, _ = logprobs(ref, seqs, plens, idx, autocast=False)
+            a = torch.tensor([A[i] for i in idx], device="cuda", dtype=torch.float32)[:, None]
+            old_t = torch.zeros_like(lp)
+            for r, i in enumerate(idx):
+                old_t[r][m[r]] = old[i]
+            ratio = (lp - old_t).exp()
+            pg = -torch.minimum(a * ratio, a * ratio.clamp(1 - CLIP, 1 + CLIP))
+            kl = kl3(lp, rp)
+            tokens = m.sum()
+            loss = ((pg + beta * kl) * m).sum() / tokens
+            (loss / len(micro_batches)).backward()
+            tot_loss += float(loss) / len(micro_batches)
+            tot_kl += float((kl * m).sum() / tokens) / len(micro_batches)
+            tot_clip += float((((ratio - 1).abs() > CLIP) & m).sum() / tokens) / len(micro_batches)
+            del lp, rp, ratio, pg, kl, loss
+        gn = float(torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM))
+        opt.step()
+        opt.zero_grad(set_to_none=True)
+        losses.append(tot_loss); kls.append(tot_kl); gnorms.append(gn); clipped.append(tot_clip)
+    torch.cuda.synchronize()
+    t["train"] = time.perf_counter() - t0
+    return losses, kls, gnorms, clipped
+
+
 def run(args) -> int:
     import torch  # noqa: PLC0415
     from transformers import AutoModelForCausalLM  # noqa: PLC0415
@@ -240,10 +332,6 @@ def run(args) -> int:
 
 
 def train(args, cfg, task, scorer, saved, conf, run_, out, ckpt, log, e_log, note_checkpoint, P, K, steps, eval_every) -> int:
-    import torch  # noqa: PLC0415
-    from transformers import AutoModelForCausalLM  # noqa: PLC0415
-
-    from es_vllm import worker as W  # noqa: PLC0415
     from es_vllm.worker import ESWorker  # noqa: PLC0415
 
     for k_, fn in worker_methods().items():
@@ -251,17 +339,7 @@ def train(args, cfg, task, scorer, saved, conf, run_, out, ckpt, log, e_log, not
     llm = probe.engine(cfg, 0.35, worker_extension_cls="es_vllm.worker.ESWorker")   # first: it profiles the GPU
     rpc = lambda m, *a: llm.collective_rpc(m, args=a)[0]  # noqa: E731
     tok = probe.tokenizer(cfg)
-    model = AutoModelForCausalLM.from_pretrained(cfg["repo"], revision=cfg["revision"], dtype=torch.float32,
-                                                 attn_implementation="sdpa").cuda()
-    model.gradient_checkpointing_enable()
-    model.config.use_cache = False
-    model.train()
-    ref = AutoModelForCausalLM.from_pretrained(cfg["repo"], revision=cfg["revision"], dtype=torch.bfloat16,
-                                               attn_implementation="sdpa").cuda().eval()
-    for p in ref.parameters():
-        p.requires_grad_(False)
-    tied = bool(getattr(model.config, "tie_word_embeddings", False))
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95), eps=1e-8, weight_decay=0.0)
+    model, ref, opt = policy(cfg, args.lr)
     rng = np.random.default_rng(args.seed)
     train = task.blocks["train"]
     order = []
@@ -290,12 +368,7 @@ def train(args, cfg, task, scorer, saved, conf, run_, out, ckpt, log, e_log, not
         print(f"eval after {g} steps: " + " ".join(f"{b} {norm[bl == b].mean():.3f}" for b in ("validation", "test", "offtask") if (bl == b).any()), flush=True)
 
     def sync():
-        W.SHARED["weights"] = {n: p.detach().to(torch.bfloat16) for n, p in model.named_parameters()
-                               if not (tied and n == "lm_head.weight")}
-        n = rpc("gr_sync")
-        W.SHARED.clear()
-        torch.cuda.synchronize()
-        return n
+        return sync_engine(rpc, model)
 
     if saved is not None:
         # the state after `start` steps; the records from there on are recomputed, and the
@@ -331,48 +404,7 @@ def train(args, cfg, task, scorer, saved, conf, run_, out, ckpt, log, e_log, not
         A = adv.reshape(-1)
         n_seq = len(seqs)
 
-        # the sampling policy's log-probabilities, before any update of this step
-        t0 = time.perf_counter()
-        old = [None] * n_seq
-        with torch.no_grad():
-            for b0 in range(0, n_seq, MICRO):
-                idx = list(range(b0, min(n_seq, b0 + MICRO)))
-                lp, m = logprobs(model, seqs, plens, idx, autocast=True)
-                for r, i in enumerate(idx):
-                    old[i] = lp[r][m[r]].detach().clone()
-        torch.cuda.synchronize()
-        t["old_logprobs"] = time.perf_counter() - t0
-
-        t0 = time.perf_counter()
-        perm = rng.permutation(n_seq)
-        losses, kls, gnorms, clipped = [], [], [], []
-        for mb in np.array_split(perm, MINIBATCHES):
-            micro_batches = [mb[i:i + MICRO].tolist() for i in range(0, len(mb), MICRO)]
-            tot_loss = tot_kl = tot_clip = 0.0
-            for idx in micro_batches:
-                lp, m = logprobs(model, seqs, plens, idx, autocast=True)
-                with torch.no_grad():
-                    rp, _ = logprobs(ref, seqs, plens, idx, autocast=False)
-                a = torch.tensor([A[i] for i in idx], device="cuda", dtype=torch.float32)[:, None]
-                old_t = torch.zeros_like(lp)
-                for r, i in enumerate(idx):
-                    old_t[r][m[r]] = old[i]
-                ratio = (lp - old_t).exp()
-                pg = -torch.minimum(a * ratio, a * ratio.clamp(1 - CLIP, 1 + CLIP))
-                kl = kl3(lp, rp)
-                tokens = m.sum()
-                loss = ((pg + args.beta * kl) * m).sum() / tokens
-                (loss / len(micro_batches)).backward()
-                tot_loss += float(loss) / len(micro_batches)
-                tot_kl += float((kl * m).sum() / tokens) / len(micro_batches)
-                tot_clip += float((((ratio - 1).abs() > CLIP) & m).sum() / tokens) / len(micro_batches)
-                del lp, rp, ratio, pg, kl, loss
-            gn = float(torch.nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM))
-            opt.step()
-            opt.zero_grad(set_to_none=True)
-            losses.append(tot_loss); kls.append(tot_kl); gnorms.append(gn); clipped.append(tot_clip)
-        torch.cuda.synchronize()
-        t["train"] = time.perf_counter() - t0
+        losses, kls, gnorms, clipped = update(model, ref, opt, rng, seqs, plens, A, args.beta, t)
         t0 = time.perf_counter()
         n_loaded = sync()
         t["sync"] = time.perf_counter() - t0
