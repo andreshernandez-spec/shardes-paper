@@ -1,0 +1,67 @@
+{
+  "config": {
+    "alpha": 0.0005,
+    "arm": "decay",
+    "arm_at": 200,
+    "arm_from": "runs/qiu-matched/qwen3b-s1",
+    "arm_iterations": 350,
+    "arm_schedule": "inverse",
+    "ckpt_every": 100,
+    "eval_every": 10,
+    "max_new_tokens": 1024,
+    "n": 30,
+    "pad_token": 151643,
+    "repetition_penalty": 1.05,
+    "repo": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "seed": 1,
+    "setting": "qwen3b/countdown",
+    "sigma": 0.001,
+    "smoke": false,
+    "stop_token_ids": [
+      151643,
+      151645
+    ],
+    "test": 2000,
+    "test_batch": 500,
+    "train": 200
+  },
+  "data": {
+    "es_at_scale": "574a9d134da1ffce2a8bb812019899e5c96b588a",
+    "file": "archive/countdown/data/countdown.json",
+    "file_sha256": "f1b5c5865d9f4bc517991740175f14f6869a2f8e4b00f8602f4655fdc6ccd8ba",
+    "non_integer_targets": {
+      "test": 58,
+      "train": 0
+    },
+    "padded": {
+      "test": 1992,
+      "train": 198
+    },
+    "prompt_ids_digest": "5b33d6c7f453dc94ea988b39f08323f26e8328bf74d8651a63189e9264eea386",
+    "test_digest": "bb2a056c991b29443b27ab085ec1b85ed244f011f239fbcd49a23673c8133ee1",
+    "train_digest": "b38354f93ab917d1f3636ca1b0c8132eb0111511ee3092b5123ece5080e96489"
+  },
+  "env": {
+    "commit": "f1a3392ed39d33981f94aec14017212b910363d6",
+    "dirty_worktree": false,
+    "hostname": "510be9a37992",
+    "packages": {
+      "jax": "0.11.2",
+      "jaxlib": "0.11.2",
+      "torch": "2.13.0",
+      "transformers": "5.22.1",
+      "vllm": "0.30.0"
+    },
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "shardes": {
+      "commit": "bc39579292c2c76fdeaa1cdf2e710b3aa0816c3d",
+      "dirty": false,
+      "source": "vcs",
+      "version": "0.1.0"
+    }
+  },
+  "iterations": 350,
+  "started": "2026-11-03T08:29:03+00:00"
+}
